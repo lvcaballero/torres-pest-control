@@ -61,7 +61,7 @@ function UsersPage() {
       />
 
       <UserList
-        users={users}
+        users={users.filter(u => u.role !== 'ADMIN')}
         canEdit={canEdit}
         onEdit={handleEdit}
         onToggleStatus={handleToggleStatus}

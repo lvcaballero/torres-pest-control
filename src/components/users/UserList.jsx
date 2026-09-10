@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import Field from "../common/Field";
 import InfoRow from "../common/InfoRow";
 import EmptyState from "../common/EmptyState";
+import UserRoleSelector from "./UserRoleSelector";
 import { ACCOUNT_STATUS, SPRINT_ROLES } from "../../utils/constants";
 import { validateEmailFormat, isEmailTaken, isUsernameTaken, validatePhilippinePhone } from "../../utils/validators";
 import {
@@ -128,7 +129,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
         <Field label="Role">
           <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={inputStyle}>
             <option value="ALL">All roles</option>
-            {SPRINT_ROLES.map((role) => (
+            {SPRINT_ROLES.filter(role => role !== "ADMIN").map((role) => (
               <option key={role} value={role}>
                 {role}
               </option>
@@ -226,13 +227,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                         />
                       </Field>
                       <Field label="Role *">
-                        <select
-                          value={form.role}
-                          onChange={(event) => setForm((previous) => ({ ...previous, role: event.target.value }))}
-                          style={inputStyle}
-                        >
-                          {SPRINT_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-                        </select>
+                        <UserRoleSelector value={form.role} onChange={(event) => setForm((previous) => ({ ...previous, role: event.target.value }))} allowed={user.role === "ADMIN" ? ["ADMIN"] : ["STAFF", "TECHNICIAN"]} />
                       </Field>
                     </div>
                     <p style={{ margin: 0, color: colors.muted, fontSize: "0.84rem", lineHeight: 1.5 }}>

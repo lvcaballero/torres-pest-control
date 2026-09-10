@@ -18,7 +18,7 @@ import { ROLES } from "../../utils/constants";
 import { validateAccount } from "../../utils/validators";
 import { buttonWhen, card, colors, inputStyle, invalidInputStyle } from "../../styles/theme";
 
-const EMPTY_FORM = { name: "", username: "", phone: "", email: "", password: "", role: ROLES.STAFF };
+const EMPTY_FORM = { firstName: "", lastName: "", username: "", phone: "", email: "", password: "", role: ROLES.STAFF };
 
 function UserForm({ accounts = [], onSubmit, submitting = false }) {
   const [form, setForm] = useState(EMPTY_FORM);
@@ -36,12 +36,19 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
     event.preventDefault();
     setFormError("");
 
-    const nextErrors = validateAccount(form, { accounts });
+    const fullName = `${form.firstName?.trim() || ""} ${form.lastName?.trim() || ""}`.trim();
+    const validationPayload = { ...form, name: fullName };
+    const nextErrors = validateAccount(validationPayload, { accounts });
+    
+    if (!form.firstName?.trim()) nextErrors.firstName = "First name is required.";
+    if (!form.lastName?.trim()) nextErrors.lastName = "Last name is required.";
+    delete nextErrors.name;
+
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     const result = await onSubmit?.(form.role, {
-      name: form.name.trim(),
+      name: fullName,
       username: form.username.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),
@@ -60,15 +67,26 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
   return (
     <form onSubmit={handleSubmit} style={card}>
       <div style={{ display: "grid", gap: "1rem" }}>
-        <Field label="Full Name" error={errors.name}>
-          <input
-            aria-label="Full Name"
-            name="name"
-            value={form.name}
-            onChange={handleFieldChange}
-            style={styleFor("name")}
-          />
-        </Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <Field label="First Name" error={errors.firstName}>
+            <input
+              aria-label="First Name"
+              name="firstName"
+              value={form.firstName}
+              onChange={handleFieldChange}
+              style={styleFor("firstName")}
+            />
+          </Field>
+          <Field label="Last Name" error={errors.lastName}>
+            <input
+              aria-label="Last Name"
+              name="lastName"
+              value={form.lastName}
+              onChange={handleFieldChange}
+              style={styleFor("lastName")}
+            />
+          </Field>
+        </div>
 
         <Field label="Username" error={errors.username}>
           <input
@@ -120,7 +138,11 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
         </Field>
 
         <Field label="Role">
-          <UserRoleSelector value={form.role} onChange={handleFieldChange} />
+          <UserRoleSelector 
+            value={form.role} 
+            onChange={handleFieldChange} 
+            allowed={["STAFF", "TECHNICIAN"]}
+          />
         </Field>
       </div>
 

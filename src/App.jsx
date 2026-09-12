@@ -16,6 +16,7 @@ import Layout from "./components/layout/Layout";
 import AccountsGate from "./components/auth/AccountsGate";
 
 import LoginPage from "./pages/LoginPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
 import CreateUserPage from "./pages/CreateUserPage";
@@ -69,6 +70,7 @@ function App() {
             <InventoryProvider>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
                 <Route path="/" element={<Guarded><DashboardPage /></Guarded>} />
                 <Route path="/account" element={<Guarded><UserAccountPage /></Guarded>} />

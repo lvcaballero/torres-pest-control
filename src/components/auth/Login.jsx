@@ -1,6 +1,7 @@
 // The sign-in form. LoginPage owns the route; this owns the fields.
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Field from "../common/Field";
 import { colors } from "../../styles/theme";
 
@@ -53,6 +54,11 @@ function Login({ onLogin }) {
             style={loginInputStyle}
           />
         </Field>
+        <p style={{ margin: 0, textAlign: "right" }}>
+          <Link to="/forgot-password" style={{ color: colors.brandInk, fontWeight: 700, fontSize: "0.84rem", textDecoration: "none" }}>
+            Forgot password?
+          </Link>
+        </p>
       </div>
 
       {error && (

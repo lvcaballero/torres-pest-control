@@ -1,34 +1,28 @@
-// All account reads/writes. Extracted from App.js, where these lived as
-// inline handlers alongside the UI state.
+// All account reads/writes.
 //
-// Accounts are split across three Supabase tables (admins / staff /
-// technicians) and the role is implied by *which table the row lives in*.
-// That is why changing a role is not a normal update — see updateAccount().
+// Previously, accounts were split across three Supabase tables (admins /
+// staff / technicians) with role implied by which table a row lived in.
+// schema-v2.sql collapsed that into a single `users` table with a `role`
+// column, and locked direct writes to it entirely — every create/edit/
+// status-change now has to go through a SECURITY DEFINER RPC
+// (create_user / update_user / set_user_status). Those RPCs are also where
+// the "only one Admin, can't create more Admins, Admins can't touch other
+// Admins" rules actually live, so routing through them (instead of writing
+// straight to the table) is what makes those rules apply at all.
 
 import { supabase } from "./supabaseClient";
 import { ACCOUNT_STATUS, ROLES } from "../utils/constants";
 
-// Fields the account tables actually accept on write.
-//
-// `role` is deliberately absent: it is not a column. The old code listed
-// these fields the same way, but the UI merged `role` into local state
-// anyway, so a role edit appeared to succeed and silently reverted on
-// refresh. updateAccount() now rejects the attempt instead of losing it.
-const WRITABLE_FIELDS = ["name", "phone", "email", "status", "password"];
-const TABLE_BY_ROLE = { ADMIN: "admins", STAFF: "staff", TECHNICIAN: "technicians" };
-const ACCOUNT_COLUMNS = "id, name, username, phone, email, status, created_at, updated_at, last_login_at";
+const ACCOUNT_COLUMNS = "id, name, username, phone, email, role, status, is_primary, created_at, updated_at, last_login_at";
 
-// Explicit column lists rather than select("*"): the database revokes
-// blanket select and grants only these columns, so "*" is rejected even
-// though every column in it is allowed. `password` is intentionally absent.
-export function mapAccountRow(row, role) {
+export function mapAccountRow(row) {
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
     email: row.email,
     username: row.username || row.email,
-    role,
+    role: row.role,
     status: row.status,
     isPrimary: row.is_primary || false,
     createdAt: row.created_at,
@@ -47,24 +41,18 @@ function describeError(error) {
   ].join("");
 }
 
-function describeAccountRpcError(error, operation) {
-  if (error?.code === "PGRST202" || error?.code === "42883") {
-    return `${operation} is not available in Supabase. Run supabase/schema-v2.sql and supabase/migrations/009-user-editing-and-stock-cost.sql, then reload the schema.`;
-  }
-  return describeError(error);
-}
-
-/** Loads accounts from the role-specific account tables. */
+/** Loads every account from the unified users table. Admins are hidden from
+ * non-admin callers server-side (RLS), not here — this just reflects
+ * whatever rows come back. */
 export async function fetchAllAccounts() {
-  const results = await Promise.all(
-    Object.entries(TABLE_BY_ROLE).map(async ([role, table]) => {
-      const { data, error } = await supabase.from(table).select(ACCOUNT_COLUMNS).order("created_at", { ascending: true });
-      return { role, data, error };
-    })
-  );
-  const failed = results.find((result) => result.error);
-  if (failed) return { error: describeError(failed.error), admins: [], staff: [], technicians: [] };
-  const accounts = results.flatMap(({ role, data }) => (data || []).map((row) => mapAccountRow(row, role)));
+  const { data, error } = await supabase
+    .from("users")
+    .select(ACCOUNT_COLUMNS)
+    .order("created_at", { ascending: true });
+
+  if (error) return { error: describeError(error), admins: [], staff: [], technicians: [] };
+
+  const accounts = (data || []).map(mapAccountRow);
   return {
     error: null,
     admins: accounts.filter((account) => account.role === ROLES.ADMIN),
@@ -73,69 +61,72 @@ export async function fetchAllAccounts() {
   };
 }
 
-/** Returns { account } on success, { error } on failure. */
+/**
+ * Returns { account } on success, { error } on failure.
+ *
+ * create_user() itself refuses `new_role: 'ADMIN'` — that's the "no new
+ * Admins" rule. It surfaces as a normal RPC error here, same as a duplicate
+ * email would.
+ */
 export async function createAccount(sessionToken, role, fields) {
-  const table = TABLE_BY_ROLE[role];
-  if (!table) return { error: "Unsupported account role." };
-  const { data, error } = await supabase.from(table).insert({
-    name: fields.name,
-    username: fields.username || fields.email,
-    email: fields.email,
-    phone: fields.phone || null,
-    password: fields.password,
-    status: ACCOUNT_STATUS.ACTIVE,
-  }).select(ACCOUNT_COLUMNS).single();
+  const { data, error } = await supabase.rpc("create_user", {
+    session_token: sessionToken,
+    new_name: fields.name,
+    new_username: fields.username || fields.email,
+    new_email: fields.email,
+    new_phone: fields.phone || null,
+    new_password: fields.password,
+    new_role: role,
+  });
 
-  if (error) {
-    // Surface the duplicate-email case in plain language rather than raw
-    // Postgres text ("duplicate key value violates unique constraint ...").
-    if (error.code === "23505") {
-      return { error: "That email is already used by another account." };
-    }
-    return { error: describeError(error) };
-  }
-
-  return { account: mapAccountRow(data, role) };
+  if (error) return { error: describeError(error) };
+  return { account: mapAccountRow(data) };
 }
 
 /**
- * Updates an existing account.
+ * Updates an existing account's name/email/phone (and role, though
+ * update_user() refuses any change into or out of ADMIN — that's the
+ * "Admins can't be created or demoted" rule, and it applies here the same
+ * way it applies to createAccount's role restriction).
  *
- * Role changes are refused rather than silently dropped. Because role is the
- * table a row lives in, changing it means deleting from one table and
- * inserting into another — which would issue a new id and orphan the audit
- * trail. This becomes a plain column update once the schema migration
- * collapses the three tables into one `users` table.
+ * Username isn't editable post-creation: update_user() doesn't take a
+ * username parameter. That's a real, current limitation of the schema, not
+ * an oversight in this file — flag it if the team wants that added.
  */
 export async function updateAccount(sessionToken, account, updatedFields) {
-  const table = TABLE_BY_ROLE[account.role];
-  if (!table) return { error: "Unsupported account role." };
-  if (updatedFields.role && updatedFields.role !== account.role) return { error: "Role changes are not supported between separate account tables." };
-  const { data, error } = await supabase.from(table).update({
-    name: updatedFields.name,
-    username: updatedFields.username,
-    email: updatedFields.email,
-    phone: updatedFields.phone,
-    updated_at: new Date().toISOString(),
-  }).eq("id", account.id).select(ACCOUNT_COLUMNS).single();
+  const { data, error } = await supabase.rpc("update_user", {
+    session_token: sessionToken,
+    target_id: account.id,
+    new_name: updatedFields.name,
+    new_email: updatedFields.email,
+    new_phone: updatedFields.phone,
+    new_role: updatedFields.role || account.role,
+  });
+
   if (error) return { error: describeError(error) };
-  const mapped = mapAccountRow(data, account.role);
+  const mapped = mapAccountRow(data);
   return { account: mapped, updatedAt: data.updated_at };
 }
 
 /**
- * Flips ACTIVE <-> INACTIVE.
+ * Flips ACTIVE <-> INACTIVE via set_user_status().
  *
- * Deactivating blocks future logins (check_login filters on status) but does
- * not delete the row, so the account stays in the records for audit.
+ * This RPC is also where "can't deactivate the last active Admin" and
+ * "Admins can't deactivate other Admins" are enforced server-side — this
+ * file used to duplicate the last-admin check client-side (see
+ * isLastActiveAdmin below, kept for an instant UI message), but the real
+ * guard is here now, in the database, where it can't be bypassed by a
+ * direct table write anymore.
  */
 export async function setAccountStatus(sessionToken, account, nextStatus) {
-  const table = TABLE_BY_ROLE[account.role];
-  if (!table) return { error: "Unsupported account role." };
-  const { data, error } = await supabase.from(table).update({ status: nextStatus, updated_at: new Date().toISOString() }).eq("id", account.id).select(ACCOUNT_COLUMNS).single();
+  const { data, error } = await supabase.rpc("set_user_status", {
+    session_token: sessionToken,
+    target_id: account.id,
+    new_status: nextStatus,
+  });
 
   if (error) return { error: describeError(error) };
-  return { account: mapAccountRow(data, account.role), updatedAt: data.updated_at };
+  return { account: mapAccountRow(data), updatedAt: data.updated_at };
 }
 
 /** Admin-initiated password reset, and the write half of a self-service change. */
@@ -161,7 +152,12 @@ export async function resetPassword(sessionToken, targetId, newPassword) {
   return { ok: true };
 }
 
-/** Guards the "at least one active admin" rule before a deactivation. */
+/**
+ * Client-side guard kept only so the UI can show an instant message before
+ * round-tripping to the server. set_user_status() enforces the same rule
+ * authoritatively — this can go stale (e.g. another tab deactivated an
+ * admin a second ago) and the RPC's rejection is still the real backstop.
+ */
 export function isLastActiveAdmin(account, accounts) {
   if (account.role !== ROLES.ADMIN) return false;
   const activeAdmins = accounts.filter(

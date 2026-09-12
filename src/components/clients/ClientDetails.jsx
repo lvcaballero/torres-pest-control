@@ -18,34 +18,78 @@ import { card, colors, pageShell } from "../../styles/theme";
 function ClientDetails({
   client,
   canEdit,
+  canArchive,
   canUploadDocuments,
   canRemoveDocuments,
   onSave,
+  onArchive,
+  onRestore,
   onUploadDocument,
   onRemoveDocument,
   onResolveDocumentUrl,
 }) {
+  const isArchived = client.status === "ARCHIVED";
+
   return (
     <div style={pageShell}>
       <PageHeader
         eyebrow="Client Profile"
         title={client.name}
         actions={
-          <Link
-            to="/clients"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              color: colors.brandInk,
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
-          >
-            <ArrowLeft size={16} /> Back to Client Profiles
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <Link
+              to="/clients"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                color: colors.brandInk,
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              <ArrowLeft size={16} /> Back to Client Profiles
+            </Link>
+            {canArchive && !isArchived && (
+              <button
+                type="button"
+                onClick={onArchive}
+                style={{ border: "1px solid #b91c1c", background: "#fff", color: "#b91c1c", borderRadius: "10px", padding: "0.65rem 0.85rem", fontWeight: 700 }}
+              >
+                Archive Client
+              </button>
+            )}
+            {canArchive && isArchived && (
+              <button
+                type="button"
+                onClick={onRestore}
+                style={{ border: "1px solid #15803d", background: "#fff", color: "#15803d", borderRadius: "10px", padding: "0.65rem 0.85rem", fontWeight: 700 }}
+              >
+                Restore Client
+              </button>
+            )}
+          </div>
         }
       />
+
+      {isArchived && (
+        <div
+          style={{
+            ...card,
+            marginBottom: "1.25rem",
+            padding: "0.85rem 1.1rem",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
+            fontSize: "0.88rem",
+            fontWeight: 600,
+          }}
+        >
+          This client is archived{client.archivedAt ? ` (since ${formatDateTime(client.archivedAt)})` : ""}. It's
+          hidden from the active client list, but nothing has been deleted — documents and history are preserved
+          and it can be restored at any time.
+        </div>
+      )}
 
       {/* AC (View Single Client Profile): "Detail view displays full client
           information, classification, and attached documents." */}

@@ -27,7 +27,10 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
 
   const handleFieldChange = (event) => {
     const { name, value } = event.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
+    // Phone is digits-only — strip anything else as the user types instead
+    // of waiting for submit-time validation to reject it.
+    const nextValue = name === "phone" ? value.replace(/\D/g, "") : value;
+    setForm((previous) => ({ ...previous, [name]: nextValue }));
     // Clear the message for a field as soon as it's edited.
     setErrors((previous) => ({ ...previous, [name]: undefined }));
   };
@@ -103,6 +106,8 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
             aria-label="Phone"
             name="phone"
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             maxLength={11}
             placeholder="09XXXXXXXXX"
             value={form.phone}

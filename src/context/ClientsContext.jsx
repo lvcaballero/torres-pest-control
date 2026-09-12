@@ -77,6 +77,20 @@ export function ClientsProvider({ children }) {
     [actor, allowed, clients]
   );
 
+  const restoreClient = useCallback(
+    async (clientId) => {
+      if (!allowed(SUBSYSTEMS.CLIENTS, "delete")) return "You do not have permission to restore client profiles.";
+      const target = clients.find((client) => client.id === clientId);
+      if (!target) return "Client not found.";
+      const { client, error: restoreError } = await clientService.restoreClient(clientId, target.version);
+      if (restoreError) return restoreError;
+      setClients((previous) => previous.map((entry) => (entry.id === clientId ? client : entry)));
+      addLog(actor, `Restored client profile for ${client.name}.`, LOG_TYPES.CLIENT);
+      return true;
+    },
+    [actor, allowed, clients]
+  );
+
   const updateClient = useCallback(
     async (clientId, form) => {
       if (!allowed(SUBSYSTEMS.CLIENTS, "edit")) return "You do not have permission to edit client profiles.";
@@ -149,10 +163,11 @@ export function ClientsProvider({ children }) {
       addDocument,
       removeDocument,
       archiveClient,
+      restoreClient,
       getClient,
       getDocumentUrl: clientService.getDocumentUrl,
     }),
-    [clients, loading, error, refresh, addClient, updateClient, addDocument, removeDocument, archiveClient, getClient]
+    [clients, loading, error, refresh, addClient, updateClient, addDocument, removeDocument, archiveClient, restoreClient, getClient]
   );
 
   return <ClientsContext.Provider value={value}>{children}</ClientsContext.Provider>;

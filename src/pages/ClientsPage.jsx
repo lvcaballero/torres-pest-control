@@ -16,11 +16,15 @@ function ClientsPage() {
   const { clients, filter, loading, error } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [classification, setClassification] = useState("ALL");
+  // Archived clients are kept out of the default view (they're inactive
+  // records, not deleted ones) but stay one dropdown away for anyone who
+  // needs to find or restore one.
+  const [status, setStatus] = useState("ACTIVE");
 
   // Filtering is a pure function in clientService, so an empty result is
   // genuinely empty. The old page fell back to `|| clients[0]`, which made
   // the "no match" state unreachable and showed an unrelated client instead.
-  const visibleClients = filter({ searchTerm, classification });
+  const visibleClients = filter({ searchTerm, classification, status });
 
   return (
     <div style={pageShell}>
@@ -42,6 +46,8 @@ function ClientsPage() {
           onSearchChange={setSearchTerm}
           classification={classification}
           onClassificationChange={setClassification}
+          status={status}
+          onStatusChange={setStatus}
         />
         <div style={{ marginTop: "0.75rem", color: "#6b7280", fontSize: "0.86rem" }}>
           Showing {visibleClients.length} of {clients.length} client

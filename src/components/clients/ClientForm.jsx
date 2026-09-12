@@ -41,7 +41,8 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
 
   const handleFieldChange = (event) => {
     const { name, value } = event.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
+    const nextValue = name === "phone" ? value.replace(/\D/g, "") : value;
+    setForm((previous) => ({ ...previous, [name]: nextValue }));
     setErrors((previous) => ({ ...previous, [name]: undefined }));
   };
 
@@ -92,6 +93,8 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
             aria-label="Phone"
             name="phone"
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             maxLength={11}
             placeholder="09XXXXXXXXX"
             value={form.phone}

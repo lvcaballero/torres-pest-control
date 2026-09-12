@@ -41,7 +41,7 @@ function DashboardOverview() {
           Overview
         </div>
         <h1 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "2rem", lineHeight: 1.15 }}>
-          Welcome back, {currentUser?.username || currentUser?.name || "there"}
+          Welcome back, {currentUser?.name || currentUser?.username || "there"}
         </h1>
       </div>
 

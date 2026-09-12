@@ -128,7 +128,7 @@ function SettingsPage() {
             </h2>
           </div>
           <div style={{ color: colors.body, fontSize: "0.92rem", lineHeight: 1.6 }}>
-            Signed in as <strong>@{currentUser?.username || currentUser?.email}</strong> ({currentUser?.name}) with role{" "}
+            Signed in as <strong>{currentUser?.name || currentUser?.username || currentUser?.email}</strong> with role{" "}
             <span style={{ fontWeight: 800, color: colors.brandInk }}>{currentUser?.role}</span>.
           </div>
         </section>

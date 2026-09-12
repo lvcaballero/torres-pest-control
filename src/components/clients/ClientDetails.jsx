@@ -26,14 +26,18 @@ const neutralCard = {
 function ClientDetails({
   client,
   canEdit,
+  canArchive,
   canUploadDocuments,
   canRemoveDocuments,
   onSave,
+  onArchive,
+  onRestore,
   onUploadDocument,
   onRemoveDocument,
   onResolveDocumentUrl,
 }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const isArchived = client.status === "ARCHIVED";
 
   const overviewFields = useMemo(
     () => [
@@ -74,6 +78,48 @@ function ClientDetails({
                 }}
               >
                 <PencilLine size={15} /> Edit Profile
+              </button>
+            )}
+            {canArchive && !isArchived && (
+              <button
+                type="button"
+                onClick={onArchive}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  background: "#fff",
+                  color: colors.brandInk,
+                  border: `1px solid ${colors.line}`,
+                  borderRadius: "10px",
+                  padding: "0.65rem 0.9rem",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                }}
+              >
+                Archive Client
+              </button>
+            )}
+            {canArchive && isArchived && (
+              <button
+                type="button"
+                onClick={onRestore}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  background: "#fff",
+                  color: colors.brandInk,
+                  border: `1px solid ${colors.line}`,
+                  borderRadius: "10px",
+                  padding: "0.65rem 0.9rem",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                }}
+              >
+                Restore Client
               </button>
             )}
             <Link

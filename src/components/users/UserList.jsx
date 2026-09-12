@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Search, X } from "lucide-react";
 import Field from "../common/Field";
 import EmptyState from "../common/EmptyState";
+import UserRoleSelector from "./UserRoleSelector";
 import { ACCOUNT_STATUS, SPRINT_ROLES } from "../../utils/constants";
 import { validateEmailFormat, isEmailTaken, isUsernameTaken, validatePhilippinePhone } from "../../utils/validators";
 import {
@@ -169,7 +170,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
           </label>
           <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={inputStyle}>
             <option value="ALL">All roles</option>
-            {SPRINT_ROLES.map((role) => (
+            {SPRINT_ROLES.filter(role => role !== "ADMIN").map((role) => (
               <option key={role} value={role}>
                 {role}
               </option>

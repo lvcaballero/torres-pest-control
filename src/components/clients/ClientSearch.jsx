@@ -10,7 +10,14 @@ import { clientClassificationOptions } from "../../utils/constants";
 import { humanizeEnum } from "../../utils/formatters";
 import { inputStyle } from "../../styles/theme";
 
-function ClientSearch({ searchTerm, onSearchChange, classification, onClassificationChange }) {
+function ClientSearch({
+  searchTerm,
+  onSearchChange,
+  classification,
+  onClassificationChange,
+  status = "ACTIVE",
+  onStatusChange,
+}) {
   return (
     <div
       style={{
@@ -42,6 +49,16 @@ function ClientSearch({ searchTerm, onSearchChange, classification, onClassifica
           ))}
         </select>
       </Field>
+
+      {onStatusChange && (
+        <Field label="Status">
+          <select value={status} onChange={(event) => onStatusChange(event.target.value)} style={inputStyle}>
+            <option value="ACTIVE">Active only</option>
+            <option value="ARCHIVED">Archived only</option>
+            <option value="ALL">All (active + archived)</option>
+          </select>
+        </Field>
+      )}
     </div>
   );
 }

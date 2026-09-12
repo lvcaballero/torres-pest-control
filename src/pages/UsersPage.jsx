@@ -12,10 +12,17 @@ import { SUBSYSTEMS } from "../utils/permissions";
 import { pageShell, primaryButton } from "../styles/theme";
 
 function UsersPage() {
-  const { can } = useAuth();
+  const { can, currentUser } = useAuth();
   const { users, updateAccount, toggleAccountStatus, resetAccountPassword } = useUsers();
   const { showSuccess, showError } = useToast();
   const [resetTarget, setResetTarget] = useState(null);
+
+  const visibleUsers = users.filter((user) => {
+    if (currentUser?.role === "ADMIN") {
+      return user.role !== "ADMIN" || user.id === currentUser.id;
+    }
+    return user.role !== "ADMIN";
+  });
 
   const canEdit = can(SUBSYSTEMS.USERS, "edit");
   const canCreate = can(SUBSYSTEMS.USERS, "create");
@@ -61,7 +68,7 @@ function UsersPage() {
       />
 
       <UserList
-        users={users}
+        users={visibleUsers}
         canEdit={canEdit}
         onEdit={handleEdit}
         onToggleStatus={handleToggleStatus}

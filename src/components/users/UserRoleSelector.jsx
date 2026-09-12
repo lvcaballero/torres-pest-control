@@ -17,8 +17,8 @@ function UserRoleSelector({ value, onChange, name = "role", disabled = false, al
       disabled={disabled}
       style={inputStyle}
     >
-      {SPRINT_ROLES.map((role) => (
-        <option key={role} value={role} disabled={!selectable.includes(role)}>
+      {SPRINT_ROLES.filter(role => selectable.includes(role)).map((role) => (
+        <option key={role} value={role}>
           {humanizeEnum(role)}
         </option>
       ))}

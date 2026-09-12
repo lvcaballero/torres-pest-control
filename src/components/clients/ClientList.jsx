@@ -42,6 +42,9 @@ function ClientList({ clients, emptyMessage = "No client matches your search." }
             </div>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            {client.status === "ARCHIVED" && (
+              <span style={{ ...badge, background: "#fef2f2", color: "#b91c1c" }}>Archived</span>
+            )}
             <span style={badge}>{humanizeEnum(client.classification)}</span>
             {client.documents?.length > 0 && (
               <span style={{ ...badge, background: "#f1f5f9", color: "#475569" }}>

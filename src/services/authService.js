@@ -76,6 +76,31 @@ export async function login(email, password) {
   };
 }
 
+/**
+ * Request a temporary password by email (the "Forgot password?" flow).
+ * Always resolves to a generic success message regardless of whether the
+ * email matched an account — the Edge Function is deliberately silent about
+ * that so the endpoint can't be used to enumerate registered emails.
+ *
+ * Requires the `forgot-password` Edge Function to be deployed with a
+ * RESEND_API_KEY secret set. If it isn't deployed yet, this call fails and
+ * the caller should show a fallback message pointing people to an admin.
+ */
+export async function requestPasswordReset(email) {
+  if (!supabase) return { error: "Supabase is not configured." };
+
+  const { data, error } = await supabase.functions.invoke("forgot-password", {
+    body: { email },
+  });
+
+  if (error) {
+    console.error("requestPasswordReset error:", error);
+    return { error: "Couldn't reach the password reset service. Please ask an administrator to reset your password instead." };
+  }
+
+  return { message: data?.message || "If an account exists for that email, we've sent a temporary password to it." };
+}
+
 /** Validate the opaque session issued by check_login(). */
 export async function validateSession(token) {
   if (!token) return { error: "Session expired." };

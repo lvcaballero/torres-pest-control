@@ -20,7 +20,7 @@ function TechnicianDashboard() {
 
   return (
     <div style={pageShell}>
-      <PageHeader eyebrow="Overview" title={`Welcome back, ${currentUser?.username || currentUser?.name || "there"}`} />
+      <PageHeader eyebrow="Overview" title={`Welcome back, ${currentUser?.name || currentUser?.username || "there"}`} />
 
       <div
         style={{

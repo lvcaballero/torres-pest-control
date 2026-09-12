@@ -761,3 +761,334 @@ set search_path = public
 as $$
   delete from sessions where expires_at <= now();
 $$;
+
+-- ============================================================================
+-- Torres Pest Control — Migration 013 (Audit Fixes)
+-- ============================================================================
+
+-- Fix #7, #10: Missing Backend Validation (CHECK constraints)
+alter table users drop constraint if exists users_email_check;
+alter table users add constraint users_email_check check (email ~* '^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$');
+
+alter table users drop constraint if exists users_phone_check;
+alter table users add constraint users_phone_check check (phone is null or phone = '' or phone ~ '^09[0-9]{9}$');
+
+alter table clients drop constraint if exists clients_email_check;
+alter table clients add constraint clients_email_check check (email is null or email = '' or email ~* '^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$');
+
+alter table clients drop constraint if exists clients_phone_check;
+alter table clients add constraint clients_phone_check check (phone is null or phone = '' or phone ~ '^09[0-9]{9}$');
+
+-- Fix #3, #4: Admin Privilege & Passwords
+create or replace function public.reset_password(
+  session_token uuid,
+  target_id uuid,
+  new_password text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller users;
+  target users;
+begin
+  caller := public.get_session_user(session_token);
+  if caller.id is null then raise exception 'Not signed in.'; end if;
+  if not can_manage_users(caller) then raise exception 'You do not have permission to reset passwords.'; end if;
+
+  select * into target from users u where u.id = target_id;
+  if target.id is null then raise exception 'Account not found.'; end if;
+
+  -- Prevent resetting another admin
+  if target.role = 'ADMIN' and caller.id <> target.id then
+    raise exception 'You cannot reset the password of another Admin.';
+  end if;
+
+  if length(new_password) < 6 or new_password !~ '[A-Za-z]' or new_password !~ '[0-9]' then
+    raise exception 'Password must be at least 6 characters and include a letter and a number.';
+  end if;
+
+  update users
+     set password_hash = crypt(new_password, gen_salt('bf')),
+         status = 'PENDING'
+   where users.id = target_id;
+
+  delete from sessions where sessions.user_id = target_id;
+  perform write_log(caller, format('Reset the password for %s.', target.name), 'auth');
+end;
+$$;
+
+-- Fix #2, #6: RLS for core tables using header token
+create or replace function public.get_header_session_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from sessions s
+    join users u on u.id = s.user_id
+    where s.token::text = (current_setting('request.headers', true)::json->>'x-session-token')
+      and s.expires_at > now()
+      and u.status = 'ACTIVE'
+  );
+$$;
+
+-- Apply to clients
+drop policy if exists "Read clients" on clients;
+create policy "Read clients" on clients for select using (public.get_header_session_user());
+drop policy if exists "Write clients" on clients;
+create policy "Write clients" on clients for all using (public.get_header_session_user()) with check (public.get_header_session_user());
+
+-- Apply to client_documents
+drop policy if exists "Read documents" on client_documents;
+create policy "Read documents" on client_documents for select using (public.get_header_session_user());
+drop policy if exists "Write documents" on client_documents;
+create policy "Write documents" on client_documents for all using (public.get_header_session_user()) with check (public.get_header_session_user());
+
+-- Apply to inventory
+drop policy if exists "Read inventory" on inventory;
+create policy "Read inventory" on inventory for select using (public.get_header_session_user());
+drop policy if exists "Write inventory" on inventory;
+create policy "Write inventory" on inventory for all using (public.get_header_session_user()) with check (public.get_header_session_user());
+
+-- ============================================================================
+-- Torres Pest Control — Migration 014 (Admin Privacy)
+-- ============================================================================
+
+-- Fix: Prevent admins from interfering with other admins (editing details or deactivating)
+create or replace function public.update_user(
+  session_token uuid,
+  target_id uuid,
+  new_name text,
+  new_email text,
+  new_phone text,
+  new_role user_role
+)
+returns users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller  users;
+  updated users;
+  target_role user_role;
+begin
+  caller := public.get_session_user(session_token);
+  if caller.id is null then raise exception 'Not signed in.'; end if;
+
+  select role into target_role from users where id = target_id;
+
+  if caller.id <> target_id then
+    if not can_manage_users(caller) then raise exception 'You do not have permission to edit accounts.'; end if;
+    -- NEW: Block admins from editing other admins
+    if target_role = 'ADMIN' then
+      raise exception 'Admins cannot modify other Admins.';
+    end if;
+  elsif new_role is distinct from caller.role then
+    raise exception 'You cannot change your own role.';
+  end if;
+
+  if exists (select 1 from users u where lower(u.email) = lower(new_email) and u.id <> target_id) then
+    raise exception 'That email is already used by another account.';
+  end if;
+
+  update users
+     set name  = coalesce(new_name, users.name),
+         email = coalesce(new_email, users.email),
+         phone = new_phone,
+         role  = coalesce(new_role, users.role)
+   where users.id = target_id
+   returning * into updated;
+
+  if updated.id is null then raise exception 'Account not found.'; end if;
+
+  perform write_log(caller, format('Updated account for %s.', updated.name), 'admin');
+  return updated;
+end;
+$$;
+
+create or replace function public.set_user_status(
+  session_token uuid,
+  target_id uuid,
+  new_status account_status
+)
+returns users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller  users;
+  target  users;
+  updated users;
+begin
+  caller := public.get_session_user(session_token);
+  if caller.id is null then raise exception 'Not signed in.'; end if;
+  if not can_manage_users(caller) then raise exception 'You do not have permission to change account status.'; end if;
+
+  select * into target from users u where u.id = target_id;
+  if target.id is null then raise exception 'Account not found.'; end if;
+
+  -- NEW: Block admins from deactivating other admins
+  if target.role = 'ADMIN' and caller.id <> target.id then
+    raise exception 'Admins cannot change the status of other Admins.';
+  end if;
+
+  if new_status <> 'ACTIVE' and target.role = 'ADMIN' then
+    if (select count(*) from users u
+         where u.role = 'ADMIN' and u.status = 'ACTIVE') <= 1 then
+      raise exception 'At least one active admin account is required.';
+    end if;
+  end if;
+
+  update users set status = new_status where users.id = target_id returning * into updated;
+
+  if new_status <> 'ACTIVE' then
+    delete from sessions where sessions.user_id = target_id;
+  end if;
+
+  perform write_log(caller, format('%s account marked %s.', updated.name, new_status), 'admin');
+  return updated;
+end;
+$$;
+
+-- Fix: Do not show the list of admins to staff or technicians
+-- We'll add a helper to get the session role
+create or replace function public.get_header_session_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select u.role::text
+  from sessions s
+  join users u on u.id = s.user_id
+  where s.token::text = (current_setting('request.headers', true)::json->>'x-session-token')
+    and s.expires_at > now()
+    and u.status = 'ACTIVE';
+$$;
+
+-- Update the RLS policy on users to hide admins from non-admins
+drop policy if exists "Read users" on users;
+create policy "Read users" on users for select using (
+  role != 'ADMIN' or coalesce(public.get_header_session_role(), '') = 'ADMIN'
+);
+
+-- ============================================================================
+-- Torres Pest Control â€” Migration 015 (No New Admins)
+-- ============================================================================
+
+-- Prevent creation of new Admin accounts entirely
+create or replace function public.create_user(
+  session_token uuid,
+  new_name text,
+  new_username text,
+  new_email text,
+  new_phone text,
+  new_password text,
+  new_role user_role
+)
+returns users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller users;
+  created users;
+begin
+  caller := public.get_session_user(session_token);
+  if caller.id is null then raise exception 'Not signed in.'; end if;
+  if not can_manage_users(caller) then raise exception 'You do not have permission to create accounts.'; end if;
+
+  if new_role = 'ADMIN' then
+    raise exception 'Creating new Admin accounts is not permitted.';
+  end if;
+
+  if exists (select 1 from users u where lower(u.email) = lower(new_email)) then
+    raise exception 'That email is already used by another account.';
+  end if;
+
+  if new_username is not null and exists (select 1 from users u where lower(u.username) = lower(new_username)) then
+    raise exception 'That username is already used by another account.';
+  end if;
+
+  insert into users (name, username, email, phone, password_hash, role, status, created_at, updated_at)
+       values (new_name, new_username, new_email, new_phone, crypt(new_password, gen_salt('bf')),
+               new_role, 'ACTIVE', now(), now())
+    returning * into created;
+
+  perform write_log(caller, format('Created %s account for %s.', lower(created.role::text), created.name), 'admin');
+  return created;
+end;
+$$;
+
+-- Prevent promoting accounts to Admin or demoting Admins
+create or replace function public.update_user(
+  session_token uuid,
+  target_id uuid,
+  new_name text,
+  new_email text,
+  new_phone text,
+  new_role user_role
+)
+returns users
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller  users;
+  updated users;
+  target_role user_role;
+begin
+  caller := public.get_session_user(session_token);
+  if caller.id is null then raise exception 'Not signed in.'; end if;
+
+  select role into target_role from users where id = target_id;
+
+  if caller.id <> target_id then
+    if not can_manage_users(caller) then raise exception 'You do not have permission to edit accounts.'; end if;
+    if target_role = 'ADMIN' then
+      raise exception 'Admins cannot modify other Admins.';
+    end if;
+  elsif new_role is distinct from caller.role then
+    raise exception 'You cannot change your own role.';
+  end if;
+
+  if new_role = 'ADMIN' and target_role <> 'ADMIN' then
+    raise exception 'Promoting accounts to Admin is not permitted.';
+  end if;
+
+  if target_role = 'ADMIN' and new_role <> 'ADMIN' then
+    raise exception 'Demoting Admin accounts is not permitted.';
+  end if;
+
+  if exists (select 1 from users u where lower(u.email) = lower(new_email) and u.id <> target_id) then
+    raise exception 'That email is already used by another account.';
+  end if;
+
+  update users
+     set name  = coalesce(new_name, users.name),
+         email = coalesce(new_email, users.email),
+         phone = new_phone,
+         role  = coalesce(new_role, users.role)
+   where users.id = target_id
+   returning * into updated;
+
+  if updated.id is null then raise exception 'Account not found.'; end if;
+
+  perform write_log(caller, format('Updated account for %s.', updated.name), 'admin');
+  return updated;
+end;
+$$;
+
+notify pgrst, 'reload schema';
+

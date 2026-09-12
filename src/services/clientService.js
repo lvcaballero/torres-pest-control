@@ -175,6 +175,24 @@ export async function archiveClient(clientId, version) {
   return { client: mapClientRow(data) };
 }
 
+/**
+ * Undo an archive. Keeps all historical data (documents, appointment/service
+ * links) intact since only `status`/`archived_at` change — nothing was ever
+ * deleted.
+ */
+export async function restoreClient(clientId, version) {
+  const { data, error } = await supabase
+    .from("clients")
+    .update({ status: "ACTIVE", archived_at: null, version: Number(version || 1) + 1 })
+    .eq("id", clientId)
+    .eq("version", Number(version || 1))
+    .select(CLIENT_COLUMNS)
+    .single();
+  if (error?.code === "PGRST116") return { error: "This client changed while you were editing. Reload before restoring." };
+  if (error) return { error: describeError(error) };
+  return { client: mapClientRow(data) };
+}
+
 // ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
@@ -267,10 +285,11 @@ export async function getDocumentUrl(document, { download = false } = {}) {
  * Classification was previously excluded from the search string and had no
  * filter control at all.
  */
-export function filterClients(clients, { searchTerm = "", classification = "ALL" } = {}) {
+export function filterClients(clients, { searchTerm = "", classification = "ALL", status = "ACTIVE" } = {}) {
   const term = searchTerm.trim().toLowerCase();
 
   return clients.filter((client) => {
+    if (status !== "ALL" && client.status !== status) return false;
     if (classification !== "ALL" && client.classification !== classification) return false;
     if (!term) return true;
 

@@ -170,7 +170,7 @@ function Sidebar() {
       <div style={styles.userInfo}>
         {currentUser && (
           <>
-            Logged in as <strong>{currentUser.username || currentUser.name}</strong> ({currentUser.role})
+            Logged in as <strong>{currentUser.name || currentUser.username}</strong> ({currentUser.role})
           </>
         )}
         <button

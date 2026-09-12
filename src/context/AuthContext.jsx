@@ -11,6 +11,7 @@ import * as userService from "../services/userService";
 import { addLog, LOG_TYPES } from "../services/logService";
 import { ACCOUNT_STATUS, ROLES } from "../utils/constants";
 import { can as checkPermission } from "../utils/permissions";
+import { setSupabaseSessionToken } from "../services/supabaseClient";
 
 const AuthContext = createContext(null);
 
@@ -32,9 +33,12 @@ export function AuthProvider({ children }) {
 
     async function verify() {
       if (!session) {
+        setSupabaseSessionToken(null);
         setSessionVerified(true);
         return;
       }
+
+      setSupabaseSessionToken(session.token);
 
       setSessionVerified(false);
       const result = await authService.validateSession(session.token);
@@ -42,6 +46,7 @@ export function AuthProvider({ children }) {
 
       if (result.error) {
         setSession(null);
+        setSupabaseSessionToken(null);
         setSessionVerified(true);
         return;
       }
@@ -52,8 +57,20 @@ export function AuthProvider({ children }) {
 
     verify();
 
+    // Poll session validity every 3 seconds for near-instant deactivation kickoff
+    const intervalId = setInterval(async () => {
+      if (session?.token) {
+        const result = await authService.validateSession(session.token);
+        if (result.error && active) {
+           setSession(null);
+           setSupabaseSessionToken(null);
+        }
+      }
+    }, 3000);
+
     return () => {
       active = false;
+      clearInterval(intervalId);
     };
   }, [session?.token]);
 

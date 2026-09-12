@@ -19,7 +19,8 @@ function ProfileForm({ user, onSubmit }) {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
+    const nextValue = name === "phone" ? value.replace(/\D/g, "") : value;
+    setForm((previous) => ({ ...previous, [name]: nextValue }));
     setErrors((previous) => ({ ...previous, [name]: undefined }));
   };
 
@@ -70,7 +71,7 @@ function ProfileForm({ user, onSubmit }) {
           <input name="email" type="email" value={form.email} onChange={handleChange} style={styleFor("email")} />
         </Field>
         <Field label="Phone Number" error={errors.phone} hint="Philippine standard (11 digits, starts with 09)">
-          <input name="phone" type="tel" maxLength={11} value={form.phone} onChange={handleChange} style={{ ...styleFor("phone"), width: "100%", boxSizing: "border-box" }} />
+          <input name="phone" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={11} value={form.phone} onChange={handleChange} style={{ ...styleFor("phone"), width: "100%", boxSizing: "border-box" }} />
         </Field>
         <Field label="Assigned Role">
           <input value={user?.role || ""} readOnly style={readOnlyStyle} />

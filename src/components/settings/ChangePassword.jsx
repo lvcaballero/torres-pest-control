@@ -53,14 +53,14 @@ function ChangePassword({ onSubmit }) {
   const styleFor = (field) => (errors[field] ? invalidInputStyle : inputStyle);
 
   return (
-    <form onSubmit={handleSubmit} style={card}>
+    <form onSubmit={handleSubmit}>
       <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.15rem", color: colors.ink }}>Change Password</h2>
       <p style={{ margin: "0 0 1.5rem", color: colors.muted, lineHeight: 1.6 }}>
         Enter your current password, then choose a new one. If you've forgotten your current
         password, ask an administrator to reset it for you.
       </p>
 
-      <div style={{ display: "grid", gap: "1rem", maxWidth: "460px" }}>
+      <div style={{ display: "grid", gap: "1rem" }}>
         <Field label="Current Password" error={errors.currentPassword}>
           <input
             name="currentPassword"
@@ -105,11 +105,26 @@ function ChangePassword({ onSubmit }) {
         </div>
       )}
 
-      <div style={{ marginTop: "1.5rem" }}>
-        <button type="submit" disabled={submitting} style={buttonWhen(submitting)}>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "1.25rem", marginTop: "1.25rem", borderTop: "1px solid #f1f5f9" }}>
+        <button
+          type="submit"
+          disabled={submitting}
+          style={{
+            ...buttonWhen(submitting),
+            background: "#b91c1c",
+            border: "1px solid rgba(185, 28, 28, 0.2)",
+            borderRadius: "0.75rem",
+            padding: "0.7rem 1.5rem",
+            fontSize: "0.88rem",
+            fontWeight: 500,
+            color: "#fff",
+            boxShadow: "0 8px 18px rgba(185, 28, 28, 0.14)",
+          }}
+        >
           {submitting ? "Updating…" : "Update Password"}
         </button>
       </div>
+
     </form>
   );
 }

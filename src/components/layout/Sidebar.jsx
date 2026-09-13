@@ -22,7 +22,6 @@ const NAV_ITEMS = [
   { label: "Client Profiles", path: "/clients", subsystem: SUBSYSTEMS.CLIENTS, action: "view", Icon: BriefcaseBusiness },
   { label: "User Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Users },
   { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package },
-  { label: "My Profile", path: "/account", subsystem: null, Icon: UserCircle },
 ];
 
 const styles = {
@@ -167,36 +166,7 @@ function Sidebar() {
         })}
       </div>
 
-      <div style={styles.userInfo}>
-        {currentUser && (
-          <>
-            Logged in as <strong>{currentUser.name || currentUser.username}</strong> ({currentUser.role})
-          </>
-        )}
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => {
-            event.currentTarget.blur();
-            logout();
-          }}
-          onBlur={(event) => {
-            event.currentTarget.style.outline = "none";
-            event.currentTarget.style.boxShadow = "none";
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.background = "rgba(255,255,255,0.12)";
-            event.currentTarget.style.boxShadow = "0 8px 18px rgba(0, 0, 0, 0.16)";
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = "transparent";
-            event.currentTarget.style.boxShadow = "none";
-          }}
-          style={{ ...styles.logoutButton, outline: "none", boxShadow: "none" }}
-        >
-          Logout
-        </button>
-      </div>
+      <div style={styles.userInfo} />
     </nav>
   );
 }

@@ -11,8 +11,8 @@
 // rejected by the service (a role is a different table), so offering the
 // control would be lying. ResetPasswordDialog covers the admin reset path.
 
-import { useEffect, useMemo, useState } from "react";
-import { MoreHorizontal, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MoreHorizontal, Search, Upload, X } from "lucide-react";
 import Field from "../common/Field";
 import EmptyState from "../common/EmptyState";
 import UserRoleSelector from "./UserRoleSelector";
@@ -27,10 +27,21 @@ import {
 } from "../../styles/theme";
 
 const roleBadgeColors = {
-  ADMIN: { background: "#fef2f2", color: "#b91c1c" },
-  STAFF: { background: "#fefce8", color: "#a16207" },
-  TECHNICIAN: { background: "#eff6ff", color: "#1d4ed8" },
+  ADMIN: { background: "#f5f3ff", color: "#6d28d9", border: "1px solid rgba(167, 139, 250, 0.5)" },
+  STAFF: { background: "#eff6ff", color: "#1d4ed8", border: "1px solid rgba(147, 197, 253, 0.6)" },
+  TECHNICIAN: { background: "#ecfeff", color: "#0f766e", border: "1px solid rgba(103, 232, 249, 0.7)" },
 };
+
+const statusBadgeColors = {
+  ACTIVE: { background: "#ecfdf5", color: "#047857", border: "1px solid rgba(110, 231, 183, 0.6)" },
+  INACTIVE: { background: "#fef2f2", color: "#b91c1c", border: "1px solid rgba(254, 202, 202, 0.8)" },
+  PENDING: { background: "#fff7ed", color: "#c2410c", border: "1px solid rgba(253, 186, 116, 0.8)" },
+};
+
+function uppercaseLabel(value) {
+  if (!value) return "";
+  return String(value).toUpperCase();
+}
 
 function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,8 +51,26 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuDirection, setMenuDirection] = useState({});
+  const [avatarMap, setAvatarMap] = useState(() => {
+    try {
+      const stored = localStorage.getItem("torres-user-avatars");
+      return stored ? JSON.parse(stored) : {};
+    } catch (error) {
+      return {};
+    }
+  });
+  const [hoveredAvatarUserId, setHoveredAvatarUserId] = useState(null);
   const [form, setForm] = useState({ name: "", username: "", email: "", phone: "", role: "STAFF" });
   const [errors, setErrors] = useState({});
+  const avatarInputRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("torres-user-avatars", JSON.stringify(avatarMap));
+    } catch (error) {
+      // Ignore localStorage quota errors and keep the in-memory avatar map working.
+    }
+  }, [avatarMap]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -55,6 +84,26 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
       return searchable.toLowerCase().includes(term);
     });
   }, [users, searchTerm, roleFilter, statusFilter]);
+
+  const handleAvatarChange = (userId, event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setHoveredAvatarUserId(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarMap((previous) => ({ ...previous, [userId]: reader.result }));
+      setHoveredAvatarUserId(null);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const handleAvatarPickerOpen = (userId) => {
+    setHoveredAvatarUserId(userId);
+  };
 
   const handleMenuToggle = (event, userId) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -236,25 +285,82 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                   .join("")
                   .toUpperCase();
 
+                const avatarSrc = avatarMap[user.id];
+
                 return (
                   <tr key={user.id} style={{ borderBottom: "1px solid #e2e8f0", background: "#fff" }}>
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <div
-                          style={{
-                            width: "2.2rem",
-                            height: "2.2rem",
-                            borderRadius: "999px",
-                            background: isActive ? "#fef2f2" : "#e2e8f0",
-                            color: isActive ? "#991b1b" : "#475569",
-                            fontWeight: 700,
-                            display: "grid",
-                            placeItems: "center",
-                            fontSize: "0.76rem",
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setHoveredAvatarUserId(user.id)}
+                          onMouseLeave={() => setHoveredAvatarUserId((current) => (current === user.id ? null : current))}
+                          onClick={() => {
+                            handleAvatarPickerOpen(user.id);
+                            avatarInputRef.current?.click();
                           }}
+                          style={{
+                            position: "relative",
+                            width: "2.9rem",
+                            height: "2.9rem",
+                            padding: 0,
+                            border: "none",
+                            background: "transparent",
+                            borderRadius: "999px",
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            outline: "none",
+                            WebkitTapHighlightColor: "transparent",
+                            boxShadow: "none",
+                          }}
+                          aria-label={`Change photo for ${user.name}`}
                         >
-                          {initials || "U"}
-                        </div>
+                          <div
+                            style={{
+                              width: "2.9rem",
+                              height: "2.9rem",
+                              borderRadius: "999px",
+                              background: avatarSrc ? "transparent" : isActive ? "#fef2f2" : "#e2e8f0",
+                              color: isActive ? "#991b1b" : "#475569",
+                              fontWeight: 700,
+                              display: "grid",
+                              placeItems: "center",
+                              fontSize: "0.82rem",
+                              position: "relative",
+                              overflow: "hidden",
+                              boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.25)",
+                            }}
+                          >
+                            {avatarSrc ? (
+                              <img
+                                src={avatarSrc}
+                                alt={user.name}
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                              />
+                            ) : (
+                              initials || "U"
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: "999px",
+                              background: "rgba(15, 23, 42, 0.42)",
+                              opacity: hoveredAvatarUserId === user.id ? 1 : 0,
+                              transition: "opacity 0.18s ease",
+                              color: "#fff",
+                              fontSize: "0.58rem",
+                              fontWeight: 700,
+                            }}
+                          >
+                            <Upload size={12} />
+                          </div>
+                        </button>
                         <div>
                           <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.96rem" }}>{user.name}</div>
                           <div style={{ color: "#64748b", fontSize: "0.78rem", marginTop: "0.1rem" }}>{user.email}</div>
@@ -268,15 +374,16 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           display: "inline-flex",
                           alignItems: "center",
                           borderRadius: "999px",
-                          border: "1px solid #fecaca",
-                          background: "#fff1f2",
-                          color: "#991b1b",
-                          padding: "0.32rem 0.65rem",
-                          fontSize: "0.74rem",
-                          fontWeight: 700,
+                          background: roleBadgeColors[user.role]?.background || "#f8fafc",
+                          color: roleBadgeColors[user.role]?.color || "#475569",
+                          border: roleBadgeColors[user.role]?.border || "1px solid rgba(148, 163, 184, 0.5)",
+                          padding: "0.28rem 0.7rem",
+                          fontSize: "0.72rem",
+                          fontWeight: 500,
+                          lineHeight: 1.2,
                         }}
                       >
-                        {user.role}
+                        {uppercaseLabel(user.role)}
                       </span>
                     </td>
 
@@ -286,15 +393,26 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           display: "inline-flex",
                           alignItems: "center",
                           borderRadius: "999px",
-                          border: "1px solid #bbf7d0",
-                          background: isActive ? "#ecfdf5" : "#f1f5f9",
-                          color: isActive ? "#166534" : "#475569",
-                          padding: "0.32rem 0.65rem",
-                          fontSize: "0.74rem",
-                          fontWeight: 700,
+                          background: statusBadgeColors[user.status]?.background || "#f1f5f9",
+                          color: statusBadgeColors[user.status]?.color || "#475569",
+                          border: statusBadgeColors[user.status]?.border || "1px solid rgba(148, 163, 184, 0.6)",
+                          padding: "0.28rem 0.7rem",
+                          fontSize: "0.72rem",
+                          fontWeight: 500,
+                          lineHeight: 1.2,
                         }}
                       >
-                        {user.status}
+                        <span
+                          style={{
+                            width: "0.375rem",
+                            height: "0.375rem",
+                            borderRadius: "999px",
+                            display: "inline-block",
+                            background: user.status === "ACTIVE" ? "#10b981" : user.status === "PENDING" ? "#f59e0b" : "#94a3b8",
+                            marginRight: "0.38rem",
+                          }}
+                        />
+                        {uppercaseLabel(user.status)}
                       </span>
                     </td>
 
@@ -411,6 +529,22 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
           </table>
         )}
       </div>
+
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        onCancel={() => setHoveredAvatarUserId(null)}
+        onChange={(event) => {
+          const userId = hoveredAvatarUserId;
+          if (userId) {
+            handleAvatarChange(userId, event);
+          } else {
+            setHoveredAvatarUserId(null);
+          }
+        }}
+        style={{ display: "none" }}
+      />
 
       {isEditModalOpen && selectedUser && (
         <div

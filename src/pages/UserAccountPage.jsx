@@ -5,14 +5,12 @@
 // duplicate files came about. The form half is components/users/ProfileForm.
 
 import { useSearchParams } from "react-router-dom";
-import PageHeader from "../components/common/PageHeader";
 import ProfileForm from "../components/users/ProfileForm";
 import ChangePassword from "../components/settings/ChangePassword";
 import useAuth from "../hooks/useAuth";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
-import { card, colors, pageShell } from "../styles/theme";
-import { Shield, UserCircle } from "lucide-react";
+import { card, pageShell } from "../styles/theme";
 
 function UserAccountPage() {
   const { currentUser } = useAuth();
@@ -47,67 +45,77 @@ function UserAccountPage() {
 
   return (
     <div style={pageShell}>
-      <PageHeader
-        eyebrow="Account"
-        title="User Account & Security"
-      />
+      <div style={{ maxWidth: "42rem", width: "100%", margin: "0 auto" }}>
+        {activeTab === "profile" && (
+          <ProfileForm
+            user={currentUser}
+            onSubmit={handleProfileSubmit}
+            activeTab={activeTab}
+            onTabChange={(nextTab) => setSearchParams(nextTab === "security" ? { tab: "security" } : {})}
+          />
+        )}
 
-      {/* Tabs navigation */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: `2px solid #f0f0f0` }}>
-        <button
-          type="button"
-          onClick={() => setSearchParams({})}
-          style={{
-            border: "none",
-            background: "none",
-            padding: "0.75rem 0.5rem",
-            marginBottom: "-2px",
-            borderBottom: activeTab === "profile" ? `3px solid ${colors.brandLight}` : "3px solid transparent",
-            color: activeTab === "profile" ? colors.brandInk : "#6b7280",
-            fontWeight: 700,
-            cursor: "pointer",
-            fontSize: "0.95rem",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.45rem",
-          }}
-        >
-          <UserCircle size={18} />
-          Profile Information
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSearchParams({ tab: "security" })}
-          style={{
-            border: "none",
-            background: "none",
-            padding: "0.75rem 0.5rem",
-            marginBottom: "-2px",
-            borderBottom: activeTab === "security" ? `3px solid ${colors.brandLight}` : "3px solid transparent",
-            color: activeTab === "security" ? colors.brandInk : "#6b7280",
-            fontWeight: 700,
-            cursor: "pointer",
-            fontSize: "0.95rem",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.45rem",
-          }}
-        >
-          <Shield size={18} />
-          Security & Password
-        </button>
+        {activeTab === "security" && (
+          <div style={{ maxWidth: "42rem", width: "100%", margin: "0 auto" }}>
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid rgba(148, 163, 184, 0.24)",
+                borderRadius: "1.5rem",
+                boxShadow: "0 10px 28px rgba(15, 23, 42, 0.04)",
+                padding: "2rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  marginBottom: "1.5rem",
+                  padding: "0.35rem",
+                  borderRadius: "999px",
+                  background: "#f8fafc",
+                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSearchParams({})}
+                  style={{
+                    padding: "0.55rem 1.25rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "transparent",
+                    color: "#64748b",
+                    fontWeight: 500,
+                    fontSize: "0.84rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Profile Information
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchParams({ tab: "security" })}
+                  style={{
+                    padding: "0.55rem 1.25rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: "#fef2f2",
+                    color: "#7f1d1d",
+                    fontWeight: 700,
+                    fontSize: "0.84rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Security & Password
+                </button>
+              </div>
+              <ChangePassword onSubmit={handleChangePassword} />
+            </div>
+          </div>
+        )}
       </div>
-
-      {activeTab === "profile" && (
-        <ProfileForm user={currentUser} onSubmit={handleProfileSubmit} />
-      )}
-
-      {activeTab === "security" && (
-        <div style={{ maxWidth: "600px" }}>
-          <ChangePassword onSubmit={handleChangePassword} />
-        </div>
-      )}
     </div>
   );
 }

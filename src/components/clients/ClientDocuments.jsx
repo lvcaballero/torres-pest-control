@@ -23,10 +23,10 @@ function ClientDocuments({ documents = [], canUpload = false, canRemove = false,
   const [message, setMessage] = useState(null); // { text, tone }
   const [busyId, setBusyId] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef(null);
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files?.[0];
+  const processFile = async (file) => {
     if (!file) return;
 
     // Client-side gate. Storage also enforces size and MIME type server-side,
@@ -34,7 +34,6 @@ function ClientDocuments({ documents = [], canUpload = false, canRemove = false,
     const validationError = validateDocument(file);
     if (validationError) {
       setMessage({ text: validationError, tone: "error" });
-      event.target.value = "";
       return;
     }
 
@@ -42,13 +41,31 @@ function ClientDocuments({ documents = [], canUpload = false, canRemove = false,
     setMessage(null);
     const result = await onUpload?.(file);
     setUploading(false);
-    event.target.value = "";
 
     setMessage(
       result === true
         ? { text: `Uploaded ${file.name}.`, tone: "success" }
         : { text: typeof result === "string" ? result : "Upload failed.", tone: "error" }
     );
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await processFile(file);
+    event.target.value = "";
+  };
+
+  const handleDrop = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    await processFile(file);
   };
 
   const handleOpen = async (document, download) => {
@@ -96,6 +113,19 @@ function ClientDocuments({ documents = [], canUpload = false, canRemove = false,
         <div style={{ marginBottom: "1rem" }}>
           <label
             onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!uploading) setIsDragging(true);
+            }}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              if (!uploading) setIsDragging(true);
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+            }}
+            onDrop={handleDrop}
             style={{
               display: "flex",
               flexDirection: "column",
@@ -103,15 +133,16 @@ function ClientDocuments({ documents = [], canUpload = false, canRemove = false,
               justifyContent: "center",
               gap: "0.65rem",
               width: "100%",
-              border: "2px dashed #dfe4ea",
+              border: `2px dashed ${isDragging ? "#7f1d1d" : "#dfe4ea"}`,
               borderRadius: "16px",
               padding: "1.5rem 1rem",
-              background: "#f8fafc",
+              background: isDragging ? "#fff7f7" : "#f8fafc",
               color: "#475569",
               textAlign: "center",
               cursor: uploading ? "default" : "pointer",
-              transition: "border-color 0.2s ease, background-color 0.2s ease",
+              transition: "border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease",
               opacity: uploading ? 0.7 : 1,
+              boxShadow: isDragging ? "0 0 0 3px rgba(127, 17, 17, 0.08)" : "none",
             }}
           >
             <UploadCloud size={26} color="#64748b" />

@@ -22,7 +22,7 @@ const roleBadgeColors = {
 };
 
 function Navbar() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout: logoutUser } = useAuth();
   const navigate = useNavigate();
   const menuRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,10 +63,13 @@ function Navbar() {
     navigate(path);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setMenuOpen(false);
-    localStorage.removeItem("torres-user-avatars");
-    navigate("/login");
+    try {
+      await logoutUser();
+    } finally {
+      navigate("/login");
+    }
   };
 
   return (

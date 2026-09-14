@@ -154,6 +154,9 @@ create trigger users_set_updated_at before update on users
 -- Case-insensitive lookups, so Admin@x.com and admin@x.com are the same account.
 create unique index if not exists users_email_lower_idx    on users (lower(email));
 create unique index if not exists users_username_lower_idx on users (lower(username));
+-- Whitespace around a username must not create a second login identity.
+create unique index if not exists users_username_normalized_unique_idx
+  on users (lower(btrim(username)));
 
 -- ---------------------------------------------------------------------------
 -- 3. Migrate v1 data, then retire the old tables
@@ -1112,4 +1115,3 @@ end;
 $$;
 
 notify pgrst, 'reload schema';
-

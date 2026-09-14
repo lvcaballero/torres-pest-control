@@ -129,8 +129,19 @@ create table if not exists users (
   status        account_status not null default 'PENDING',
   is_primary    boolean not null default false, -- seeded admin; guards last-admin rule
   last_login_at timestamptz,                   -- AC: "List displays ... last login"
+  avatar_url    text,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
+);
+
+alter table users add column if not exists avatar_url text;
+
+alter table users drop constraint if exists users_phone_check;
+alter table users add constraint users_phone_check check (
+  phone is null
+  or phone = ''
+  or phone ~ '^09[0-9]{9}$'
+  or phone ~ '^\+63[ -]?9[0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{4}$'
 );
 
 create index if not exists users_role_idx   on users (role);
@@ -163,7 +174,7 @@ begin
     select id, name, email, email, phone, crypt(password, gen_salt('bf')), 'ADMIN'::user_role,
            status::text::account_status, coalesce(is_primary, false), created_at, updated_at
     from admins
-    on conflict (email) do nothing;
+    on conflict do nothing;
   end if;
 
   if to_regclass('public.staff') is not null then
@@ -171,7 +182,7 @@ begin
     select id, name, email, email, phone, crypt(password, gen_salt('bf')), 'STAFF'::user_role,
            status::text::account_status, created_at, updated_at
     from staff
-    on conflict (email) do nothing;
+    on conflict do nothing;
   end if;
 
   if to_regclass('public.technicians') is not null then
@@ -179,7 +190,7 @@ begin
     select id, name, email, email, phone, crypt(password, gen_salt('bf')), 'TECHNICIAN'::user_role,
            status::text::account_status, created_at, updated_at
     from technicians
-    on conflict (email) do nothing;
+    on conflict do nothing;
   end if;
 end $$;
 
@@ -724,7 +735,7 @@ create policy "Read logs" on system_logs for select using (true);
 -- table takes no direct writes at all.
 revoke all on users from anon, authenticated;
 grant select (id, name, username, email, phone, role, status, is_primary,
-              last_login_at, created_at, updated_at)
+              last_login_at, avatar_url, created_at, updated_at)
   on users to anon, authenticated;
 
 revoke insert, update, delete on users from anon, authenticated;
@@ -763,7 +774,7 @@ as $$
 $$;
 
 -- ============================================================================
--- Torres Pest Control — Migration 013 (Audit Fixes)
+-- Torres Pest Control ï¿½ Migration 013 (Audit Fixes)
 -- ============================================================================
 
 -- Fix #7, #10: Missing Backend Validation (CHECK constraints)
@@ -771,13 +782,23 @@ alter table users drop constraint if exists users_email_check;
 alter table users add constraint users_email_check check (email ~* '^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$');
 
 alter table users drop constraint if exists users_phone_check;
-alter table users add constraint users_phone_check check (phone is null or phone = '' or phone ~ '^09[0-9]{9}$');
+alter table users add constraint users_phone_check check (
+  phone is null
+  or phone = ''
+  or phone ~ '^09[0-9]{9}$'
+  or phone ~ '^\+63[ -]?9[0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{4}$'
+);
 
 alter table clients drop constraint if exists clients_email_check;
 alter table clients add constraint clients_email_check check (email is null or email = '' or email ~* '^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$');
 
 alter table clients drop constraint if exists clients_phone_check;
-alter table clients add constraint clients_phone_check check (phone is null or phone = '' or phone ~ '^09[0-9]{9}$');
+alter table clients add constraint clients_phone_check check (
+  phone is null
+  or phone = ''
+  or phone ~ '^09[0-9]{9}$'
+  or phone ~ '^\+63[ -]?9[0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{4}$'
+);
 
 -- Fix #3, #4: Admin Privilege & Passwords
 create or replace function public.reset_password(
@@ -857,7 +878,7 @@ drop policy if exists "Write inventory" on inventory;
 create policy "Write inventory" on inventory for all using (public.get_header_session_user()) with check (public.get_header_session_user());
 
 -- ============================================================================
--- Torres Pest Control — Migration 014 (Admin Privacy)
+-- Torres Pest Control ï¿½ Migration 014 (Admin Privacy)
 -- ============================================================================
 
 -- Fix: Prevent admins from interfering with other admins (editing details or deactivating)

@@ -11,8 +11,8 @@
 // rejected by the service (a role is a different table), so offering the
 // control would be lying. ResetPasswordDialog covers the admin reset path.
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Search, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { MoreHorizontal, Search, X } from "lucide-react";
 import Field from "../common/Field";
 import EmptyState from "../common/EmptyState";
 import UserRoleSelector from "./UserRoleSelector";
@@ -51,26 +51,8 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuDirection, setMenuDirection] = useState({});
-  const [avatarMap, setAvatarMap] = useState(() => {
-    try {
-      const stored = localStorage.getItem("torres-user-avatars");
-      return stored ? JSON.parse(stored) : {};
-    } catch (error) {
-      return {};
-    }
-  });
-  const [hoveredAvatarUserId, setHoveredAvatarUserId] = useState(null);
   const [form, setForm] = useState({ name: "", username: "", email: "", phone: "", role: "STAFF" });
   const [errors, setErrors] = useState({});
-  const avatarInputRef = useRef(null);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("torres-user-avatars", JSON.stringify(avatarMap));
-    } catch (error) {
-      // Ignore localStorage quota errors and keep the in-memory avatar map working.
-    }
-  }, [avatarMap]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -84,26 +66,6 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
       return searchable.toLowerCase().includes(term);
     });
   }, [users, searchTerm, roleFilter, statusFilter]);
-
-  const handleAvatarChange = (userId, event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setHoveredAvatarUserId(null);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarMap((previous) => ({ ...previous, [userId]: reader.result }));
-      setHoveredAvatarUserId(null);
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  };
-
-  const handleAvatarPickerOpen = (userId) => {
-    setHoveredAvatarUserId(userId);
-  };
 
   const handleMenuToggle = (event, userId) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -285,36 +247,26 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                   .join("")
                   .toUpperCase();
 
-                const avatarSrc = avatarMap[user.id];
+                const avatarSrc = user.avatarUrl;
 
                 return (
                   <tr key={user.id} style={{ borderBottom: "1px solid #e2e8f0", background: "#fff" }}>
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <button
-                          type="button"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onMouseEnter={() => setHoveredAvatarUserId(user.id)}
-                          onMouseLeave={() => setHoveredAvatarUserId((current) => (current === user.id ? null : current))}
-                          onClick={() => {
-                            handleAvatarPickerOpen(user.id);
-                            avatarInputRef.current?.click();
-                          }}
+                        <div
                           style={{
-                            position: "relative",
                             width: "2.9rem",
                             height: "2.9rem",
                             padding: 0,
                             border: "none",
                             background: "transparent",
                             borderRadius: "999px",
-                            cursor: "pointer",
+                            cursor: "default",
                             overflow: "hidden",
                             outline: "none",
                             WebkitTapHighlightColor: "transparent",
                             boxShadow: "none",
                           }}
-                          aria-label={`Change photo for ${user.name}`}
                         >
                           <div
                             style={{
@@ -342,25 +294,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                               initials || "U"
                             )}
                           </div>
-                          <div
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              borderRadius: "999px",
-                              background: "rgba(15, 23, 42, 0.42)",
-                              opacity: hoveredAvatarUserId === user.id ? 1 : 0,
-                              transition: "opacity 0.18s ease",
-                              color: "#fff",
-                              fontSize: "0.58rem",
-                              fontWeight: 700,
-                            }}
-                          >
-                            <Upload size={12} />
-                          </div>
-                        </button>
+                        </div>
                         <div>
                           <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.96rem" }}>{user.name}</div>
                           <div style={{ color: "#64748b", fontSize: "0.78rem", marginTop: "0.1rem" }}>{user.email}</div>
@@ -529,22 +463,6 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
           </table>
         )}
       </div>
-
-      <input
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        onCancel={() => setHoveredAvatarUserId(null)}
-        onChange={(event) => {
-          const userId = hoveredAvatarUserId;
-          if (userId) {
-            handleAvatarChange(userId, event);
-          } else {
-            setHoveredAvatarUserId(null);
-          }
-        }}
-        style={{ display: "none" }}
-      />
 
       {isEditModalOpen && selectedUser && (
         <div

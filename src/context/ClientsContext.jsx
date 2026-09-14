@@ -91,6 +91,20 @@ export function ClientsProvider({ children }) {
     [actor, allowed, clients]
   );
 
+  const deleteClient = useCallback(
+    async (clientId) => {
+      if (!allowed(SUBSYSTEMS.CLIENTS, "delete")) return "You do not have permission to permanently delete client profiles.";
+      const target = clients.find((client) => client.id === clientId);
+      if (!target) return "Client not found.";
+      const { error: deleteError } = await clientService.deleteClient(clientId);
+      if (deleteError) return deleteError;
+      setClients((previous) => previous.filter((client) => client.id !== clientId));
+      addLog(actor, `Permanently deleted client profile for ${target.name}.`, LOG_TYPES.CLIENT);
+      return true;
+    },
+    [actor, allowed, clients]
+  );
+
   const updateClient = useCallback(
     async (clientId, form) => {
       if (!allowed(SUBSYSTEMS.CLIENTS, "edit")) return "You do not have permission to edit client profiles.";
@@ -164,10 +178,11 @@ export function ClientsProvider({ children }) {
       removeDocument,
       archiveClient,
       restoreClient,
+      deleteClient,
       getClient,
       getDocumentUrl: clientService.getDocumentUrl,
     }),
-    [clients, loading, error, refresh, addClient, updateClient, addDocument, removeDocument, archiveClient, restoreClient, getClient]
+    [clients, loading, error, refresh, addClient, updateClient, addDocument, removeDocument, archiveClient, restoreClient, deleteClient, getClient]
   );
 
   return <ClientsContext.Provider value={value}>{children}</ClientsContext.Provider>;

@@ -40,15 +40,7 @@ function Navbar() {
 
   if (!currentUser) return null;
 
-  const userAvatar = (() => {
-    try {
-      const stored = localStorage.getItem("torres-user-avatars");
-      const avatars = stored ? JSON.parse(stored) : {};
-      return avatars[currentUser.id] || null;
-    } catch (error) {
-      return null;
-    }
-  })();
+  const userAvatar = currentUser.avatarUrl || null;
 
   const profileInitials = (currentUser.name || currentUser.username || "U")
     .split(" ")

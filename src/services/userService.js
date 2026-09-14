@@ -13,7 +13,8 @@
 import { supabase } from "./supabaseClient";
 import { ACCOUNT_STATUS, ROLES } from "../utils/constants";
 
-const ACCOUNT_COLUMNS = "id, name, username, phone, email, role, status, is_primary, created_at, updated_at, last_login_at";
+const ACCOUNT_COLUMNS = "id, name, username, phone, email, role, status, is_primary, created_at, updated_at, last_login_at, avatar_url";
+const AVATAR_BUCKET = "profile-avatars";
 
 export function mapAccountRow(row) {
   return {
@@ -28,6 +29,7 @@ export function mapAccountRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastLoginAt: row.last_login_at || null,
+    avatarUrl: row.avatar_url || null,
   };
 }
 
@@ -106,6 +108,33 @@ export async function updateAccount(sessionToken, account, updatedFields) {
   if (error) return { error: describeError(error) };
   const mapped = mapAccountRow(data);
   return { account: mapped, updatedAt: data.updated_at };
+}
+
+export async function uploadAvatar(sessionToken, account, file) {
+  if (!file?.type?.startsWith("image/")) return { error: "Please choose an image file." };
+  if (file.size > 2 * 1024 * 1024) return { error: "Profile pictures must be 2MB or smaller." };
+
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const storagePath = `${account.id}/avatar-${Date.now()}.${extension}`;
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+  if (uploadError) return { error: describeError(uploadError) };
+
+  const { data: publicUrl } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(storagePath);
+  const { data, error } = await supabase.rpc("update_user_avatar", {
+    session_token: sessionToken,
+    target_id: account.id,
+    new_avatar_url: publicUrl.publicUrl,
+  });
+
+  if (error) {
+    await supabase.storage.from(AVATAR_BUCKET).remove([storagePath]);
+    return { error: describeError(error) };
+  }
+
+  return { account: mapAccountRow(data) };
 }
 
 /**

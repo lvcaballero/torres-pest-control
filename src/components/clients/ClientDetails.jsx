@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, PencilLine, X } from "lucide-react";
+import { ArrowLeft, PencilLine, Trash2, X } from "lucide-react";
 import ClientForm from "./ClientForm";
 import ClientDocuments from "./ClientDocuments";
 import PageHeader from "../common/PageHeader";
@@ -26,19 +26,16 @@ const neutralCard = {
 function ClientDetails({
   client,
   canEdit,
-  canArchive,
+  canDelete,
   canUploadDocuments,
   canRemoveDocuments,
   onSave,
-  onArchive,
-  onRestore,
+  onDelete,
   onUploadDocument,
   onRemoveDocument,
   onResolveDocumentUrl,
 }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const isArchived = client.status === "ARCHIVED";
-
   const overviewFields = useMemo(
     () => [
       { label: "Classification", value: client.classification === "OTHER" && client.classificationOther ? client.classificationOther : humanizeEnum(client.classification) },
@@ -57,7 +54,8 @@ function ClientDetails({
         eyebrow="Client Profile"
         title={client.name}
         actions={
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.9rem" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.65rem", flexWrap: "wrap" }}>
             {canEdit && (
               <button
                 type="button"
@@ -80,17 +78,17 @@ function ClientDetails({
                 <PencilLine size={15} /> Edit Profile
               </button>
             )}
-            {canArchive && !isArchived && (
+            {canDelete && (
               <button
                 type="button"
-                onClick={onArchive}
+                onClick={onDelete}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "0.4rem",
-                  background: "#fff",
-                  color: colors.brandInk,
-                  border: `1px solid ${colors.line}`,
+                  background: "#fff1f2",
+                  color: "#be123c",
+                  border: "1px solid #fecdd3",
                   borderRadius: "10px",
                   padding: "0.65rem 0.9rem",
                   fontWeight: 700,
@@ -98,30 +96,10 @@ function ClientDetails({
                   cursor: "pointer",
                 }}
               >
-                Archive Client
+                <Trash2 size={15} /> Delete Permanently
               </button>
             )}
-            {canArchive && isArchived && (
-              <button
-                type="button"
-                onClick={onRestore}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  background: "#fff",
-                  color: colors.brandInk,
-                  border: `1px solid ${colors.line}`,
-                  borderRadius: "10px",
-                  padding: "0.65rem 0.9rem",
-                  fontWeight: 700,
-                  fontSize: "0.82rem",
-                  cursor: "pointer",
-                }}
-              >
-                Restore Client
-              </button>
-            )}
+            </div>
             <Link
               to="/clients"
               style={{
@@ -131,6 +109,7 @@ function ClientDetails({
                 color: colors.brandInk,
                 fontWeight: 700,
                 textDecoration: "none",
+                paddingTop: "0.15rem",
               }}
             >
               <ArrowLeft size={16} /> Back to Client Profiles

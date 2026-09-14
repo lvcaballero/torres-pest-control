@@ -12,7 +12,7 @@ import { card, colors, pageShell } from "../styles/theme";
 function ClientDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
-  const { getClient, updateClient, archiveClient, restoreClient, addDocument, removeDocument, getDocumentUrl, loading } =
+  const { getClient, updateClient, deleteClient, addDocument, removeDocument, getDocumentUrl, loading } =
     useClients();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
@@ -54,33 +54,26 @@ function ClientDetailPage() {
   const handleUpload = (file) => addDocument(client.id, file);
   const handleRemove = (document) => removeDocument(client.id, document);
 
-  const handleArchive = async () => {
-    if (!window.confirm(`Archive ${client.name}? Their history and documents will be preserved, and this can be undone later.`)) return;
-    const result = await archiveClient(client.id);
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete ${client.name} permanently? This action cannot be undone.`)) return;
+    const result = await deleteClient(client.id);
     if (result === true) {
-      showSuccess("Client profile archived.");
+      showSuccess("Client profile permanently deleted.");
       navigate("/clients");
     } else {
-      showError(result);
+      window.alert(result);
     }
-  };
-
-  const handleRestore = async () => {
-    const result = await restoreClient(client.id);
-    if (result === true) showSuccess("Client profile restored.");
-    else showError(result);
   };
 
   return (
     <ClientDetails
       client={client}
       canEdit={can(SUBSYSTEMS.CLIENTS, "edit")}
-      canArchive={can(SUBSYSTEMS.CLIENTS, "delete")}
+      canDelete={can(SUBSYSTEMS.CLIENTS, "delete")}
       canUploadDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "create")}
       canRemoveDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "delete")}
       onSave={handleSave}
-      onArchive={handleArchive}
-      onRestore={handleRestore}
+      onDelete={handleDelete}
       onUploadDocument={handleUpload}
       onRemoveDocument={handleRemove}
       onResolveDocumentUrl={getDocumentUrl}

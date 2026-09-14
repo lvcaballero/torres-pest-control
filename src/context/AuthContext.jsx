@@ -197,6 +197,22 @@ export function AuthProvider({ children }) {
     [currentUser, session?.token, setCollectionFor]
   );
 
+  const updateAvatar = useCallback(
+    async (userId, file) => {
+      const target = accounts.find((account) => account.id === userId);
+      if (!target) return "Account not found.";
+
+      const { error: avatarError, account: savedAccount } = await userService.uploadAvatar(session?.token, target, file);
+      if (avatarError) return avatarError;
+
+      setCollectionFor(target.role)((previous) =>
+        previous.map((account) => (account.id === userId ? savedAccount : account))
+      );
+      return true;
+    },
+    [accounts, session?.token, setCollectionFor]
+  );
+
   const toggleAccountStatus = useCallback(
     async (userId) => {
       const target = accounts.find((account) => account.id === userId);
@@ -276,6 +292,7 @@ export function AuthProvider({ children }) {
       createAccount,
       updateAccount,
       updateProfile,
+      updateAvatar,
       toggleAccountStatus,
       changeOwnPassword,
       resetAccountPassword,
@@ -297,6 +314,7 @@ export function AuthProvider({ children }) {
       createAccount,
       updateAccount,
       updateProfile,
+      updateAvatar,
       toggleAccountStatus,
       changeOwnPassword,
       resetAccountPassword,

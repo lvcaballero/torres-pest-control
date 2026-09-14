@@ -4,7 +4,7 @@ import Field from "../common/Field";
 import { validateEmailFormat, validatePhilippinePhone } from "../../utils/validators";
 import { buttonWhen, colors, inputStyle, invalidInputStyle } from "../../styles/theme";
 
-function ProfileForm({ user, onSubmit, activeTab, onTabChange }) {
+function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange }) {
   const [form, setForm] = useState({ name: "", username: "", email: "", phone: "" });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -50,43 +50,20 @@ function ProfileForm({ user, onSubmit, activeTab, onTabChange }) {
     setSubmitting(false);
   };
 
-  const getStoredAvatar = () => {
-    try {
-      const stored = localStorage.getItem("torres-user-avatars");
-      const avatars = stored ? JSON.parse(stored) : {};
-      return avatars[user?.id] || null;
-    } catch (error) {
-      return null;
-    }
-  };
-
-  const [userAvatar, setUserAvatar] = useState(getStoredAvatar);
+  const [userAvatar, setUserAvatar] = useState(user?.avatarUrl || null);
 
   useEffect(() => {
-    setUserAvatar(getStoredAvatar());
-  }, [user?.id]);
+    setUserAvatar(user?.avatarUrl || null);
+  }, [user?.avatarUrl, user?.id]);
 
-  const handleAvatarChange = (event) => {
+  const handleAvatarChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file || !user?.id) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const nextAvatar = String(reader.result || "");
-
-      try {
-        const stored = localStorage.getItem("torres-user-avatars");
-        const avatars = stored ? JSON.parse(stored) : {};
-        localStorage.setItem("torres-user-avatars", JSON.stringify({ ...avatars, [user.id]: nextAvatar }));
-      } catch (error) {
-        // Ignore localStorage quota issues; the in-memory state still reflects the change.
-      }
-
-      setUserAvatar(nextAvatar);
-      event.target.value = "";
-    };
-
-    reader.readAsDataURL(file);
+    setSubmitting(true);
+    await onAvatarChange?.(file);
+    setSubmitting(false);
+    event.target.value = "";
   };
 
   const profileInitials = (user?.name || user?.username || "U")

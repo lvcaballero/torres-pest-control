@@ -726,9 +726,9 @@ function InventoryPage() {
       )}
 
       {tab === "history" && (
-        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto" }}>
           {/* Filtering and Sorting Toolbar */}
-          <div style={{ ...card, padding: "1rem 1.25rem", marginBottom: "1.25rem" }}>
+          <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", padding: "1rem", marginBottom: "1rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.85rem" }}>
               <Field label="Search Logs">
                 <input
@@ -785,7 +785,7 @@ function InventoryPage() {
           </div>
 
           {/* Records Table */}
-          <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+          <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
               <div
                 style={{
@@ -794,10 +794,12 @@ function InventoryPage() {
                   minWidth: "920px",
                   gap: "0.75rem",
                   padding: "1rem 1.25rem",
-                  background: "#fafafa",
+                  background: "#f8fafc",
                   fontWeight: 700,
-                  color: "#374151",
-                  fontSize: "0.85rem",
+                  color: "#64748b",
+                  fontSize: "0.72rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
                 }}
               >
                 <span>Date</span>
@@ -834,7 +836,7 @@ function InventoryPage() {
                     minWidth: "920px",
                     gap: "0.75rem",
                     padding: "0.95rem 1.25rem",
-                    borderTop: "1px solid #f1f1f1",
+                    borderTop: "1px solid #f1f5f9",
                     alignItems: "center",
                     fontSize: "0.9rem",
                   }}

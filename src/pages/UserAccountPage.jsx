@@ -14,7 +14,7 @@ import { card, pageShell } from "../styles/theme";
 
 function UserAccountPage() {
   const { currentUser } = useAuth();
-  const { updateProfile, changeOwnPassword } = useUsers();
+  const { updateProfile, updateAvatar, changeOwnPassword } = useUsers();
   const { showSuccess, showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -24,6 +24,13 @@ function UserAccountPage() {
     const result = await updateProfile(fields);
     if (result === true) showSuccess("Your profile has been updated.");
     else showError(result);
+  };
+
+  const handleAvatarChange = async (file) => {
+    const result = await updateAvatar(currentUser.id, file);
+    if (result !== true) showError(result);
+    else showSuccess("Profile picture updated.");
+    return result;
   };
 
   const handleChangePassword = async (currentPassword, newPassword) => {
@@ -50,6 +57,7 @@ function UserAccountPage() {
           <ProfileForm
             user={currentUser}
             onSubmit={handleProfileSubmit}
+            onAvatarChange={handleAvatarChange}
             activeTab={activeTab}
             onTabChange={(nextTab) => setSearchParams(nextTab === "security" ? { tab: "security" } : {})}
           />

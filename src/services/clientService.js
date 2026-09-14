@@ -193,6 +193,23 @@ export async function restoreClient(clientId, version) {
   return { client: mapClientRow(data) };
 }
 
+export async function deleteClient(clientId) {
+  const { data: documents, error: documentsError } = await supabase
+    .from("client_documents")
+    .select("id")
+    .eq("client_id", clientId)
+    .limit(1);
+
+  if (documentsError) return { error: describeError(documentsError) };
+  if ((documents || []).length > 0) {
+    return { error: "This client cannot be permanently deleted because attached documents exist. Archive the client instead." };
+  }
+
+  const { error } = await supabase.from("clients").delete().eq("id", clientId);
+  if (error) return { error: describeError(error) };
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------

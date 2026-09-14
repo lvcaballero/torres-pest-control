@@ -6,7 +6,7 @@ import Field from "../common/Field";
 import { colors } from "../../styles/theme";
 
 function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -18,13 +18,13 @@ function Login({ onLogin }) {
     event.preventDefault();
     setError("");
     setSubmitting(true);
-    const result = await onLogin?.(email, password);
+    const result = await onLogin?.(identifier, password);
     setSubmitting(false);
 
     // Sprint AC: the message must not reveal which field was wrong, so both
     // the "no such account" and "wrong password" cases land here identically.
     if (result !== true) {
-      setError(typeof result === "string" ? result : "Invalid email or password.");
+      setError(typeof result === "string" ? result : "Invalid email/username or password.");
     }
   };
 
@@ -63,14 +63,14 @@ function Login({ onLogin }) {
       </div>
 
       <div style={{ display: "grid", gap: "1rem" }}>
-        <Field label="Email address" style={{ fontWeight: 700, color: "#1f2937" }}>
+        <Field label="Email or username" style={{ fontWeight: 700, color: "#1f2937" }}>
           <input
-            aria-label="Email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            aria-label="Email or username"
+            type="text"
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
             style={loginInputStyle}
-            placeholder="name@company.com"
+            placeholder="Email or username"
             autoFocus
           />
         </Field>

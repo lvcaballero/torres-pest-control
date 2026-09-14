@@ -6,6 +6,7 @@ import { buttonWhen, colors, inputStyle, invalidInputStyle } from "../../styles/
 
 function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange }) {
   const [form, setForm] = useState({ name: "", username: "", email: "", phone: "" });
+  const [currentPassword, setCurrentPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
@@ -17,6 +18,7 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
       email: user?.email || "",
       phone: user?.phone || "",
     });
+    setCurrentPassword("");
   }, [user]);
 
   const handleChange = (event) => {
@@ -37,6 +39,9 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
     const phoneError = validatePhilippinePhone(form.phone);
     if (phoneError) nextErrors.phone = phoneError;
 
+    const emailChanged = form.email.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase();
+    if (emailChanged && !currentPassword) nextErrors.currentPassword = "Enter your current password to change your email.";
+
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -46,6 +51,7 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
       username: form.username.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
+      currentPassword,
     });
     setSubmitting(false);
   };
@@ -247,6 +253,22 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
                 <Field label="Email Address" error={errors.email}>
                   <input name="email" type="email" value={form.email} onChange={handleChange} style={styleFor("email")} />
                 </Field>
+
+                {form.email.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase() && (
+                  <Field label="Current Password" error={errors.currentPassword} hint="Required to change your email address.">
+                    <input
+                      name="currentPassword"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => {
+                        setCurrentPassword(event.target.value);
+                        setErrors((previous) => ({ ...previous, currentPassword: undefined }));
+                      }}
+                      style={styleFor("currentPassword")}
+                      autoComplete="current-password"
+                    />
+                  </Field>
+                )}
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "1rem", gridColumn: "1 / -1", alignItems: "start" }}>
                   <div>

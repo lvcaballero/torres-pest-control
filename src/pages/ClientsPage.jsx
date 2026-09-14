@@ -9,7 +9,7 @@ import EmptyState from "../components/common/EmptyState";
 import useAuth from "../hooks/useAuth";
 import useClients from "../hooks/useClients";
 import { SUBSYSTEMS } from "../utils/permissions";
-import { card, pageShell, primaryButton } from "../styles/theme";
+import { colors, pageShell, primaryButton } from "../styles/theme";
 
 function ClientsPage() {
   const { can } = useAuth();
@@ -40,7 +40,7 @@ function ClientsPage() {
         }
       />
 
-      <div style={{ ...card, marginBottom: "1.25rem" }}>
+      <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", marginBottom: "1rem", overflow: "hidden" }}>
         <ClientSearch
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
@@ -49,7 +49,7 @@ function ClientsPage() {
           status={status}
           onStatusChange={setStatus}
         />
-        <div style={{ marginTop: "0.75rem", color: "#6b7280", fontSize: "0.86rem" }}>
+        <div style={{ padding: "0.7rem 1.25rem", borderTop: "1px solid #f1f5f9", background: "#f8fafc", color: colors.muted, fontSize: "0.78rem" }}>
           Showing {visibleClients.length} of {clients.length} client
           {clients.length === 1 ? "" : "s"}.
         </div>

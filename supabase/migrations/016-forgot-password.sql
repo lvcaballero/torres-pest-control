@@ -17,16 +17,24 @@ security definer
 set search_path = public
 as $$
 declare
-  target users;
+  target_id uuid;
+  target_name text;
+  found_email text;
+  target_role text;
   generated_password text;
 begin
-  select * into target from users u where lower(u.email) = lower(target_email);
+  select id, name, email, role_name into target_id, target_name, found_email, target_role
+  from (
+    select id, name, email, 'ADMIN'::text role_name from admins
+    union all select id, name, email, 'STAFF'::text from staff
+    union all select id, name, email, 'TECHNICIAN'::text from technicians
+  ) accounts where lower(email) = lower(target_email) limit 1;
 
   -- No matching account: return an empty result rather than raising, so the
   -- caller can show the same generic "if that email exists..." message
   -- whether or not the account exists (avoids leaking which emails are
   -- registered).
-  if target.id is null then
+  if target_id is null then
     return;
   end if;
 
@@ -34,16 +42,18 @@ begin
   -- number so it passes the same password policy used elsewhere.
   generated_password := substr(md5(random()::text || clock_timestamp()::text), 1, 10) || floor(random() * 90 + 10)::text;
 
-  update users
-     set password_hash = crypt(generated_password, gen_salt('bf')),
-         status = 'PENDING'
-   where users.id = target.id;
+  execute format(
+    'update %I set password_hash = crypt($1, gen_salt(''bf'')), status = ''PENDING'' where id = $2',
+    case target_role when 'ADMIN' then 'admins' when 'STAFF' then 'staff' else 'technicians' end
+  )
+    using generated_password, target_id;
 
-  delete from sessions where sessions.user_id = target.id;
+  delete from sessions where sessions.user_id = target_id;
 
-  perform write_log(target, 'Requested a password reset.', 'auth');
+  insert into system_logs (actor_id, actor_name, message, type)
+    values (target_id, target_name, 'Requested a password reset.', 'auth');
 
-  return query select target.id, target.name, target.email, generated_password;
+  return query select target_id, target_name, found_email, generated_password;
 end;
 $$;
 

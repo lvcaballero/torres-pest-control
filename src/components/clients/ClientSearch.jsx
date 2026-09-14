@@ -5,7 +5,6 @@
 // classification was deliberately excluded from the search string, so typing
 // "COMMERCIAL" returned nothing.
 
-import Field from "../common/Field";
 import { clientClassificationOptions } from "../../utils/constants";
 import { humanizeEnum } from "../../utils/formatters";
 import { inputStyle } from "../../styles/theme";
@@ -19,23 +18,19 @@ function ClientSearch({
   onStatusChange,
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        gap: "0.85rem",
-      }}
-    >
-      <Field label="Search client">
+    <div style={{ display: "flex", gap: "0.9rem", alignItems: "end", flexWrap: "wrap", padding: "1rem 1.25rem" }}>
+      <div style={{ flex: "1 1 280px", minWidth: "220px" }}>
+        <label style={labelStyle}>Search client</label>
         <input
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search by name, phone, or email"
           style={inputStyle}
         />
-      </Field>
+      </div>
 
-      <Field label="Classification">
+      <div style={{ flex: "0 0 220px" }}>
+        <label style={labelStyle}>Classification</label>
         <select
           value={classification}
           onChange={(event) => onClassificationChange(event.target.value)}
@@ -48,19 +43,28 @@ function ClientSearch({
             </option>
           ))}
         </select>
-      </Field>
+        </div>
 
       {onStatusChange && (
-        <Field label="Status">
+          <div style={{ flex: "0 0 190px" }}>
+            <label style={labelStyle}>Status</label>
           <select value={status} onChange={(event) => onStatusChange(event.target.value)} style={inputStyle}>
             <option value="ACTIVE">Active only</option>
             <option value="ARCHIVED">Archived only</option>
             <option value="ALL">All (active + archived)</option>
           </select>
-        </Field>
+        </div>
       )}
     </div>
   );
 }
+
+const labelStyle = {
+  display: "block",
+  color: "#475569",
+  fontSize: "0.75rem",
+  fontWeight: 700,
+  marginBottom: "0.45rem",
+};
 
 export default ClientSearch;

@@ -13,17 +13,18 @@
 import { supabase } from "./supabaseClient";
 import { ACCOUNT_STATUS, ROLES } from "../utils/constants";
 
-const ACCOUNT_COLUMNS = "id, name, username, phone, email, role, status, is_primary, created_at, updated_at, last_login_at, avatar_url";
+const ADMIN_COLUMNS = "id, name, username, phone, email, status, is_primary, created_at, updated_at, last_login_at, avatar_url";
+const ROLE_COLUMNS = "id, name, username, phone, email, status, created_at, updated_at, last_login_at, avatar_url";
 const AVATAR_BUCKET = "profile-avatars";
 
-export function mapAccountRow(row) {
+export function mapAccountRow(row, role = row.role) {
   return {
     id: row.id,
     name: row.name,
     phone: row.phone,
     email: row.email,
     username: row.username || row.name || row.email,
-    role: row.role,
+    role,
     status: row.status,
     isPrimary: row.is_primary || false,
     createdAt: row.created_at,
@@ -43,23 +44,21 @@ function describeError(error) {
   ].join("");
 }
 
-/** Loads every account from the unified users table. Admins are hidden from
- * non-admin callers server-side (RLS), not here — this just reflects
- * whatever rows come back. */
+/** Loads every account from the separate role tables. */
 export async function fetchAllAccounts() {
-  const { data, error } = await supabase
-    .from("users")
-    .select(ACCOUNT_COLUMNS)
-    .order("created_at", { ascending: true });
-
+  const [adminsRes, staffRes, techniciansRes] = await Promise.all([
+    supabase.from("admins").select(ADMIN_COLUMNS).order("created_at", { ascending: true }),
+    supabase.from("staff").select(ROLE_COLUMNS).order("created_at", { ascending: true }),
+    supabase.from("technicians").select(ROLE_COLUMNS).order("created_at", { ascending: true }),
+  ]);
+  const error = adminsRes.error || staffRes.error || techniciansRes.error;
   if (error) return { error: describeError(error), admins: [], staff: [], technicians: [] };
 
-  const accounts = (data || []).map(mapAccountRow);
   return {
     error: null,
-    admins: accounts.filter((account) => account.role === ROLES.ADMIN),
-    staff: accounts.filter((account) => account.role === ROLES.STAFF),
-    technicians: accounts.filter((account) => account.role === ROLES.TECHNICIAN),
+    admins: (adminsRes.data || []).map((row) => mapAccountRow(row, ROLES.ADMIN)),
+    staff: (staffRes.data || []).map((row) => mapAccountRow(row, ROLES.STAFF)),
+    technicians: (techniciansRes.data || []).map((row) => mapAccountRow(row, ROLES.TECHNICIAN)),
   };
 }
 
@@ -71,7 +70,7 @@ export async function fetchAllAccounts() {
  * email would.
  */
 export async function createAccount(sessionToken, role, fields) {
-  const { data, error } = await supabase.rpc("create_user", {
+  const { data, error } = await supabase.rpc("create_role_account", {
     session_token: sessionToken,
     new_name: fields.name,
     new_username: fields.username || fields.email,
@@ -82,7 +81,7 @@ export async function createAccount(sessionToken, role, fields) {
   });
 
   if (error) return { error: describeError(error) };
-  return { account: mapAccountRow(data) };
+  return { account: mapAccountRow(data, role) };
 }
 
 /**
@@ -96,17 +95,18 @@ export async function createAccount(sessionToken, role, fields) {
  * an oversight in this file — flag it if the team wants that added.
  */
 export async function updateAccount(sessionToken, account, updatedFields) {
-  const { data, error } = await supabase.rpc("update_user", {
+  const { data, error } = await supabase.rpc("update_role_account", {
     session_token: sessionToken,
     target_id: account.id,
     new_name: updatedFields.name,
     new_email: updatedFields.email,
     new_phone: updatedFields.phone,
     new_role: updatedFields.role || account.role,
+    current_password: updatedFields.currentPassword || null,
   });
 
   if (error) return { error: describeError(error) };
-  const mapped = mapAccountRow(data);
+  const mapped = mapAccountRow(data, account.role);
   return { account: mapped, updatedAt: data.updated_at };
 }
 
@@ -123,7 +123,7 @@ export async function uploadAvatar(sessionToken, account, file) {
   if (uploadError) return { error: describeError(uploadError) };
 
   const { data: publicUrl } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(storagePath);
-  const { data, error } = await supabase.rpc("update_user_avatar", {
+  const { data, error } = await supabase.rpc("update_role_account_avatar", {
     session_token: sessionToken,
     target_id: account.id,
     new_avatar_url: publicUrl.publicUrl,
@@ -134,7 +134,7 @@ export async function uploadAvatar(sessionToken, account, file) {
     return { error: describeError(error) };
   }
 
-  return { account: mapAccountRow(data) };
+  return { account: mapAccountRow(data, account.role) };
 }
 
 /**
@@ -148,14 +148,14 @@ export async function uploadAvatar(sessionToken, account, file) {
  * direct table write anymore.
  */
 export async function setAccountStatus(sessionToken, account, nextStatus) {
-  const { data, error } = await supabase.rpc("set_user_status", {
+  const { data, error } = await supabase.rpc("set_role_account_status", {
     session_token: sessionToken,
     target_id: account.id,
     new_status: nextStatus,
   });
 
   if (error) return { error: describeError(error) };
-  return { account: mapAccountRow(data), updatedAt: data.updated_at };
+  return { account: mapAccountRow(data, account.role), updatedAt: data.updated_at };
 }
 
 /** Admin-initiated password reset, and the write half of a self-service change. */

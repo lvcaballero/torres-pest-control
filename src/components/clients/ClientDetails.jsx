@@ -13,14 +13,13 @@ import ClientForm from "./ClientForm";
 import ClientDocuments from "./ClientDocuments";
 import PageHeader from "../common/PageHeader";
 import { formatDateTime, humanizeEnum } from "../../utils/formatters";
-import { card, colors, pageShell } from "../../styles/theme";
+import { colors, dangerButton, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
 
 const neutralCard = {
-  ...card,
-  borderTop: "none",
-  border: "1px solid rgba(148, 163, 184, 0.22)",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
   background: "#ffffff",
+  border: "1px solid rgba(148, 163, 184, 0.2)",
+  borderRadius: "18px",
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)",
 };
 
 function ClientDetails({
@@ -64,15 +63,9 @@ function ClientDetails({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "0.4rem",
-                  background: "#7f1d1d",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "10px",
+                  ...primaryButton,
                   padding: "0.65rem 0.9rem",
-                  fontWeight: 700,
                   fontSize: "0.82rem",
-                  cursor: "pointer",
-                  boxShadow: "0 10px 18px rgba(127, 17, 17, 0.12)",
                 }}
               >
                 <PencilLine size={15} /> Edit Profile
@@ -86,14 +79,13 @@ function ClientDetails({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "0.4rem",
+                  ...dangerButton,
+                  padding: "0.65rem 0.9rem",
+                  fontSize: "0.82rem",
                   background: "#fff1f2",
                   color: "#be123c",
                   border: "1px solid #fecdd3",
-                  borderRadius: "10px",
-                  padding: "0.65rem 0.9rem",
-                  fontWeight: 700,
-                  fontSize: "0.82rem",
-                  cursor: "pointer",
+                  boxShadow: "none",
                 }}
               >
                 <Trash2 size={15} /> Delete Permanently
@@ -106,8 +98,7 @@ function ClientDetails({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.4rem",
-                color: colors.brandInk,
-                fontWeight: 700,
+                ...secondaryButton,
                 textDecoration: "none",
                 paddingTop: "0.15rem",
               }}
@@ -118,15 +109,15 @@ function ClientDetails({
         }
       />
 
-      <section style={{ ...neutralCard, marginBottom: "1.5rem", padding: "1.5rem" }}>
+      <section style={{ ...neutralCard, marginBottom: "1rem", padding: "1rem 1.25rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
           <div>
             <p style={{ margin: 0, color: "#64748b", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client record</p>
-            <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.5rem", fontWeight: 700 }}>Profile overview</h2>
+            <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem", fontWeight: 800 }}>Profile overview</h2>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
           {overviewFields.map((field) => (
             <div key={field.label} style={{ gridColumn: field.fullWidth ? "1 / -1" : "span 1" }}>
               <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b" }}>
@@ -145,7 +136,7 @@ function ClientDetails({
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem" }}>
-        <div style={neutralCard}>
+        <div style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
           <ClientDocuments
             documents={client.documents || []}
             canUpload={canUploadDocuments}

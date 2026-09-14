@@ -16,7 +16,7 @@ function ClientList({ clients, emptyMessage = "No client matches your search." }
   if (clients.length === 0) return <EmptyState message={emptyMessage} />;
 
   return (
-    <div style={{ display: "grid", gap: "0.6rem" }}>
+    <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", overflow: "hidden" }}>
       {clients.map((client) => (
         <Link
           key={client.id}
@@ -28,10 +28,9 @@ function ClientList({ clients, emptyMessage = "No client matches your search." }
             gap: "1rem",
             flexWrap: "wrap",
             textDecoration: "none",
-            border: "1px solid #ececec",
+            borderTop: "1px solid #f1f5f9",
             background: "#ffffff",
-            borderRadius: "12px",
-            padding: "0.9rem 1rem",
+            padding: "1rem 1.25rem",
             color: colors.body,
           }}
         >

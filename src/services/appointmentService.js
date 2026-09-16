@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient";
 
 const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, technician_id, status, notes, created_by, created_at, updated_at";
-const REPORT_COLUMNS = "appointment_id, findings, submitted_by, submitted_at";
+const REPORT_COLUMNS = "appointment_id, findings, treatment_performed, recommendations, follow_up_date, submitted_by, submitted_at";
 
 function describeError(error) {
   if (!error) return "Unknown error";
@@ -19,7 +19,11 @@ export function mapAppointmentRow(row, report = null) {
     status: row.status,
     notes: row.notes || "",
     report: report?.findings || "",
+    treatmentPerformed: report?.treatment_performed || "",
+    recommendations: report?.recommendations || "",
+    followUpDate: report?.follow_up_date || "",
     reportSubmitted: Boolean(report),
+    reportSubmittedAt: report?.submitted_at || "",
     stockUsed: row.stockUsed || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -71,10 +75,13 @@ export async function updateAppointment(appointment) {
   return { appointment: mapAppointmentRow(Array.isArray(data) ? data[0] : data) };
 }
 
-export async function submitReport(appointmentId, findings) {
+export async function submitReport(appointmentId, { findings, treatmentPerformed, recommendations, followUpDate }) {
   const { data, error } = await supabase.rpc("submit_appointment_report", {
     p_appointment_id: appointmentId,
     p_findings: findings,
+    p_treatment_performed: treatmentPerformed,
+    p_recommendations: recommendations || null,
+    p_follow_up_date: followUpDate || null,
   });
   if (error) return { error: describeError(error) };
   return { report: Array.isArray(data) ? data[0] : data };

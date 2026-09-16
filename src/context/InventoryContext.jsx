@@ -180,6 +180,7 @@ export function InventoryProvider({ children }) {
 
       const result = await appointmentService.stockOutBatch(appointmentId, entries);
       if (result.error) return result.error;
+      if (!result.movements.length) return "Stock Out did not return a saved movement.";
       setInventory((previous) => previous.map((entry) => {
         const movement = result.movements.find((row) => row.item_id === entry.id);
         return movement ? { ...entry, quantity: Number(movement.new_quantity) } : entry;

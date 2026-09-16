@@ -44,10 +44,10 @@ export function SchedulingProvider({ children }) {
     return result.appointment;
   }, []);
 
-  const submitReport = useCallback(async (appointmentId, findings) => {
-    const result = await appointmentService.submitReport(appointmentId, findings);
+  const submitReport = useCallback(async (appointmentId, reportFields) => {
+    const result = await appointmentService.submitReport(appointmentId, reportFields);
     if (result.error) return result.error;
-    setAppointments((current) => current.map((entry) => entry.id === appointmentId ? { ...entry, report: result.report.findings, reportSubmitted: true, status: "Completed" } : entry));
+    setAppointments((current) => current.map((entry) => entry.id === appointmentId ? { ...entry, report: result.report.findings, treatmentPerformed: result.report.treatment_performed, recommendations: result.report.recommendations || "", followUpDate: result.report.follow_up_date || "", reportSubmitted: true, reportSubmittedAt: result.report.submitted_at, status: "Completed" } : entry));
     return result.report;
   }, []);
 

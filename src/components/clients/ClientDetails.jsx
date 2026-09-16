@@ -13,8 +13,23 @@ import ClientForm from "./ClientForm";
 import ClientDocuments from "./ClientDocuments";
 import PageHeader from "../common/PageHeader";
 import { useScheduling } from "../../context/SchedulingContext";
+import useUsers from "../../hooks/useUsers";
 import { formatDateTime, humanizeEnum } from "../../utils/formatters";
 import { colors, dangerButton, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
+
+function InfoBlock({ label, value }) {
+  return <div style={{ padding: "0.8rem", background: "#f8fafc", borderRadius: "8px" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>{label}</div><div style={{ marginTop: "0.3rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{value}</div></div>;
+}
+
+function ServiceReportSummary({ appointment }) {
+  return <div style={{ display: "grid", gap: "0.65rem", margin: "1.25rem 1.25rem 0" }}>
+    <InfoBlock label="Inspection findings" value={appointment.report || "No findings recorded."} />
+    <InfoBlock label="Treatment performed" value={appointment.treatmentPerformed || "No treatment recorded."} />
+    <InfoBlock label="Recommendations" value={appointment.recommendations || "No recommendations recorded."} />
+    <InfoBlock label="Follow-up date" value={appointment.followUpDate || "No follow-up scheduled."} />
+    <InfoBlock label="Report submitted" value={appointment.reportSubmittedAt ? formatDateTime(appointment.reportSubmittedAt) : "Not submitted."} />
+  </div>;
+}
 
 const neutralCard = {
   background: "#ffffff",
@@ -36,10 +51,17 @@ function ClientDetails({
   onResolveDocumentUrl,
 }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState(null);
   const { appointments } = useScheduling();
+  const { staff, technicians } = useUsers();
+  const accounts = [...staff, ...technicians];
   const serviceHistory = appointments
     .filter((appointment) => appointment.clientId === client.id && appointment.status === "Completed")
     .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt));
+  const openHistoryDocument = async (document, download = false) => {
+    const result = await onResolveDocumentUrl(document, { download });
+    if (result?.url) window.open(result.url, download ? "_self" : "_blank", "noopener,noreferrer");
+  };
   const overviewFields = useMemo(
     () => [
       { label: "Classification", value: client.classification === "OTHER" && client.classificationOther ? client.classificationOther : humanizeEnum(client.classification) },
@@ -154,15 +176,15 @@ function ClientDetails({
           ) : (
             <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
               {serviceHistory.map((appointment) => (
-                <article key={appointment.id} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem", background: "#fff" }}>
+                <button type="button" key={appointment.id} onClick={() => setSelectedHistory(appointment)} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem", background: "#fff", textAlign: "left", cursor: "pointer" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                     <strong style={{ color: colors.ink }}>{formatDateTime(appointment.scheduledAt)}</strong>
                     <span style={{ color: colors.brandInk, background: "#fef2f2", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 800 }}>{appointment.status}</span>
                   </div>
                   {appointment.notes && <p style={{ margin: "0.55rem 0 0", color: colors.body, fontSize: "0.84rem" }}>{appointment.notes}</p>}
-                  {appointment.report && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection and treatment report</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5 }}>{appointment.report}</div></div>}
+                  {appointment.report && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection and treatment report</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div>{appointment.reportSubmittedAt && <div style={{ marginTop: "0.35rem", color: colors.muted, fontSize: "0.7rem" }}>Submitted {formatDateTime(appointment.reportSubmittedAt)}</div>}</div>}
                   {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
-                </article>
+                </button>
               ))}
             </div>
           )}
@@ -178,6 +200,14 @@ function ClientDetails({
           />
         </div>
       </div>
+
+      {selectedHistory && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 30, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }} onClick={() => setSelectedHistory(null)}>
+        <section style={{ ...neutralCard, width: "min(100%, 680px)", maxHeight: "88vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
+          <ServiceReportSummary appointment={selectedHistory} />
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "start" }}><div><div style={{ color: colors.brand, fontSize: "0.7rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Service record</div><h2 style={{ margin: "0.3rem 0", color: colors.ink }}>{client.name}</h2><div style={{ color: colors.body, fontSize: "0.88rem", fontWeight: 700 }}>{formatDateTime(selectedHistory.scheduledAt)}</div><div style={{ color: colors.muted, fontSize: "0.82rem", marginTop: "0.2rem" }}>{selectedHistory.status} · {selectedHistory.pestConcern || client.pestConcern || "Pest concern not recorded"} · {selectedHistory.durationMinutes || 60} minutes</div></div><button type="button" aria-label="Close service record" onClick={() => setSelectedHistory(null)} style={{ ...secondaryButton, padding: "0.45rem 0.65rem" }}><X size={16} /></button></div>
+          <div style={{ display: "grid", gap: "0.9rem", marginTop: "1.25rem" }}><InfoBlock label="Client and service address" value={`${client.name}\n${client.address || "No address recorded."}`} /><InfoBlock label="Technician" value={accounts.find((account) => account.id === selectedHistory.technicianId)?.name || accounts.find((account) => account.id === selectedHistory.technicianId)?.username || "Unassigned"} /><InfoBlock label="Pest concern" value={selectedHistory.pestConcern || client.pestConcern || "Pest concern not recorded."} /><InfoBlock label="Appointment notes" value={selectedHistory.notes || "No notes recorded."} /><InfoBlock label="Inspection and treatment report" value={selectedHistory.report || "No report recorded."} /><InfoBlock label="Materials used" value={(selectedHistory.stockUsed || []).length ? selectedHistory.stockUsed.map((entry) => `${entry.name}: ${entry.amount} ${entry.unit}`).join("\n") : "No materials recorded."} /><div style={{ padding: "0.8rem", background: "#f8fafc", borderRadius: "8px" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Client documents and pictures</div>{(client.documents || []).length === 0 ? <div style={{ marginTop: "0.3rem", color: colors.body, fontSize: "0.84rem" }}>No documents or pictures attached.</div> : <div style={{ display: "grid", gap: "0.45rem", marginTop: "0.5rem" }}>{client.documents.map((document) => <div key={document.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", padding: "0.55rem 0.65rem", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "7px" }}><div><div style={{ color: colors.body, fontSize: "0.8rem", fontWeight: 700 }}>{document.name}</div><div style={{ color: colors.muted, fontSize: "0.68rem" }}>{formatDateTime(document.uploadedAt)}</div></div><div style={{ display: "flex", gap: "0.35rem" }}><button type="button" onClick={() => openHistoryDocument(document)} style={{ ...secondaryButton, padding: "0.35rem 0.5rem", fontSize: "0.7rem" }}>Preview</button><button type="button" onClick={() => openHistoryDocument(document, true)} style={{ ...secondaryButton, padding: "0.35rem 0.5rem", fontSize: "0.7rem" }}>Download</button></div></div>)}</div>}</div></div>
+        </section>
+      </div>}
 
       {isEditModalOpen && canEdit && (
         <div

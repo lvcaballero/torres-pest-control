@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -8,7 +8,6 @@ import {
   MapPin,
   PackageCheck,
   Plus,
-  Search,
   UserRound,
   X,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import useClients from "../hooks/useClients";
 import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
 import { useScheduling } from "../context/SchedulingContext";
+import { useToast } from "../context/ToastContext";
 import { ACCOUNT_STATUS, PEST_CONCERN_SUGGESTIONS } from "../utils/constants";
 import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
 
@@ -35,6 +35,15 @@ function readDuration(values) {
   const hours = Number(values.get("durationHours")) || 0;
   const minutes = Number(values.get("durationMinutes")) || 0;
   return hours * 60 + minutes;
+}
+
+function appointmentOverlaps(candidate, existing) {
+  if (existing.id === candidate.id || existing.status === "Cancelled") return false;
+  const candidateStart = new Date(candidate.scheduledAt).getTime();
+  const candidateEnd = candidateStart + (candidate.durationMinutes || 60) * 60000;
+  const existingStart = new Date(existing.scheduledAt).getTime();
+  const existingEnd = existingStart + (existing.durationMinutes || 60) * 60000;
+  return candidateStart < existingEnd && candidateEnd > existingStart;
 }
 
 function localDateKey(date) {
@@ -87,6 +96,7 @@ function badgeStyle(status) {
 
 function SchedulingPage() {
   const { can } = useAuth();
+  const { showError } = useToast();
   const { clients, addDocument, removeDocument, getDocumentUrl } = useClients();
   const { inventory, stockOutMany } = useInventory();
   const { staff, technicians } = useUsers();
@@ -99,8 +109,14 @@ function SchedulingPage() {
   const [message, setMessage] = useState("");
   const [stockRows, setStockRows] = useState(STOCK_CATEGORIES.map((category) => ({ id: `stock-row-${category}`, category, itemId: "", amount: "" })));
   const [createOpen, setCreateOpen] = useState(false);
+  const [createClientId, setCreateClientId] = useState("");
   const [appointmentSearch, setAppointmentSearch] = useState("");
-  const [showAvailability, setShowAvailability] = useState(false);
+  const [scheduleTab, setScheduleTab] = useState("calendar");
+  const [technicianFilter, setTechnicianFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [clientFilter, setClientFilter] = useState("ALL");
+  const [pestConcernFilter, setPestConcernFilter] = useState("ALL");
+  const draggedCardRef = useRef(false);
 
   const selected = appointments.find((appointment) => appointment.id === selectedId) || null;
   const selectedClient = clients.find((client) => client.id === selected?.clientId) || null;
@@ -117,18 +133,50 @@ function SchedulingPage() {
   }, [anchorDate]);
   const visibleAppointments = useMemo(() => {
     const term = appointmentSearch.trim().toLowerCase();
-    if (!term) return appointments;
     return appointments.filter((appointment) => {
       const client = clients.find((entry) => entry.id === appointment.clientId);
       const technician = activeAccounts.find((account) => account.id === appointment.technicianId);
-      return `${client?.name || ""} ${client?.address || ""} ${appointment.status} ${technician?.name || technician?.username || ""}`.toLowerCase().includes(term);
+      const text = `${appointment.id} ${client?.name || ""} ${client?.address || ""} ${appointment.pestConcern || ""} ${appointment.status} ${technician?.name || technician?.username || ""}`.toLowerCase();
+      return (!term || text.includes(term))
+        && (technicianFilter === "ALL" || appointment.technicianId === technicianFilter)
+        && (statusFilter === "ALL" || appointment.status === statusFilter)
+        && (clientFilter === "ALL" || appointment.clientId === clientFilter)
+        && (pestConcernFilter === "ALL" || appointment.pestConcern === pestConcernFilter);
     });
-  }, [appointments, appointmentSearch, clients, activeAccounts]);
+  }, [appointments, appointmentSearch, clients, activeAccounts, technicianFilter, statusFilter, clientFilter, pestConcernFilter]);
+
+  const pestConcernOptions = useMemo(
+    () => Array.from(new Set(appointments.map((appointment) => appointment.pestConcern).filter(Boolean))).sort(),
+    [appointments]
+  );
 
   const appointmentFor = (dateKey, hour) => appointments.filter((appointment) => {
     const date = new Date(appointment.scheduledAt);
     return localDateKey(date) === dateKey && date.getHours() === hour && visibleAppointments.some((entry) => entry.id === appointment.id);
   });
+
+  const calendarPlacement = (dateKey, appointment) => {
+    const dayAppointments = visibleAppointments
+      .filter((entry) => localDateKey(new Date(entry.scheduledAt)) === dateKey)
+      .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+    const lanes = [];
+    const laneById = new Map();
+    dayAppointments.forEach((entry) => {
+      const entryStart = new Date(entry.scheduledAt).getTime();
+      const entryEnd = entryStart + (entry.durationMinutes || 60) * 60000;
+      const laneIndex = lanes.findIndex((laneEnd) => laneEnd <= entryStart);
+      const assignedLane = laneIndex === -1 ? lanes.length : laneIndex;
+      lanes[assignedLane] = entryEnd;
+      laneById.set(entry.id, assignedLane);
+    });
+
+    const totalLanes = Math.max(1, lanes.length);
+    const laneIndex = laneById.get(appointment.id) || 0;
+    return {
+      left: `calc(${(laneIndex / totalLanes) * 100}% + 0.3rem)`,
+      width: `calc(${100 / totalLanes}% - 0.6rem)`,
+    };
+  };
 
   const moveAppointment = async (dateKey, time = "09:00") => {
     if (!draggedId) return;
@@ -138,17 +186,26 @@ function SchedulingPage() {
       return;
     }
     const nextScheduledAt = `${dateKey}T${time}:00`;
+    const movedAppointment = { ...current, scheduledAt: nextScheduledAt, status: "Confirmed" };
+    if (appointments.some((appointment) => appointmentOverlaps(movedAppointment, appointment))) {
+      setDraggedId(null);
+      const conflictMessage = "Schedule conflict: another appointment is already booked during this time.";
+      showError(conflictMessage);
+      setMessage(conflictMessage);
+      return;
+    }
     if (current.status !== "Reschedule") {
       const prepareResult = await updateAppointment({ ...current, status: "Reschedule" });
       if (typeof prepareResult === "string") {
         setDraggedId(null);
+        showError(prepareResult);
         setMessage(prepareResult);
         return;
       }
     }
-    const result = await updateAppointment({ ...current, scheduledAt: nextScheduledAt, status: "Confirmed" });
-    setSelectedId(draggedId);
+    const result = await updateAppointment(movedAppointment);
     setDraggedId(null);
+    if (typeof result === "string") showError(result);
     setMessage(typeof result === "string" ? result : `Moved appointment to ${formatDateTime(nextScheduledAt)}.`);
   };
 
@@ -172,6 +229,7 @@ function SchedulingPage() {
       status: form.get("status"),
       notes: form.get("notes"),
     });
+    if (typeof result === "string") showError(result);
     setMessage(typeof result === "string" ? result : "Appointment details updated.");
   };
 
@@ -183,15 +241,31 @@ function SchedulingPage() {
       durationMinutes: readDuration(form),
       pestConcern: form.get("pestConcern"),
     });
+    if (typeof result === "string") showError(result);
     setMessage(typeof result === "string" ? result : "Appointment timing updated.");
   };
 
   const handleReportSubmit = async (event) => {
     event.preventDefault();
-    const report = new FormData(event.currentTarget).get("report").trim();
-    if (!report) return;
+    const form = new FormData(event.currentTarget);
+    const report = {
+      findings: form.get("findings").trim(),
+      treatmentPerformed: form.get("treatmentPerformed").trim(),
+      recommendations: form.get("recommendations").trim(),
+      followUpDate: form.get("followUpDate") || "",
+    };
+    if (!report.findings || !report.treatmentPerformed) {
+      showError("Inspection findings and treatment performed are required.");
+      return;
+    }
     const result = await submitReport(selected.id, report);
+    if (typeof result === "string") showError(result);
     setMessage(typeof result === "string" ? result : "Report submitted and service marked Completed.");
+  };
+
+  const scheduleFollowUp = () => {
+    setCreateClientId(selected.clientId);
+    setCreateOpen(true);
   };
 
   const handleStockSubmit = async (event) => {
@@ -207,6 +281,7 @@ function SchedulingPage() {
     }
     const result = await stockOutMany(selected.id, entries);
     if (typeof result === "string") {
+      showError(result);
       setMessage(result);
       return;
     }
@@ -229,7 +304,7 @@ function SchedulingPage() {
     return true;
   };
 
-  const renderAppointmentCard = (appointment, compact = false) => {
+  const renderAppointmentCard = (appointment, compact = false, placement = {}) => {
     const client = clients.find((entry) => entry.id === appointment.clientId);
     if (!client) return null;
     const selectedCard = appointment.id === selectedId;
@@ -239,20 +314,23 @@ function SchedulingPage() {
         type="button"
         draggable
         onDragStart={async () => {
+          draggedCardRef.current = false;
           setDraggedId(appointment.id);
           if (appointment.status !== "Reschedule") {
             const result = await updateAppointment({ ...appointment, status: "Reschedule" });
             if (typeof result === "string") setMessage(result);
           }
         }}
-        onDragEnd={() => setDraggedId(null)}
-        onClick={() => { setSelectedId(appointment.id); setTab("Overview"); }}
+        onDragEnd={() => { draggedCardRef.current = true; setDraggedId(null); }}
+        onClick={() => { if (draggedCardRef.current) { draggedCardRef.current = false; return; } setSelectedId(appointment.id); setTab("Overview"); }}
         style={{
           width: "100%", textAlign: "left", cursor: "grab", border: selectedCard ? `2px solid ${colors.brandLight}` : "1px solid #e8d9d9",
           borderRadius: "10px", padding: compact ? "0.45rem" : "0.65rem", background: selectedCard ? "#fff6f6" : "#ffffff",
           boxShadow: selectedCard ? "0 6px 16px rgba(127,17,17,0.12)" : "0 2px 5px rgba(15,23,42,0.04)",
           minHeight: compact ? undefined : `${Math.max(56, ((appointment.durationMinutes || 60) / 60) * 76 - 10)}px`,
           position: "relative", zIndex: selectedCard ? 2 : 1,
+          opacity: draggedId === appointment.id ? 0.55 : 1,
+          ...placement,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: colors.brand, fontSize: "0.68rem", fontWeight: 800 }}>
@@ -272,56 +350,60 @@ function SchedulingPage() {
         <div>
           <div style={{ color: colors.brand, fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>Operations</div>
           <h1 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "2rem" }}>Scheduling</h1>
-          <p style={{ color: colors.muted, margin: "0.35rem 0 0" }}>Plan visits, coordinate technicians, and close the loop from field report to stock usage.</p>
         </div>
-        <div style={{ display: "flex", gap: "0.55rem", alignItems: "center", flexWrap: "wrap" }}><button type="button" style={secondaryButton} onClick={() => setShowAvailability((current) => !current)}>{showAvailability ? "Hide availability" : "Technician availability"}</button><button type="button" style={primaryButton} onClick={() => setCreateOpen(true)}><Plus size={16} /> New appointment</button></div>
+        <button type="button" style={primaryButton} onClick={() => setCreateOpen(true)}><Plus size={16} /> New appointment</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "minmax(0, 1.25fr) minmax(360px, 0.75fr)" : "1fr", gap: "1.25rem", alignItems: "start" }}>
         <section style={card}>
-          <div style={{ display: "flex", gap: "0.55rem", alignItems: "center", marginBottom: "1rem" }}><Search size={16} color={colors.muted} /><input value={appointmentSearch} onChange={(event) => setAppointmentSearch(event.target.value)} placeholder="Search appointments, clients, technicians, status" style={{ ...inputStyle, maxWidth: "420px" }} /></div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap", marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div style={{ display: "flex", gap: "0.35rem", background: "#f8fafc", padding: "0.25rem", borderRadius: "10px" }}>{["calendar", "list", "technicians"].map((option) => <button key={option} type="button" onClick={() => setScheduleTab(option)} style={{ ...secondaryButton, border: "none", background: scheduleTab === option ? colors.brand : "transparent", color: scheduleTab === option ? "#fff" : colors.body, padding: "0.5rem 0.8rem" }}>{option === "calendar" ? "Calendar" : option === "list" ? "List" : "Technicians"}</button>)}</div>{scheduleTab === "calendar" && <div style={{ display: "flex", gap: "0.4rem", background: "#f8fafc", padding: "0.25rem", borderRadius: "10px" }}>{['week', 'month'].map((option) => <button key={option} type="button" onClick={() => setView(option)} style={{ ...secondaryButton, border: "none", background: view === option ? colors.brand : "transparent", color: view === option ? "#fff" : colors.body, padding: "0.55rem 0.8rem" }}>{option === "week" ? "Week" : "Month"}</button>)}</div>}</div>
+          {scheduleTab === "list" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem", alignItems: "end", marginBottom: "1rem", padding: "0.85rem", background: "#fffafa", border: "1px solid #eadede", borderRadius: "10px" }}><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800, gridColumn: "span 2" }}>Search appointments<input value={appointmentSearch} onChange={(event) => setAppointmentSearch(event.target.value)} placeholder="Client, address, technician, pest concern, ID" style={inputStyle} /></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Technician<select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)} style={inputStyle}><option value="ALL">All technicians</option>{technicians.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}><option value="ALL">All statuses</option>{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Client<select value={clientFilter} onChange={(event) => setClientFilter(event.target.value)} style={inputStyle}><option value="ALL">All clients</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Pest concern<select value={pestConcernFilter} onChange={(event) => setPestConcernFilter(event.target.value)} style={inputStyle}><option value="ALL">All pest concerns</option>{pestConcernOptions.map((concern) => <option key={concern} value={concern}>{concern}</option>)}</select></label></div>}
+          {scheduleTab !== "list" && <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap", marginBottom: "1rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
               <button type="button" aria-label="Previous period" onClick={() => navigateCalendar(-1)} style={secondaryButton}><ChevronLeft size={16} /></button>
               <button type="button" aria-label="Next period" onClick={() => navigateCalendar(1)} style={secondaryButton}><ChevronRight size={16} /></button>
-              <strong style={{ color: colors.ink }}>{view === "week" ? `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}` : anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })}</strong>
+              <strong style={{ color: colors.ink }}>{scheduleTab === "technicians" || view === "week" ? `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}` : anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })}</strong>
             </div>
-            <div style={{ display: "flex", gap: "0.4rem", background: "#f8fafc", padding: "0.25rem", borderRadius: "10px" }}>
-              {['week', 'month'].map((option) => <button key={option} type="button" onClick={() => setView(option)} style={{ ...secondaryButton, border: "none", background: view === option ? colors.brand : "transparent", color: view === option ? "#fff" : colors.body, padding: "0.55rem 0.8rem" }}>{option === "week" ? "Week" : "Month"}</button>)}
-            </div>
-          </div>
+          </div>}
 
-          {view === "week" ? (
+          {scheduleTab === "list" ? <AppointmentListView appointments={visibleAppointments} clients={clients} accounts={activeAccounts} onSelect={(id) => { setSelectedId(id); setTab("Overview"); }} /> : scheduleTab === "technicians" ? <TechnicianAvailability accounts={technicians} appointments={visibleAppointments} weekDays={weekDays} clients={clients} /> : (view === "week" ? (
             <div style={{ overflowX: "auto" }}>
               <div style={{ minWidth: "780px", display: "grid", gridTemplateColumns: "64px repeat(7, minmax(95px, 1fr))", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
                 <div style={{ background: "#fffafa" }} />
                 {weekDays.map((date) => <div key={localDateKey(date)} style={{ padding: "0.7rem 0.35rem", textAlign: "center", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: localDateKey(date) === localDateKey(new Date()) ? "#fff1f1" : "#fffafa" }}><div style={{ color: colors.muted, fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase" }}>{date.toLocaleDateString([], { weekday: "short" })}</div><div style={{ color: colors.ink, fontSize: "1.05rem", fontWeight: 800 }}>{date.getDate()}</div></div>)}
-                {HOURS.map((hour) => <div key={hour} style={{ display: "contents" }}><div style={{ color: colors.muted, fontSize: "0.65rem", padding: "0.55rem 0.3rem", textAlign: "right", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede" }}>{formatTime(`${String(hour).padStart(2, "0")}:00`)}</div>{weekDays.map((date) => { const key = localDateKey(date); return <div key={`${key}-${hour}`} onDragOver={(event) => event.preventDefault()} onDrop={() => moveAppointment(key, `${String(hour).padStart(2, "0")}:00`)} style={{ minHeight: "76px", padding: "0.3rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: draggedId ? "#fffdfd" : "#fff" }}>{appointmentFor(key, hour).map((appointment) => renderAppointmentCard(appointment))}</div>; })}</div>)}
+                {HOURS.map((hour) => <div key={hour} style={{ display: "contents" }}><div style={{ color: colors.muted, fontSize: "0.65rem", padding: "0.55rem 0.3rem", textAlign: "right", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede" }}>{formatTime(`${String(hour).padStart(2, "0")}:00`)}</div>{weekDays.map((date) => { const key = localDateKey(date); return <div key={`${key}-${hour}`} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const offsetMinutes = Math.max(0, Math.min(59, Math.round(((event.clientY - bounds.top) / 76) * 60 / 10) * 10)); moveAppointment(key, `${String(hour).padStart(2, "0")}:${String(offsetMinutes).padStart(2, "0")}`); }} style={{ position: "relative", minHeight: "76px", padding: "0.3rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: draggedId ? "#fffdfd" : "#fff", backgroundImage: "linear-gradient(to bottom, transparent 49.5%, #f6eeee 50%, transparent 50.5%)" }}>{appointmentFor(key, hour).map((appointment) => { const startMinutes = new Date(appointment.scheduledAt).getMinutes(); const height = Math.max(30, ((appointment.durationMinutes || 60) / 60) * 76 - 6); const placement = calendarPlacement(key, appointment); return renderAppointmentCard(appointment, false, { position: "absolute", top: `${(startMinutes / 60) * 76 + 3}px`, ...placement, height: `${height}px`, minHeight: "0", overflow: "hidden" }); })}</div>; })}</div>)}
               </div>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", overflowX: "auto", minWidth: "680px", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
               {monthCells.map((date) => { const key = localDateKey(date); const entries = visibleAppointments.filter((appointment) => localDateKey(new Date(appointment.scheduledAt)) === key); return <div key={key} onDragOver={(event) => event.preventDefault()} onDrop={() => moveAppointment(key)} style={{ minHeight: "112px", padding: "0.45rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: date.getMonth() === anchorDate.getMonth() ? "#fff" : "#fafafa" }}><div style={{ color: date.getMonth() === anchorDate.getMonth() ? colors.ink : "#a3a3a3", fontWeight: 800, fontSize: "0.75rem", marginBottom: "0.3rem" }}>{date.getDate()}</div><div style={{ display: "grid", gap: "0.3rem" }}>{entries.map((appointment) => renderAppointmentCard(appointment, true))}</div></div>; })}
             </div>
-          )}
+          ))}
           <div style={{ display: "flex", gap: "1rem", color: colors.muted, fontSize: "0.72rem", marginTop: "0.85rem", alignItems: "center" }}><GripVertical size={14} /> Drag any appointment to reschedule it. Dropping it saves the new time as Confirmed.</div>
           {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 700, fontSize: "0.82rem" }}>Loading appointments...</div>}
           {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 700, fontSize: "0.82rem" }}>{error || message}</div>}
           {clients.length === 0 && <div style={{ padding: "2rem 1rem", textAlign: "center", color: colors.muted }}>Client profiles will appear here once they are loaded.</div>}
           {appointmentSearch && visibleAppointments.length === 0 && <div style={{ padding: "1rem", textAlign: "center", color: colors.muted }}>No appointments match this search.</div>}
-          {showAvailability && <TechnicianAvailability accounts={activeAccounts} appointments={appointments} weekDays={weekDays} />}
         </section>
 
-        {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canUpload={can("clientDocuments", "create")} canRemove={can("clientDocuments", "delete")} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
+        {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canUpload={can("clientDocuments", "create")} canRemove={can("clientDocuments", "delete")} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} onScheduleFollowUp={scheduleFollowUp} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
       </div>
-      {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} onClose={() => setCreateOpen(false)} onCreate={handleCreate} />}
+      {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} initialClientId={createClientId} onClose={() => { setCreateOpen(false); setCreateClientId(""); }} onCreate={handleCreate} />}
     </div>
   );
 }
 
-function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, onSave }) {
+function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, onSave }) {
   const hours = Math.floor((appointment.durationMinutes || 60) / 60);
   const minutes = (appointment.durationMinutes || 60) % 60;
+  const start = new Date(appointment.scheduledAt).getTime();
+  const end = start + (appointment.durationMinutes || 60) * 60000;
+  const conflicts = appointments.filter((entry) => {
+       if (entry.id === appointment.id || entry.status === "Cancelled") return false;
+    const entryStart = new Date(entry.scheduledAt).getTime();
+    const entryEnd = entryStart + (entry.durationMinutes || 60) * 60000;
+    return start < entryEnd && end > entryStart;
+  });
 
   return <form onSubmit={onSave} style={{ display: "grid", gap: "1rem" }}>
     <InfoRow icon={<UserRound size={15} />} label="Client contact" value={`${client.phone || "No phone"} ${client.email ? `• ${client.email}` : ""}`} />
@@ -329,7 +411,7 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
     <InfoRow icon={<UserRound size={15} />} label="Classification" value={client.classificationOther || client.classification || "Not classified"} />
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Date and time</strong><input name="scheduledAt" type="datetime-local" defaultValue={toDateTimeLocal(appointment.scheduledAt)} style={inputStyle} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue={hours} style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue={minutes} style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Technician</strong><select name="technicianId" defaultValue={appointment.technicianId} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={busyTechnicians.has(account.id)}>{account.name || account.username}{busyTechnicians.has(account.id) ? " - busy at this time" : ""}</option>)}</select></div>
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Technician</strong><select name="technicianId" defaultValue={appointment.technicianId} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={busyTechnicians.has(account.id)}>{account.name || account.username}{busyTechnicians.has(account.id) ? " - busy at this time" : ""}</option>)}</select>{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 700 }}>Conflict: this technician overlaps another appointment.</span>}</div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Pest concern</strong><select name="pestConcern" defaultValue={appointment.pestConcern || ""} style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Status</strong><select name="status" defaultValue={appointment.status} style={inputStyle}>{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Visit notes</strong><textarea name="notes" defaultValue={appointment.notes} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></div>
@@ -337,30 +419,50 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
   </form>;
 }
 
-function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, appointments, canUpload, canRemove, addDocument, removeDocument, getDocumentUrl, onSave, onTimingSave, onReportSubmit, onStockSubmit, inventory, stockRows, setStockRows, onClose }) {
+function AppointmentListView({ appointments, clients, accounts, onSelect }) {
+  return <div style={{ overflowX: "auto", border: "1px solid #eadede", borderRadius: "10px" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+      <thead><tr style={{ background: "#fffafa" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #eadede" }}>{label}</th>)}</tr></thead>
+      <tbody>{appointments.map((appointment) => {
+        const client = clients.find((entry) => entry.id === appointment.clientId);
+        const technician = accounts.find((entry) => entry.id === appointment.technicianId);
+        return <tr key={appointment.id} onClick={() => onSelect(appointment.id)} style={{ cursor: "pointer" }}>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 700, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{client?.name || "Unknown client"}</td>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{technician?.name || technician?.username || "Unassigned"}</td>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{appointment.pestConcern || "Inspection"}</td>
+          <td style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #f1e7e7" }}><span style={badgeStyle(appointment.status)}>{appointment.status}</span></td>
+        </tr>;
+      })}</tbody>
+    </table>
+    {appointments.length === 0 && <div style={{ padding: "2rem", textAlign: "center", color: colors.muted }}>No appointments match the current filters.</div>}
+  </div>;
+}
+
+function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, appointments, canUpload, canRemove, addDocument, removeDocument, getDocumentUrl, onSave, onTimingSave, onReportSubmit, onStockSubmit, onScheduleFollowUp, inventory, stockRows, setStockRows, onClose }) {
   const busyTechnicians = new Set(appointments.filter((entry) => entry.id !== appointment.id && entry.technicianId && entry.scheduledAt === appointment.scheduledAt).map((entry) => entry.technicianId));
   if (tab === "Overview") {
-    return <aside style={{ ...card, padding: 0, overflowY: "auto", maxHeight: "calc(100vh - 2rem)", position: "sticky", top: "1rem" }}>
+    return <aside style={{ ...card, padding: 0, overflowY: "auto", maxHeight: "calc(100vh - 2rem)", position: "sticky", top: "1rem", border: "1px solid #eadede", boxShadow: "0 14px 34px rgba(75, 18, 18, 0.12)" }}>
       <div style={{ padding: "1.25rem 1.25rem 1rem", background: "linear-gradient(135deg, #7f1111, #b43d3d)", color: "#fff" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><div><div style={{ fontSize: "0.68rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.1em" }}>Appointment detail</div><h2 style={{ margin: "0.3rem 0", fontSize: "1.35rem" }}>{client.name}</h2><div style={{ opacity: 0.85, fontSize: "0.78rem" }}>{formatDateTime(appointment.scheduledAt)}</div></div><button type="button" aria-label="Close appointment detail" onClick={onClose} style={{ border: 0, background: "transparent", color: "#fff", cursor: "pointer" }}><X size={18} /></button></div></div>
       <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #eadede" }}>{TAB_LABELS.map((label) => <button type="button" key={label} onClick={() => setTab(label)} style={{ flex: 1, minWidth: "88px", border: 0, borderBottom: tab === label ? `3px solid ${colors.brand}` : "3px solid transparent", padding: "0.8rem 0.35rem", background: "#fff", color: tab === label ? colors.brand : colors.muted, fontWeight: 800, fontSize: "0.72rem", cursor: "pointer" }}>{label}</button>)}</div>
-      <div style={{ padding: "1.25rem" }}><AppointmentOverviewForm appointment={appointment} client={client} activeAccounts={activeAccounts} busyTechnicians={busyTechnicians} onSave={onSave} /></div>
+      <div style={{ padding: "1.25rem", background: "#fffdfd" }}><AppointmentOverviewForm appointment={appointment} client={client} activeAccounts={activeAccounts} busyTechnicians={busyTechnicians} appointments={appointments} onSave={onSave} /></div>
     </aside>;
   }
   return (
-    <aside style={{ ...card, padding: 0, overflowY: "auto", maxHeight: "calc(100vh - 2rem)", position: "sticky", top: "1rem" }}>
+    <aside style={{ ...card, padding: 0, overflowY: "auto", maxHeight: "calc(100vh - 2rem)", position: "sticky", top: "1rem", border: "1px solid #eadede", boxShadow: "0 14px 34px rgba(75, 18, 18, 0.12)" }}>
       <div style={{ padding: "1.25rem 1.25rem 1rem", background: "linear-gradient(135deg, #7f1111, #b43d3d)", color: "#fff" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><div><div style={{ fontSize: "0.68rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.1em" }}>Appointment detail</div><h2 style={{ margin: "0.3rem 0", fontSize: "1.35rem" }}>{client.name}</h2><div style={{ opacity: 0.85, fontSize: "0.78rem" }}>{formatDateTime(appointment.scheduledAt)}</div></div><button type="button" aria-label="Close appointment detail" onClick={onClose} style={{ border: 0, background: "transparent", color: "#fff", cursor: "pointer" }}><X size={18} /></button></div></div>
       <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #eadede" }}>{TAB_LABELS.map((label) => <button type="button" key={label} onClick={() => setTab(label)} style={{ flex: 1, minWidth: "88px", border: 0, borderBottom: tab === label ? `3px solid ${colors.brand}` : "3px solid transparent", padding: "0.8rem 0.35rem", background: "#fff", color: tab === label ? colors.brand : colors.muted, fontWeight: 800, fontSize: "0.72rem", cursor: "pointer" }}>{label}</button>)}</div>
-      <div style={{ padding: "1.25rem", maxHeight: "calc(100vh - 230px)", overflowY: "auto" }}>
+      <div style={{ padding: "1.25rem", maxHeight: "calc(100vh - 230px)", overflowY: "auto", background: "#fffdfd" }}>
         {tab === "Overview" && <form onSubmit={onSave} style={{ display: "grid", gap: "1rem" }}><InfoRow icon={<UserRound size={15} />} label="Client contact" value={`${client.phone || "No phone"} ${client.email ? `• ${client.email}` : ""}`} /><InfoRow icon={<MapPin size={15} />} label="Service address" value={client.address || "No address"} /><InfoRow icon={<UserRound size={15} />} label="Classification" value={client.classificationOther || client.classification || "Not classified"} /><div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Date and time</strong><input name="scheduledAt" type="datetime-local" defaultValue={toDateTimeLocal(appointment.scheduledAt)} style={inputStyle} /></div><div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Assign technician</strong><select name="technicianId" defaultValue={appointment.technicianId} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={busyTechnicians.has(account.id)}>{account.name || account.username}{busyTechnicians.has(account.id) ? " - busy at this time" : ""}</option>)}</select><span style={{ color: colors.muted, fontSize: "0.7rem" }}>Availability is checked against the current appointment board.</span></div><div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Status</strong><select name="status" defaultValue={appointment.status} style={inputStyle}>{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></div><div style={{ display: "grid", gap: "0.4rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Visit notes</strong><textarea name="notes" defaultValue={appointment.notes} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></div><button type="submit" style={primaryButton}><Check size={15} /> Save appointment</button></form>}
         {tab === "Documents" && <ClientDocuments documents={client.documents || []} canUpload={canUpload} canRemove={canRemove} onUpload={(file) => addDocument(client.id, file)} onRemove={(document) => removeDocument(client.id, document)} onResolveUrl={getDocumentUrl} />}
-        {tab === "Report" && <form onSubmit={onReportSubmit} style={{ display: "grid", gap: "1rem" }}><div style={{ padding: "0.85rem", borderRadius: "10px", background: "#f8fafc", color: colors.muted, fontSize: "0.78rem" }}><FileText size={15} style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> Record findings, treatment details, and follow-up recommendations.</div><textarea name="report" defaultValue={appointment.report} rows={9} placeholder="Inspection findings and treatment performed..." style={{ ...inputStyle, resize: "vertical" }} required /><button type="submit" style={primaryButton}><Check size={15} /> Submit report</button>{appointment.reportSubmitted && <div style={{ color: colors.success, fontWeight: 700, fontSize: "0.8rem" }}>Submitted. Service is Completed.</div>}</form>}
+        {tab === "Report" && <form onSubmit={onReportSubmit} style={{ display: "grid", gap: "1rem" }}><div style={{ padding: "0.85rem", borderRadius: "10px", background: "#f8fafc", color: colors.muted, fontSize: "0.78rem" }}><FileText size={15} style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> Required fields finalize this service. Recommendations and follow-up scheduling are optional.</div><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Inspection findings<textarea name="findings" defaultValue={appointment.report} rows={5} placeholder="What did the technician observe?" style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap" }} required /></label><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Treatment performed<textarea name="treatmentPerformed" defaultValue={appointment.treatmentPerformed} rows={5} placeholder="What treatment or work was completed?" style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap" }} required /></label><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Recommendations / follow-up notes<textarea name="recommendations" defaultValue={appointment.recommendations} rows={3} placeholder="Optional recommendations" style={{ ...inputStyle, resize: "vertical" }} /></label><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Follow-up date<input name="followUpDate" type="date" defaultValue={appointment.followUpDate} style={inputStyle} /></label><div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}><button type="submit" style={primaryButton}><Check size={15} /> {appointment.reportSubmitted ? "Update report" : "Submit report"}</button>{appointment.followUpDate && <button type="button" onClick={onScheduleFollowUp} style={secondaryButton}>Schedule follow-up</button>}</div>{appointment.reportSubmitted && <div style={{ color: colors.success, fontWeight: 700, fontSize: "0.8rem" }}>Saved{appointment.reportSubmittedAt ? ` on ${formatDateTime(appointment.reportSubmittedAt)}` : ""}. Service is Completed.</div>}</form>}
         {tab === "Stock-Out" && <StockOutForm appointment={appointment} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onSubmit={onStockSubmit} />}
       </div>
     </aside>
   );
 }
 
-function TechnicianAvailability({ accounts, appointments, weekDays }) {
+function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
   return (
     <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #eadede" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
@@ -371,7 +473,7 @@ function TechnicianAvailability({ accounts, appointments, weekDays }) {
         <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
           <div style={{ padding: "0.6rem", background: "#fffafa", color: colors.muted, fontSize: "0.7rem", fontWeight: 800 }}>Account</div>
           {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fffafa", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.ink, fontSize: "0.78rem", fontWeight: 700 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <div key={`${account.id}-${localDateKey(day)}`} style={{ padding: "0.45rem", minHeight: "52px", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: dayAppointments.length ? "#fff7ed" : "#f0fdf4", color: dayAppointments.length ? "#9a3412" : "#166534", fontSize: "0.68rem", lineHeight: 1.4 }}>{dayAppointments.length ? dayAppointments.map((appointment) => <div key={appointment.id}>{new Date(appointment.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {appointment.status}</div>) : "Available"}</div>; })}</div>)}
+          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.ink, fontSize: "0.78rem", fontWeight: 700 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <div key={`${account.id}-${localDateKey(day)}`} style={{ padding: "0.45rem", minHeight: "52px", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: dayAppointments.length ? "#fff7ed" : "#f0fdf4", color: dayAppointments.length ? "#9a3412" : "#166534", fontSize: "0.68rem", lineHeight: 1.4 }}>{dayAppointments.length ? dayAppointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id}>{new Date(appointment.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–{new Date(new Date(appointment.scheduledAt).getTime() + (appointment.durationMinutes || 60) * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {client?.name || "Client"} · {appointment.status}</div>; }) : "Available"}</div>; })}</div>)}
         </div>
       </div>
     </section>
@@ -430,7 +532,7 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
   );
 }
 
-function CreateAppointmentModalV2({ clients, activeAccounts, onClose, onCreate }) {
+function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "", onClose, onCreate }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -455,7 +557,7 @@ function CreateAppointmentModalV2({ clients, activeAccounts, onClose, onCreate }
     <form onSubmit={handleSubmit} style={{ ...card, width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div><div style={{ color: colors.brand, fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Scheduling</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink }}>New appointment</h2></div><button type="button" aria-label="Close new appointment" onClick={onClose} style={{ border: 0, background: "transparent", cursor: "pointer", color: colors.muted }}><X size={18} /></button></div>
       <div style={{ display: "grid", gap: "0.9rem" }}>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Client<select name="clientId" style={inputStyle} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Client<select name="clientId" defaultValue={initialClientId} style={inputStyle} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={new Date(Date.now() + 3600000).toISOString().slice(0, 16)} style={inputStyle} required /></label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label>

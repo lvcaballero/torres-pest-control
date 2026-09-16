@@ -9,6 +9,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ClientsProvider } from "./context/ClientsContext";
 import { InventoryProvider } from "./context/InventoryContext";
+import { SchedulingProvider } from "./context/SchedulingContext";
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import RoleBasedRoute from "./components/auth/RoleBasedRoute";
@@ -25,6 +26,7 @@ import ClientsPage from "./pages/ClientsPage";
 import CreateClientPage from "./pages/CreateClientPage";
 import ClientDetailPage from "./pages/ClientDetailPage";
 import InventoryPage from "./pages/InventoryPage";
+import SchedulingPage from "./pages/SchedulingPage";
 
 import { SUBSYSTEMS } from "./utils/permissions";
 import { isSupabaseConfigured } from "./services/supabaseClient";
@@ -68,7 +70,8 @@ function App() {
         <ToastProvider>
           <ClientsProvider>
             <InventoryProvider>
-              <Routes>
+              <SchedulingProvider>
+                <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
@@ -100,8 +103,13 @@ function App() {
                   path="/inventory"
                   element={<Guarded subsystem={SUBSYSTEMS.INVENTORY} action="view"><InventoryPage /></Guarded>}
                 />
+                <Route
+                  path="/scheduling"
+                  element={<Guarded subsystem={SUBSYSTEMS.SCHEDULING} action="view"><SchedulingPage /></Guarded>}
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+                </Routes>
+              </SchedulingProvider>
             </InventoryProvider>
           </ClientsProvider>
         </ToastProvider>

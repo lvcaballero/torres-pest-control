@@ -12,6 +12,7 @@ import { ArrowLeft, PencilLine, Trash2, X } from "lucide-react";
 import ClientForm from "./ClientForm";
 import ClientDocuments from "./ClientDocuments";
 import PageHeader from "../common/PageHeader";
+import { useScheduling } from "../../context/SchedulingContext";
 import { formatDateTime, humanizeEnum } from "../../utils/formatters";
 import { colors, dangerButton, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
 
@@ -35,6 +36,10 @@ function ClientDetails({
   onResolveDocumentUrl,
 }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { appointments } = useScheduling();
+  const serviceHistory = appointments
+    .filter((appointment) => appointment.clientId === client.id && appointment.status === "Completed")
+    .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt));
   const overviewFields = useMemo(
     () => [
       { label: "Classification", value: client.classification === "OTHER" && client.classificationOther ? client.classificationOther : humanizeEnum(client.classification) },
@@ -136,6 +141,32 @@ function ClientDetails({
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem" }}>
+        <section style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <div>
+              <p style={{ margin: 0, color: "#64748b", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client history</p>
+              <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem" }}>Service history</h2>
+            </div>
+            <span style={{ color: colors.muted, fontSize: "0.8rem" }}>{serviceHistory.length} appointment{serviceHistory.length === 1 ? "" : "s"}</span>
+          </div>
+          {serviceHistory.length === 0 ? (
+            <div style={{ marginTop: "1rem", padding: "1rem", borderRadius: "10px", background: "#f8fafc", color: colors.muted, fontSize: "0.85rem" }}>No service history recorded yet.</div>
+          ) : (
+            <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
+              {serviceHistory.map((appointment) => (
+                <article key={appointment.id} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem", background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+                    <strong style={{ color: colors.ink }}>{formatDateTime(appointment.scheduledAt)}</strong>
+                    <span style={{ color: colors.brandInk, background: "#fef2f2", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 800 }}>{appointment.status}</span>
+                  </div>
+                  {appointment.notes && <p style={{ margin: "0.55rem 0 0", color: colors.body, fontSize: "0.84rem" }}>{appointment.notes}</p>}
+                  {appointment.report && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection and treatment report</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5 }}>{appointment.report}</div></div>}
+                  {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
         <div style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
           <ClientDocuments
             documents={client.documents || []}

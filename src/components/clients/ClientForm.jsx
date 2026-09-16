@@ -10,7 +10,6 @@ import { useEffect, useState } from "react";
 import Field from "../common/Field";
 import {
   CLIENT_SOURCES,
-  PEST_CONCERN_SUGGESTIONS,
   clientClassificationOptions,
 } from "../../utils/constants";
 import { humanizeEnum } from "../../utils/formatters";
@@ -25,7 +24,6 @@ const EMPTY_FORM = {
   source: "Walk-in",
   classification: "RESIDENTIAL",
   classificationOther: "",
-  pestConcern: "",
 };
 
 function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", footer }) {
@@ -159,20 +157,6 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
           </Field>
         )}
 
-        <Field label="Pest Concern" hint="Optional. Select the main concern.">
-          <select
-            aria-label="Pest Concern"
-            name="pestConcern"
-            value={form.pestConcern}
-            onChange={handleFieldChange}
-            style={inputStyle}
-          >
-            <option value="">Select a pest concern</option>
-            {PEST_CONCERN_SUGGESTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </Field>
       </div>
 
       <div

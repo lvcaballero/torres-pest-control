@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as inventoryService from "../services/inventoryService";
+import * as appointmentService from "../services/appointmentService";
 import { addLog, LOG_TYPES } from "../services/logService";
 import { useAuthContext } from "./AuthContext";
 
@@ -140,6 +141,96 @@ export function InventoryProvider({ children }) {
     [actor, currentUser?.id, inventory]
   );
 
+  const stockOut = useCallback(
+    async (itemId, appointmentId, amount) => {
+      const target = inventory.find((entry) => entry.id === itemId);
+      if (!target) return "Inventory item not found.";
+      if (Number(amount) > Number(target.quantity)) return "Requested quantity exceeds available stock.";
+      const result = await appointmentService.stockOut(itemId, appointmentId, amount);
+      if (result.error) return result.error;
+
+      setInventory((previous) => previous.map((entry) => entry.id === itemId ? { ...entry, quantity: result.newQuantity } : entry));
+      setMovements((previous) => [{
+        id: result.movement.movement_id,
+        itemId,
+        amount: Number(result.movement.amount),
+        quantityDelta: -Number(result.movement.amount),
+        movementDate: result.movement.movement_date,
+        reference: `Appointment ${appointmentId}`,
+        actor: result.movement.actor || "",
+        movementType: "OUT",
+        appointmentId,
+        itemName: target.name,
+        itemUnit: target.unit,
+      }, ...previous]);
+      return { item: target, amount: Number(amount) };
+    },
+    [inventory]
+  );
+
+  const stockOutMany = useCallback(
+    async (appointmentId, entries) => {
+      const requested = new Map(entries.map((entry) => [entry.itemId, Number(entry.amount)]));
+      for (const [itemId, amount] of requested) {
+        const target = inventory.find((entry) => entry.id === itemId);
+        if (!target) return "Inventory item not found.";
+        if (!Number.isInteger(amount) || amount <= 0) return "Stock-out quantities must be positive whole numbers.";
+        if (amount > Number(target.quantity)) return `Requested quantity for ${target.name} exceeds available stock.`;
+      }
+
+      const result = await appointmentService.stockOutBatch(appointmentId, entries);
+      if (result.error) return result.error;
+      setInventory((previous) => previous.map((entry) => {
+        const movement = result.movements.find((row) => row.item_id === entry.id);
+        return movement ? { ...entry, quantity: Number(movement.new_quantity) } : entry;
+      }));
+      setMovements((previous) => [
+        ...result.movements.map((movement) => {
+          const target = inventory.find((entry) => entry.id === movement.item_id);
+          return {
+            id: movement.movement_id,
+            itemId: movement.item_id,
+            amount: Number(movement.amount),
+            quantityDelta: -Number(movement.amount),
+            movementDate: movement.movement_date,
+            reference: `Appointment ${appointmentId}`,
+            actor: movement.actor || "",
+            movementType: "OUT",
+            appointmentId,
+            itemName: target?.name || "Unknown item",
+            itemUnit: target?.unit || "",
+          };
+        }),
+        ...previous,
+      ]);
+      return result.movements;
+    },
+    [inventory]
+  );
+
+  const stockCorrection = useCallback(async (itemId, delta, reason) => {
+    const target = inventory.find((entry) => entry.id === itemId);
+    if (!target) return "Inventory item not found.";
+    if (!Number.isInteger(Number(delta)) || Number(delta) === 0) return "Correction must be a non-zero whole number.";
+    if (Number(target.quantity) + Number(delta) < 0) return "Correction cannot make stock negative.";
+    const result = await inventoryService.stockCorrection(itemId, delta, reason);
+    if (result.error) return result.error;
+    setInventory((previous) => previous.map((entry) => entry.id === itemId ? { ...entry, quantity: result.newQuantity } : entry));
+    setMovements((previous) => [{
+      ...result.movement,
+      itemId,
+      amount: Number(result.movement.amount),
+      quantityDelta: Number(delta),
+      movementDate: result.movement.movement_date,
+      reference: result.movement.reference,
+      actor: result.movement.actor || "",
+      movementType: "CORRECTION",
+      itemName: target.name,
+      itemUnit: target.unit,
+    }, ...previous]);
+    return true;
+  }, [inventory]);
+
   const refreshMovements = useCallback(async () => {
     setMovementsLoading(true);
     setMovementsError("");
@@ -164,6 +255,9 @@ export function InventoryProvider({ children }) {
       removeItem,
       setItemStatus,
       stockIn,
+      stockOut,
+      stockOutMany,
+      stockCorrection,
       movements,
       movementsLoading,
       movementsError,
@@ -180,6 +274,9 @@ export function InventoryProvider({ children }) {
       removeItem,
       setItemStatus,
       stockIn,
+      stockOut,
+      stockOutMany,
+      stockCorrection,
       movements,
       movementsLoading,
       movementsError,

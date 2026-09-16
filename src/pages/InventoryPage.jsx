@@ -82,6 +82,7 @@ function InventoryPage() {
     updateItem,
     setItemStatus,
     stockIn,
+    stockCorrection,
     removeItem,
     loading,
     error,
@@ -97,6 +98,7 @@ function InventoryPage() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [stockInItem, setStockInItem] = useState(null);
+  const [correctionItem, setCorrectionItem] = useState(null);
   const [disableTarget, setDisableTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [actionMenuItemId, setActionMenuItemId] = useState(null);
@@ -123,22 +125,23 @@ function InventoryPage() {
   const [itemStockFilter, setItemStockFilter] = useState("ALL");
   const [historySearch, setHistorySearch] = useState("");
   const [historyItemFilter, setHistoryItemFilter] = useState("ALL");
+  const [historyMovementType, setHistoryMovementType] = useState("ALL");
   const [historyBranchFilter, setHistoryBranchFilter] = useState("ALL");
   const [historyDateFilter, setHistoryDateFilter] = useState("ALL");
   const [historySort, setHistorySort] = useState("DATE_DESC");
 
   const uniqueBranches = useMemo(() => {
     const set = new Set();
-    movements.forEach((m) => {
-      if (m.intakeBranchOrStation && m.intakeBranchOrStation !== "—") set.add(m.intakeBranchOrStation);
+    movements.forEach((movement) => {
+      if (movement.intakeBranchOrStation && movement.intakeBranchOrStation !== "—") set.add(movement.intakeBranchOrStation);
     });
     return Array.from(set).sort();
   }, [movements]);
 
   const uniqueItems = useMemo(() => {
     const map = new Map();
-    movements.forEach((m) => {
-      if (m.itemId && m.itemName) map.set(m.itemId, m.itemName);
+    movements.forEach((movement) => {
+      if (movement.itemId && movement.itemName) map.set(movement.itemId, movement.itemName);
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [movements]);
@@ -188,6 +191,10 @@ function InventoryPage() {
       result = result.filter((m) => m.itemId === historyItemFilter);
     }
 
+    if (historyMovementType !== "ALL") {
+      result = result.filter((m) => m.movementType === historyMovementType);
+    }
+
     if (historyBranchFilter !== "ALL") {
       result = result.filter((m) => m.intakeBranchOrStation === historyBranchFilter);
     }
@@ -216,7 +223,7 @@ function InventoryPage() {
     });
 
     return result;
-  }, [movements, historySearch, historyItemFilter, historyBranchFilter, historyDateFilter, historySort]);
+  }, [movements, historySearch, historyItemFilter, historyMovementType, historyBranchFilter, historyDateFilter, historySort]);
 
   useEffect(() => {
     if (tab === "history") refreshMovements();
@@ -568,8 +575,11 @@ function InventoryPage() {
             )}
 
             {!error && !loading && inventory.length === 0 && (
-              <div style={{ padding: "1.25rem", color: "#6b7280" }}>
-                No inventory items yet. Add one using the form above.
+              <div style={{ padding: "1.5rem", color: "#6b7280", display: "grid", gap: "0.75rem", justifyItems: "start" }}>
+                <span>No inventory items yet. Add your first item to start tracking stock.</span>
+                <button type="button" onClick={() => setOpenForm(true)} style={{ background: "#b91c1c", color: "#ffffff", border: "none", borderRadius: "8px", padding: "0.65rem 0.9rem", fontWeight: 700, cursor: "pointer" }}>
+                  Add inventory item
+                </button>
               </div>
             )}
 
@@ -704,6 +714,7 @@ function InventoryPage() {
                           }}
                         >
                           <button type="button" onClick={() => { setActionMenuItemId(null); setEditItem(item); }} style={{ ...menuActionStyle, color: "#0f172a" }}>Edit</button>
+                          {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setCorrectionItem(item); }} style={{ ...menuActionStyle, color: "#7c3aed" }}>Correct Stock</button>}
                           <button type="button" onClick={() => { setActionMenuItemId(null); if (isDisabled) setItemStatus(item.id, INVENTORY_STATUS.ACTIVE).then((r) => handleStatusResult(r, showSuccess, showError, item.name, "enabled")); else setDisableTarget(item); }} style={{ ...menuActionStyle, color: isDisabled ? "#166534" : "#b91c1c" }}>
                             {isDisabled ? "Enable" : "Disable"}
                           </button>
@@ -750,6 +761,15 @@ function InventoryPage() {
                 </select>
               </Field>
 
+              <Field label="Movement Type">
+                <select value={historyMovementType} onChange={(e) => setHistoryMovementType(e.target.value)} style={inputStyle}>
+                  <option value="ALL">All Movements</option>
+                  <option value="IN">Stock In</option>
+                  <option value="OUT">Stock Out</option>
+                  <option value="CORRECTION">Corrections</option>
+                </select>
+              </Field>
+
               <Field label="Branch / Station">
                 <select value={historyBranchFilter} onChange={(e) => setHistoryBranchFilter(e.target.value)} style={inputStyle}>
                   <option value="ALL">All Stations / Branches</option>
@@ -790,8 +810,8 @@ function InventoryPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "110px 1.4fr 100px 110px 130px 1.1fr 1.1fr 1fr",
-                  minWidth: "920px",
+                  gridTemplateColumns: "110px 1.2fr 100px 100px 110px 125px 1.1fr 1.1fr 1fr",
+                  minWidth: "1040px",
                   gap: "0.75rem",
                   padding: "1rem 1.25rem",
                   background: "#f8fafc",
@@ -804,6 +824,7 @@ function InventoryPage() {
               >
                 <span>Date</span>
                 <span>Item Name</span>
+                <span>Movement</span>
                 <span>Amount</span>
                 <span>Unit Cost</span>
                 <span>Total Spent</span>
@@ -823,7 +844,7 @@ function InventoryPage() {
 
               {!movementsError && !movementsLoading && filteredAndSortedMovements.length === 0 && (
                 <div style={{ padding: "1.75rem", textAlign: "center", color: "#6b7280" }}>
-                  No Stock In records match the current filters.
+                  No inventory movements match the current filters.
                 </div>
               )}
 
@@ -832,8 +853,8 @@ function InventoryPage() {
                   key={movement.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "110px 1.4fr 100px 110px 130px 1.1fr 1.1fr 1fr",
-                    minWidth: "920px",
+                    gridTemplateColumns: "110px 1.2fr 100px 100px 110px 125px 1.1fr 1.1fr 1fr",
+                    minWidth: "1040px",
                     gap: "0.75rem",
                     padding: "0.95rem 1.25rem",
                     borderTop: "1px solid #f1f5f9",
@@ -846,8 +867,11 @@ function InventoryPage() {
                     <div style={{ fontWeight: 700, color: "#111827" }}>{movement.itemName}</div>
                     {movement.itemUnit && <div style={{ fontSize: "0.76rem", color: "#6b7280" }}>Unit: {movement.itemUnit}</div>}
                   </div>
-                  <div style={{ fontWeight: 700, color: "#166534" }}>
-                    +{movement.amount}
+                  <div style={{ fontWeight: 800, color: movement.movementType === "OUT" ? "#b91c1c" : movement.movementType === "CORRECTION" ? "#7c3aed" : "#166534" }}>
+                    {movement.movementType || "IN"}
+                  </div>
+                  <div style={{ fontWeight: 700, color: movement.quantityDelta < 0 ? "#b91c1c" : "#166534" }}>
+                    {movement.quantityDelta > 0 ? "+" : ""}{movement.quantityDelta}
                   </div>
                   <div style={{ color: "#475569" }}>
                     ₱{(movement.unitCost || 0).toFixed(2)}
@@ -856,7 +880,7 @@ function InventoryPage() {
                     ₱{(movement.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                   <div style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {movement.reference || "—"}
+                    {movement.reference || (movement.appointmentId ? `Appointment ${movement.appointmentId}` : "—")}
                   </div>
                   <div style={{ color: "#475569" }}>
                     {movement.intakeBranchOrStation || "—"}
@@ -903,6 +927,22 @@ function InventoryPage() {
             showSuccess(`Added ${values.amount} ${stockInItem.unit} to ${stockInItem.name}.`);
             setStockInItem(null);
             return true;
+          }}
+        />
+      )}
+
+      {correctionItem && (
+        <StockCorrectionModal
+          item={correctionItem}
+          onClose={() => setCorrectionItem(null)}
+          onSubmit={async (values) => {
+            const result = await stockCorrection(correctionItem.id, values.delta, values.reason);
+            if (result !== true) {
+              showError(typeof result === "string" ? result : "Could not record the correction.");
+              return;
+            }
+            showSuccess(`Recorded a stock correction for ${correctionItem.name}.`);
+            setCorrectionItem(null);
           }}
         />
       )}
@@ -1263,6 +1303,35 @@ function StockInModal({ item, onClose, onSubmit }) {
             {saving ? "Recording…" : "Submit"}
           </button>
         </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+function StockCorrectionModal({ item, onClose, onSubmit }) {
+  const [delta, setDelta] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const parsedDelta = Number(delta);
+    if (!Number.isInteger(parsedDelta) || parsedDelta === 0 || !reason.trim()) return;
+    setSaving(true);
+    await onSubmit({ delta: parsedDelta, reason: reason.trim() });
+    setSaving(false);
+  };
+
+  return (
+    <ModalShell onClose={onClose} title="Correct Stock" subtitle={`Item: ${item.name} • Current Stock: ${item.quantity} ${item.unit}`}>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
+        <Field label={`Adjustment (${item.unit}) *`} hint="Use a positive number to add stock or a negative number to remove stock.">
+          <input type="number" step="1" value={delta} onChange={(event) => setDelta(event.target.value)} style={inputStyle} placeholder="e.g. -2 or 5" required autoFocus />
+        </Field>
+        <Field label="Reason *">
+          <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...inputStyle, minHeight: "90px", resize: "vertical" }} placeholder="Explain the physical count or discrepancy" required />
+        </Field>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem" }}><button type="button" onClick={onClose} style={secondaryButton}>Cancel</button><button type="submit" disabled={saving} style={buttonWhen(saving)}>{saving ? "Recording…" : "Record correction"}</button></div>
       </form>
     </ModalShell>
   );

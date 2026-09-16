@@ -11,6 +11,7 @@ import {
   ClipboardPlus,
   Gauge,
   Package,
+  CalendarDays,
   UserCircle,
   Users,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { label: "Client Profiles", path: "/clients", subsystem: SUBSYSTEMS.CLIENTS, action: "view", Icon: BriefcaseBusiness },
   { label: "User Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Users },
   { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package },
+  { label: "Scheduling", path: "/scheduling", subsystem: SUBSYSTEMS.SCHEDULING, action: "view", Icon: CalendarDays },
 ];
 
 const styles = {

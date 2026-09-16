@@ -27,7 +27,7 @@ const COLUMNS = `
 `;
 
 const MOVEMENT_COLUMNS = `
-  id, item_id, amount, movement_date, reference, actor, intake_branch_or_station, created_at,
+  id, item_id, amount, quantity_delta, movement_date, reference, actor, intake_branch_or_station, movement_type, appointment_id, created_at,
   inventory ( name, unit, cost )
 `;
 
@@ -295,6 +295,18 @@ export async function stockIn(
   };
 }
 
+export async function stockCorrection(itemId, delta, reason, date = new Date().toISOString().slice(0, 10)) {
+  const { data, error } = await supabase.rpc("stock_correction", {
+    p_item_id: itemId,
+    p_delta: Number(delta),
+    p_reason: reason,
+    p_movement_date: date,
+  });
+  if (error) return { error: describeError(error) };
+  const row = Array.isArray(data) ? data[0] : data;
+  return { movement: row, newQuantity: Number(row?.new_quantity) };
+}
+
 function mapMovementRow(row) {
   const amount = Number(row.amount) || 0;
   const unitCost = Number(row.unit_cost ?? row.inventory?.cost ?? 0);
@@ -307,6 +319,9 @@ function mapMovementRow(row) {
     movementDate: row.movement_date,
     reference: row.reference || row.purchase_reference || "—",
     intakeBranchOrStation: row.intake_branch_or_station || "—",
+    movementType: row.movement_type || "IN",
+    quantityDelta: row.quantity_delta === null || row.quantity_delta === undefined ? (row.movement_type === "OUT" ? -Number(row.amount) : Number(row.amount)) : Number(row.quantity_delta),
+    appointmentId: row.appointment_id || null,
     actor: row.actor || "—",
     unitCost,
     totalCost,

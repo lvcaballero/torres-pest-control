@@ -1,0 +1,68 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as appointmentService from "../services/appointmentService";
+import { useAuthContext } from "./AuthContext";
+
+const SchedulingContext = createContext(null);
+
+export function SchedulingProvider({ children }) {
+  const { session, sessionVerified } = useAuthContext();
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    const result = await appointmentService.fetchAppointments();
+    if (result.error) setError(result.error);
+    else setAppointments(result.appointments);
+    setLoading(false);
+    return result;
+  }, []);
+
+  useEffect(() => {
+    if (!session || !sessionVerified) {
+      setAppointments([]);
+      setError("");
+      return;
+    }
+    refresh();
+  }, [session, sessionVerified, refresh]);
+
+  const createAppointment = useCallback(async (fields) => {
+    const result = await appointmentService.createAppointment(fields);
+    if (result.error) return result.error;
+    setAppointments((current) => [...current, result.appointment].sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)));
+    return result.appointment;
+  }, []);
+
+  const updateAppointment = useCallback(async (appointment) => {
+    const result = await appointmentService.updateAppointment(appointment);
+    if (result.error) return result.error;
+    if (!result.appointment?.status) return "Appointment update returned no saved status. Apply migration 020 and try again.";
+    setAppointments((current) => current.map((entry) => entry.id === appointment.id ? { ...entry, ...result.appointment, report: entry.report, reportSubmitted: entry.reportSubmitted, stockUsed: entry.stockUsed } : entry));
+    return result.appointment;
+  }, []);
+
+  const submitReport = useCallback(async (appointmentId, findings) => {
+    const result = await appointmentService.submitReport(appointmentId, findings);
+    if (result.error) return result.error;
+    setAppointments((current) => current.map((entry) => entry.id === appointmentId ? { ...entry, report: result.report.findings, reportSubmitted: true, status: "Completed" } : entry));
+    return result.report;
+  }, []);
+
+  const addStockUsed = useCallback((appointmentId, entry) => {
+    setAppointments((current) => current.map((appointment) => appointment.id === appointmentId
+      ? { ...appointment, stockUsed: [...(appointment.stockUsed || []), entry] }
+      : appointment));
+  }, []);
+
+  const value = useMemo(() => ({ appointments, loading, error, refresh, createAppointment, updateAppointment, submitReport, addStockUsed }), [appointments, loading, error, refresh, createAppointment, updateAppointment, submitReport, addStockUsed]);
+  return <SchedulingContext.Provider value={value}>{children}</SchedulingContext.Provider>;
+}
+
+export function useScheduling() {
+  const context = useContext(SchedulingContext);
+  if (!context) throw new Error("useScheduling must be used inside <SchedulingProvider>.");
+  return context;
+}

@@ -1,0 +1,159 @@
+// Shared dashboard furniture: stat tiles, panels, job rows, ranked bars.
+//
+// Two rules these encode, so both dashboards inherit them:
+//
+//   - State colour goes on the tile that needs attention, not on every tile.
+//     If they are all coloured, none of them read as urgent.
+//   - Ranked bars are one series, so they take one hue and carry their value as
+//     a direct label. Colouring each row differently would imply a category
+//     difference that is not there.
+
+import { colors } from "../../styles/theme";
+
+export const TONE = {
+  plain: { border: "#eadede", surface: "#ffffff", ink: colors.ink, label: colors.muted },
+  attn: { border: "#f0c489", surface: "#fdf6ea", ink: "#9a5b0b", label: "#9a5b0b" },
+  crit: { border: "#eeb0ac", surface: "#fdf0ef", ink: "#b3261e", label: "#b3261e" },
+  done: { border: "#b9e0d0", surface: "#f0f9f5", ink: "#1f7a5f", label: "#1f7a5f" },
+};
+
+/**
+ * The figure is sized from its own length rather than set once, because a peso
+ * total has no fixed width — "3" and "₱10,173,218,400" landed in the same box
+ * and the long one ran straight out of the tile.
+ */
+function figureSize(value) {
+  const length = String(value).length;
+  if (length <= 6) return "1.9rem";
+  if (length <= 9) return "1.6rem";
+  if (length <= 12) return "1.35rem";
+  if (length <= 16) return "1.15rem";
+  return "1rem";
+}
+
+export function StatTile({ label, value, note, tone = "plain", title }) {
+  const shade = TONE[tone] || TONE.plain;
+  return (
+    <div style={{
+      background: shade.surface,
+      border: `1px solid ${shade.border}`,
+      borderRadius: "14px",
+      padding: "0.95rem 1rem",
+      display: "grid",
+      gap: "0.2rem",
+      alignContent: "start",
+      minWidth: 0,
+    }}>
+      <span style={{
+        fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.07em",
+        textTransform: "uppercase", color: shade.label,
+        minWidth: 0, overflowWrap: "anywhere",
+      }}>{label}</span>
+      <span
+        title={title}
+        style={{
+          fontSize: figureSize(value), fontWeight: 800, lineHeight: 1.1,
+          color: shade.ink, fontVariantNumeric: "tabular-nums",
+          minWidth: 0, overflowWrap: "anywhere",
+        }}
+      >{value}</span>
+      {note && <span style={{ fontSize: "0.74rem", color: colors.muted, minWidth: 0, overflowWrap: "anywhere" }}>{note}</span>}
+    </div>
+  );
+}
+
+export function TileRow({ children, min = "170px" }) {
+  return <div style={{
+    display: "grid",
+    gridTemplateColumns: `repeat(auto-fit, minmax(${min}, 1fr))`,
+    gap: "0.75rem",
+  }}>{children}</div>;
+}
+
+export function Panel({ title, action, children }) {
+  return (
+    <section style={{
+      background: "#fff",
+      border: "1px solid #eadede",
+      borderRadius: "14px",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        gap: "0.75rem", padding: "0.8rem 1rem", borderBottom: "1px solid #eadede",
+      }}>
+        <h2 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 800, color: colors.ink }}>{title}</h2>
+        {action && <span style={{ fontSize: "0.74rem", fontWeight: 700, color: colors.brand }}>{action}</span>}
+      </div>
+      <div style={{ padding: "0.85rem 1rem", display: "grid", gap: "0.7rem" }}>{children}</div>
+    </section>
+  );
+}
+
+export function Empty({ children }) {
+  return <p style={{ margin: 0, color: colors.muted, fontSize: "0.84rem" }}>{children}</p>;
+}
+
+/** One appointment line: when, who, where, and the action it is waiting on. */
+export function JobRow({ when, title, detail, action, first = false }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: "0.7rem",
+      paddingTop: first ? 0 : "0.7rem",
+      borderTop: first ? "none" : "1px solid #f3eaea",
+    }}>
+      <span style={{
+        flex: "none", width: "66px", fontSize: "0.78rem", fontWeight: 800,
+        color: colors.ink, fontVariantNumeric: "tabular-nums", paddingTop: "0.1rem",
+      }}>{when}</span>
+      <span style={{ flex: 1, minWidth: 0, display: "grid", gap: "0.1rem" }}>
+        <span style={{ fontSize: "0.87rem", fontWeight: 700, color: colors.ink }}>{title}</span>
+        {detail && <span style={{ fontSize: "0.75rem", color: colors.muted }}>{detail}</span>}
+      </span>
+      {action && <span style={{ flex: "none", alignSelf: "center" }}>{action}</span>}
+    </div>
+  );
+}
+
+export function Chip({ tone = "done", children }) {
+  const shade = TONE[tone] || TONE.done;
+  return <span style={{
+    fontSize: "0.64rem", fontWeight: 800, letterSpacing: "0.05em",
+    textTransform: "uppercase", borderRadius: "999px", padding: "0.15rem 0.5rem",
+    background: shade.surface, color: shade.ink, border: `1px solid ${shade.border}`,
+    whiteSpace: "nowrap",
+  }}>{children}</span>;
+}
+
+/** Single-series magnitude: one hue, direct labels, no legend. */
+export function RankedBars({ rows, format = (value) => value }) {
+  const top = Math.max(...rows.map((row) => row.value), 0);
+  if (rows.length === 0) return <Empty>Nothing recorded yet.</Empty>;
+  return (
+    <div style={{ display: "grid", gap: "0.6rem" }}>
+      {rows.map((row) => (
+        <div key={row.label} style={{ display: "grid", gap: "0.25rem" }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", gap: "0.75rem",
+            fontSize: "0.8rem", fontWeight: 600, color: colors.body,
+          }}>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+            <span style={{ color: colors.muted, fontVariantNumeric: "tabular-nums", flex: "none" }}>{format(row.value)}</span>
+          </div>
+          <div style={{ height: "7px", borderRadius: "4px", background: "#f3eaea", overflow: "hidden" }}>
+            <div style={{
+              width: top > 0 ? `${Math.max(2, (row.value / top) * 100)}%` : "0%",
+              height: "100%", borderRadius: "4px", background: colors.brandLight,
+            }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export const timeLabel = (value) =>
+  new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+export const dateLabel = (value) =>
+  new Date(value).toLocaleDateString([], { month: "short", day: "numeric" });

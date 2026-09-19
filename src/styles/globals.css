@@ -1,0 +1,687 @@
+/* Minimal reset and design tokens.
+ *
+ * The app styles components with inline `style={{...}}` props (see
+ * src/styles/theme.js for the shared objects). This file deliberately stays
+ * small: page-level resets, focus visibility, and the tokens a future CSS
+ * migration would build on. It is not a component stylesheet.
+ */
+
+:root {
+  --brand: #7f1111;
+  --brand-light: #bf3e3e;
+  --brand-ink: #8b1e1e;
+  --ink: #0f172a;
+  --body: #111827;
+  --muted: #6b7280;
+  --line: #dfe4ea;
+  --success: #1f7a5f;
+  --danger: #b91c1c;
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--body);
+  background: #f7f7f8;
+}
+
+/* Inputs don't inherit the body font by default. */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Every interactive control has a consistent, responsive hover treatment. */
+button:not(:disabled),
+a[href] {
+  cursor: pointer;
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+}
+
+button:not(:disabled):hover,
+a[href]:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
+}
+
+button:not(:disabled):active,
+a[href]:active {
+  transform: translateY(0);
+}
+
+/* Focus must not add a second, brighter outline to buttons or dashboard links. */
+button:focus,
+button:active,
+a:focus,
+a:active,
+nav a:focus,
+nav a:focus-visible,
+nav a:active,
+nav button:focus,
+nav button:focus-visible,
+nav button:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Sidebar links must never retain a browser "pressed" or visited outline. */
+.sidebar-nav-link,
+.sidebar-nav-link:link,
+.sidebar-nav-link:visited,
+.sidebar-nav-link:hover,
+.sidebar-nav-link:focus,
+.sidebar-nav-link:focus-visible,
+.sidebar-nav-link:active {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-nav-link:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16) !important;
+}
+
+:focus-visible {
+  outline: 0 !important;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-content {
+  min-height: 100vh;
+  margin-left: 264px;
+}
+
+a {
+  color: var(--brand-ink);
+}
+
+/* Long tables and code blocks scroll inside themselves rather than pushing
+   the page sideways. */
+.scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.standalone-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: stretch;
+  padding: 0;
+  background: #f2ecea;
+}
+
+.standalone-login-card {
+  position: relative;
+  /* Full bleed, and sized in viewport units rather than with a transform.
+     A `scale()` here painted the card larger than the box the page reserved
+     for it, which ran the card past both edges while its own height stayed
+     short — `overflow: hidden` then cut off the logo at the top and the Sign
+     in button at the bottom. 100% and 100vh are measured against the viewport,
+     so the login also keeps filling the screen at any ctrl+wheel zoom level. */
+  width: 100%;
+  min-height: 100vh;
+  border-radius: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at 90% 20%, #c9443b 0%, #a52a25 22%, #6f1416 55%, #4a0a0d 100%);
+}
+
+.standalone-form-panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 72.5%;
+  background: #faf6f2;
+  border-radius: 0 97px 97px 0 / 0 50% 50% 0;
+  display: flex;
+  align-items: center;
+  padding: 40px 0 36px clamp(40px, 7vw, 150px);
+  overflow-y: auto;
+  z-index: 1;
+}
+
+.standalone-form-inner {
+  width: min(554px, 100%);
+}
+
+.accent-bar {
+  position: absolute;
+  top: 11px;
+  left: 40px;
+  width: 43px;
+  height: 3px;
+  background: #a51c22;
+}
+
+.tp-logo {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: block;
+  margin-bottom: 15px;
+  overflow: visible;
+}
+
+.tp-logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.standalone-form-inner h1 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: 2.31rem;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: #22161a;
+}
+
+.sub {
+  margin: 4px 0 22px;
+  color: #574749;
+  font-size: 1.17rem;
+  line-height: 1.45;
+}
+
+.standalone-login-form {
+  width: min(100%, 484px);
+}
+
+.field {
+  margin-bottom: 22px;
+}
+
+.lbl {
+  display: block;
+  margin-bottom: 11px;
+  font-size: 1.07rem;
+  font-weight: 500;
+  color: #22161a;
+}
+
+.input {
+  width: 100%;
+  height: 55px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 1.17rem;
+  color: #22161a;
+  background: #fff;
+  border: 1.5px solid #ebdfd9;
+  border-radius: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input::placeholder {
+  color: #c3b4b0;
+}
+
+.input:focus {
+  border-color: #a51c22;
+  box-shadow: 0 0 0 4px rgba(165, 28, 34, 0.22);
+}
+
+.input[aria-invalid="true"] {
+  border-color: #b3261e;
+}
+
+.input-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.input-wrap .input {
+  padding-right: 54px;
+}
+
+.toggle-pw {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  margin-top: -19px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #574749;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+  line-height: 0;
+}
+
+.toggle-pw:hover,
+.toggle-pw:focus-visible,
+.toggle-pw:active {
+  color: #a51c22;
+  background: rgba(165, 28, 34, 0.07);
+  margin-top: -19px;
+}
+
+.toggle-pw:focus-visible {
+  outline: 3px solid rgba(165, 28, 34, 0.22);
+  outline-offset: 0;
+}
+
+.toggle-pw svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  transform: none;
+  position: relative;
+  top: 0;
+}
+
+.toggle-pw svg[hidden] {
+  display: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 22px;
+}
+
+/* The sign-in page puts .row above its button; the reset page puts its
+   "Back to sign in" link below one, so it needs the spacing the other way. */
+.row-back {
+  margin: 20px 0 0;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #574749;
+  font-size: 1.17rem;
+  cursor: pointer;
+}
+
+.check input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  border: 1.5px solid #574749;
+  border-radius: 7px;
+  background: transparent;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.check input::after {
+  content: "";
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+  opacity: 0;
+}
+
+.check input:checked {
+  background: #a51c22;
+  border-color: #a51c22;
+}
+
+.check input:checked::after {
+  opacity: 1;
+}
+
+.check input:focus-visible {
+  outline: 3px solid rgba(165, 28, 34, 0.22);
+  outline-offset: 2px;
+}
+
+.link {
+  color: #8f1a1f;
+  font-weight: 600;
+  font-size: 1.17rem;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:focus-visible {
+  outline: 3px solid rgba(165, 28, 34, 0.22);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.btn-primary {
+  width: 100%;
+  height: 60px;
+  border: 0;
+  border-radius: 14px;
+  background: #a51c22;
+  color: #fff;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: #8a1519;
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+.btn-primary:focus-visible {
+  outline: 3px solid rgba(165, 28, 34, 0.22);
+  outline-offset: 3px;
+}
+
+.btn-primary[disabled] {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.err,
+.status {
+  margin: 10px 2px 0;
+  font-size: 0.9rem;
+}
+
+.err {
+  color: #b3261e;
+}
+
+.status {
+  color: #574749;
+}
+
+.err:empty,
+.status:empty {
+  display: none;
+}
+
+.hero-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-layer.on-red {
+  z-index: 0;
+}
+
+.hero-layer.on-cream {
+  z-index: 2;
+  clip-path: inset(0 27.5% 0 0 round 0 97px 97px 0 / 0 50% 50% 0);
+}
+
+.hero {
+  position: absolute;
+  left: 61%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(340px, 34%);
+  color: #fff;
+}
+
+.hero .bar {
+  width: 43px;
+  height: 3px;
+  background: #f1c4b8;
+  margin-bottom: 24px;
+}
+
+.hero h2 {
+  margin: 0;
+  max-width: 14ch;
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: 2.6rem;
+  line-height: 1.1;
+  color: inherit;
+}
+
+.hero p {
+  display: none;
+}
+
+.on-cream .hero {
+  color: #a51c22;
+}
+
+.on-cream .hero .bar {
+  background: #a51c22;
+}
+
+.on-cream .hero p {
+  color: #a51c22;
+}
+
+@media (max-width: 860px) {
+  .standalone-login-card {
+    min-height: 0;
+    width: 100%;
+  }
+
+  .standalone-form-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    padding: 48px 28px 64px;
+    border-radius: 0 0 50% 50% / 0 0 56px 56px;
+  }
+
+  .accent-bar {
+    left: 28px;
+    top: 0;
+  }
+
+  .standalone-form-inner {
+    width: 100%;
+    max-width: 504px;
+    margin: 0 auto;
+  }
+
+  .hero-layer.on-cream {
+    display: none;
+  }
+
+  .hero-layer {
+    position: static;
+  }
+
+  .hero {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    padding: 40px 28px 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .standalone-form-inner h1 {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .standalone-login-page {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* ---------------------------------------------------------------------------
+   Printable service form
+   ---------------------------------------------------------------------------
+   The document is rendered into the app but parked off-screen; printing hides
+   everything else and brings it back. Doing it this way instead of opening a
+   new window avoids popup blockers and keeps the app's data in scope.
+--------------------------------------------------------------------------- */
+
+.service-form-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 794px; /* A4 at 96dpi, so the on-screen layout matches the page */
+}
+
+.service-form {
+  background: #fff;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 26px 30px;
+}
+
+.sf-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #7f1111;
+}
+
+.sf-logo { width: 62px; height: auto; flex: none; }
+.sf-org { flex: 1; }
+.sf-org-name { font-size: 17px; font-weight: 800; color: #7f1111; letter-spacing: -0.01em; }
+.sf-org-line { font-size: 10.5px; color: #4b5563; }
+
+.sf-doc { text-align: right; flex: none; }
+.sf-doc-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #111827; }
+.sf-doc-ref { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+.sf-meta { width: 100%; border-collapse: collapse; margin-top: 14px; }
+.sf-meta tr { border-bottom: 1px solid #f1f5f9; }
+.sf-key {
+  text-align: left; width: 150px; padding: 5px 0;
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #6b7280; vertical-align: top;
+}
+.sf-val { padding: 5px 0; font-size: 11.5px; color: #111827; }
+
+.sf-block { margin-top: 15px; break-inside: avoid; }
+.sf-h2 {
+  margin: 0 0 5px; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: #7f1111;
+  border-bottom: 1px solid #e5e7eb; padding-bottom: 3px;
+}
+.sf-prose { font-size: 11.5px; white-space: pre-wrap; }
+
+.sf-materials { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.sf-materials th {
+  text-align: left; padding: 4px 0; font-size: 9.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+}
+.sf-materials td { padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.sf-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.sf-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.sf-photo { margin: 0; break-inside: avoid; }
+.sf-photo img {
+  display: block; width: 100%; height: 150px; object-fit: cover;
+  border: 1px solid #e5e7eb; border-radius: 4px;
+}
+.sf-photo figcaption { font-size: 9.5px; color: #6b7280; margin-top: 3px; }
+
+.sf-sign { margin-top: 20px; break-inside: avoid; }
+.sf-sign-grid { display: flex; gap: 20px; align-items: flex-end; }
+.sf-sign-box { width: 260px; flex: none; }
+.sf-sign-box img { display: block; max-width: 100%; max-height: 80px; }
+.sf-sign-blank { padding-top: 80px; }
+.sf-sign-missing {
+  height: 56px; display: flex; align-items: flex-end;
+  font-size: 10px; color: #9ca3af; font-style: italic;
+}
+.sf-sign-rule { border-bottom: 1px solid #111827; margin-top: 2px; }
+.sf-sign-name { font-size: 11.5px; font-weight: 700; margin-top: 3px; }
+.sf-sign-cap { font-size: 9.5px; color: #6b7280; }
+.sf-sign-when { font-size: 10.5px; color: #4b5563; padding-bottom: 4px; }
+.sf-sign-note { margin-top: 3px; max-width: 34ch; }
+/* The technician signs on its own row, below the customer confirmation. */
+.sf-sign-tech { margin-top: 18px; }
+
+.sf-foot {
+  margin-top: 22px; padding-top: 8px; border-top: 1px solid #e5e7eb;
+  font-size: 9.5px; color: #9ca3af; text-align: center;
+}
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+
+  /* Hide the app, show only the form. The host is portalled straight onto
+     <body>, so it survives this rule while #root does not. */
+  body > *:not(.service-form-host) { display: none !important; }
+
+  .service-form-host {
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+  }
+
+  .service-form { padding: 0; font-size: 11px; }
+
+  /* Keep a photo or a signature from being sliced across a page break. */
+  .sf-block, .sf-photo, .sf-sign { break-inside: avoid; page-break-inside: avoid; }
+  .sf-photos-block { break-before: auto; }
+
+  a[href]::after { content: ""; }
+}
+
+.sf-methods { margin: 0; padding-left: 16px; font-size: 11.5px; }
+.sf-methods li { margin-bottom: 1px; }
+
+.sf-batch { font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #4b5563; }

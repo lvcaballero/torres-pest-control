@@ -503,17 +503,8 @@ function InventoryPage() {
                         <option value="High">High</option>
                       </select>
                     </Field>
-                    <Field label="Hazard Rating">
+                    <Field label="Hazard Note">
                       <input name="hazardRating" value={form.hazardRating} onChange={handleChange} style={inputStyle} placeholder="Hazard description" />
-                    </Field>
-                    <Field label="Standard Rate">
-                      <div style={{ display: "grid", gridTemplateColumns: "100px minmax(0, 1fr)", gap: "0.4rem" }}>
-                        <input name="standardRate" type="number" step="any" min="0" value={form.standardRate} onChange={handleChange} style={inputStyle} placeholder="10" />
-                        <input name="rateUnit" value={form.rateUnit} onChange={handleChange} style={inputStyle} placeholder="mL per 1 L water" />
-                      </div>
-                    </Field>
-                    <Field label="Mixing Note">
-                      <input name="rateNote" value={form.rateNote} onChange={handleChange} style={inputStyle} placeholder="e.g. 0.03% dilution" />
                     </Field>
                     <Field label="Date Received">
                       <input name="dateReceived" type="date" value={form.dateReceived} onChange={handleChange} style={inputStyle} />
@@ -1225,10 +1216,9 @@ function EditItemModal({ item, onClose, onSave }) {
                   <option value="High">High</option>
                 </select>
               </Field>
-              <Field label="Hazard Rating"><input name="hazardRating" value={values.hazardRating} onChange={handleChange} style={inputStyle} /></Field>
+              <Field label="Hazard Note"><input name="hazardRating" value={values.hazardRating} onChange={handleChange} style={inputStyle} /></Field>
               <Field label="Standard Rate"><input name="standardRate" type="number" step="any" min="0" value={values.standardRate} onChange={handleChange} style={inputStyle} placeholder="10" /></Field>
               <Field label="Rate Unit"><input name="rateUnit" value={values.rateUnit} onChange={handleChange} style={inputStyle} placeholder="mL per 1 L water" /></Field>
-              <Field label="Mixing Note"><input name="rateNote" value={values.rateNote} onChange={handleChange} style={inputStyle} placeholder="0.03% dilution" /></Field>
               <Field label="Date Received"><input name="dateReceived" type="date" value={values.dateReceived} onChange={handleChange} style={inputStyle} /></Field>
             </div>
           </section>
@@ -1538,9 +1528,8 @@ function InventoryDetailModal({ item, onClose }) {
             <DetailRow label="Chemical Type" value={item.chemicalType} />
             {item.expirationDate && <DetailRow label="Expiration Date" value={new Date(item.expirationDate).toLocaleDateString()} />}
             {item.safetyLevel && <DetailRow label="Safety Level" value={item.safetyLevel} />}
-            {item.hazardRating && <DetailRow label="Hazard Rating" value={item.hazardRating} />}
+              {item.hazardRating && <DetailRow label="Hazard Note" value={item.hazardRating} />}
             {item.standardRate !== "" && item.standardRate !== null && <DetailRow label="Standard Rate" value={`${item.standardRate} ${item.rateUnit || ""}`.trim()} />}
-            {item.rateNote && <DetailRow label="Mixing Note" value={item.rateNote} />}
             {item.dateReceived && <DetailRow label="Date Received" value={new Date(item.dateReceived).toLocaleDateString()} />}
           </div>
         </div>

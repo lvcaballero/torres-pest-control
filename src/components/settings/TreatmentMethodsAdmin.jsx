@@ -17,7 +17,6 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
   const [groupName, setGroupName] = useState(initial?.group_name || GROUP_OPTIONS[0]);
   const [value, setValue] = useState(initial?.value || "");
   const [label, setLabel] = useState(initial?.label || "");
-  const [sortOrder, setSortOrder] = useState(initial?.sort_order ?? 0);
   const isEdit = Boolean(initial?.id);
 
   useEffect(() => {
@@ -25,7 +24,6 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
       setGroupName(initial?.group_name || GROUP_OPTIONS[0]);
       setValue(initial?.value || "");
       setLabel(initial?.label || "");
-      setSortOrder(initial?.sort_order ?? 0);
     }
   }, [open, initial]);
 
@@ -109,23 +107,13 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
             />
           </label>
 
-          {/* Sort Order */}
-          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 700, color: colors.body }}>
-            Sort Order
-            <input
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-              style={{ ...inputStyle, maxWidth: "120px" }}
-            />
-          </label>
         </div>
 
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", flexWrap: "wrap" }}>
           <button
             type="button"
             disabled={busy || !label.trim() || !value.trim()}
-            onClick={() => onSave({ groupName, value: value.trim(), label: label.trim(), sortOrder })}
+            onClick={() => onSave({ groupName, value: value.trim(), label: label.trim() })}
             style={{ ...primaryButton, opacity: busy || !label.trim() || !value.trim() ? 0.6 : 1, cursor: busy ? "wait" : "pointer" }}
           >
             {busy ? "Saving…" : isEdit ? "Save Changes" : "Add Method"}

@@ -98,6 +98,9 @@ export function layoutDayAppointments(dayAppointments, { maxColumns = 3 } = {}) 
  */
 export const DAY_START_HOUR = 7;
 export const DAY_END_HOUR = 19;
+// The calendar shows the boundary row so existing 7 PM appointments remain visible.
+// DAY_END_HOUR remains the booking cutoff used by validation.
+export const CALENDAR_END_HOUR = DAY_END_HOUR + 1;
 
 const clockLabel = (hour) => `${String(hour % 12 || 12)}:00 ${hour < 12 ? "AM" : "PM"}`;
 

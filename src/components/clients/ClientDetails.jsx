@@ -23,12 +23,19 @@ function InfoBlock({ label, value }) {
   return <div style={{ padding: "0.8rem", background: "#f8fafc", borderRadius: "8px" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>{label}</div><div style={{ marginTop: "0.3rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{value}</div></div>;
 }
 
+function treatmentMethodLabel(value) {
+  return value.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
 function ServiceReportSummary({ appointment }) {
+  const treatmentMethods = (appointment.treatmentMethods || []).map(treatmentMethodLabel).join(" · ");
+  const treatment = [treatmentMethods, appointment.treatmentPerformed].filter(Boolean).join("\n") || "No treatment recorded.";
+
   return <div style={{ display: "grid", gap: "0.65rem", margin: "1.25rem 1.25rem 0" }}>
     <InfoBlock label="Service type" value={appointment.serviceType || "Not specified."} />
     <InfoBlock label="Service location" value={appointment.serviceLocation || "Client address."} />
     <InfoBlock label="Inspection findings" value={appointment.report || "No findings recorded."} />
-    <InfoBlock label="Treatment performed" value={appointment.treatmentPerformed || "No treatment recorded."} />
+    <InfoBlock label="Treatment performed" value={treatment} />
     <InfoBlock label="Recommendations" value={appointment.recommendations || "No recommendations recorded."} />
     <InfoBlock label="Follow-up date" value={appointment.followUpDate || "No follow-up scheduled."} />
     <InfoBlock label="Report submitted" value={appointment.reportSubmittedAt ? formatDateTime(appointment.reportSubmittedAt) : "Not submitted."} />
@@ -104,7 +111,6 @@ function ClientDetails({
     () => [
       { label: "Client No.", value: client.reference || "—" },
       { label: "Classification", value: client.classification === "OTHER" && client.classificationOther ? client.classificationOther : humanizeEnum(client.classification) },
-      { label: "Pest Concern", value: client.pestConcern || "—" },
       { label: "Source", value: client.source || "—" },
       { label: "Phone", value: client.phone || "—" },
       { label: "Email", value: client.email || "—" },
@@ -166,7 +172,8 @@ function ClientDetails({
                 gap: "0.4rem",
                 ...secondaryButton,
                 textDecoration: "none",
-                paddingTop: "0.15rem",
+                padding: "0.65rem 0.9rem",
+                fontSize: "0.82rem",
               }}
             >
               <ArrowLeft size={16} /> Back to Client Profiles
@@ -222,7 +229,11 @@ function ClientDetails({
                   </div>
                   {(appointment.serviceType || appointment.serviceLocation) && <p style={{ margin: "0.4rem 0 0", color: colors.muted, fontSize: "0.76rem" }}>{[appointment.serviceType, appointment.serviceLocation].filter(Boolean).join(" • ")}</p>}
                   {appointment.notes && <p style={{ margin: "0.55rem 0 0", color: colors.body, fontSize: "0.84rem" }}>{appointment.notes}</p>}
-                  {appointment.report && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection and treatment report</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div>{appointment.reportSubmittedAt && <div style={{ marginTop: "0.35rem", color: colors.muted, fontSize: "0.7rem" }}>Submitted {formatDateTime(appointment.reportSubmittedAt)}</div>}</div>}
+                  {(appointment.report || appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}>
+                    {appointment.report && <><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection findings</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div></>}
+                    {(appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: appointment.report ? "0.6rem" : 0 }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Treatment performed</div>{(appointment.treatmentMethods || []).length > 0 && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.8rem" }}>{appointment.treatmentMethods.map(treatmentMethodLabel).join(" · ")}</div>}{appointment.treatmentPerformed && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.treatmentPerformed}</div>}</div>}
+                    {appointment.reportSubmittedAt && <div style={{ marginTop: "0.35rem", color: colors.muted, fontSize: "0.7rem" }}>Submitted {formatDateTime(appointment.reportSubmittedAt)}</div>}
+                  </div>}
                   {(appointment.attachments || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Report attachments</div><div style={{ marginTop: "0.35rem", color: colors.body, fontSize: "0.78rem" }}>{appointment.attachments.length} file{appointment.attachments.length === 1 ? "" : "s"} — click this visit to view or download them.</div></div>}
                   {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
                 </button>

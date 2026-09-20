@@ -129,7 +129,6 @@ export const MAX_DOCUMENT_BYTES = 2 * 1024 * 1024; // 2MB
 // appointment — visit photos and signed forms go to ATTACHMENT_CATEGORIES.
 export const DOCUMENT_CATEGORIES = [
   { value: "CLIENT_ID", label: "Valid ID", uploadLabel: "Add valid ID" },
-  { value: "CONTRACT", label: "Contracts", uploadLabel: "Add contract" },
   { value: "PROPERTY", label: "Property documents", uploadLabel: "Add property document" },
   { value: "PERMIT", label: "General permits", uploadLabel: "Add permit" },
   { value: "OTHER", label: "Other client files", uploadLabel: "Add document" },

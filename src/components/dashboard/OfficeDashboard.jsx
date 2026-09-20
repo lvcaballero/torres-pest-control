@@ -19,7 +19,7 @@ import { useScheduling } from "../../context/SchedulingContext";
 import { useInventoryContext } from "../../context/InventoryContext";
 import { ROLES } from "../../utils/constants";
 import { dashboardNote, greetingFor } from "../../utils/greetings";
-import { colors, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
+import { colors, pageShell } from "../../styles/theme";
 import {
   appointmentsToday,
   averageMaterialCost,
@@ -30,14 +30,13 @@ import {
   pesoCompact,
   recentlyCompleted,
   reorderExposure,
-  serviceMixThisMonth,
   spendBySupplier,
   spendThisMonth,
   stockOnHandValue,
-  workloadToday,
+  weekWindow,
 } from "../../utils/dashboardMetrics";
 import {
-  Chip, Empty, JobRow, Panel, RankedBars, StatTile, TileRow, dateLabel, timeLabel,
+  Chip, Empty, JobRow, Panel, PieChart, RankedBars, StatTile, TileRow, dateLabel,
 } from "./DashboardParts";
 
 function OfficeDashboard() {
@@ -62,10 +61,54 @@ function OfficeDashboard() {
   const unscheduled = needsScheduling(appointments);
   const toRebook = awaitingReschedule(appointments);
   const lowStock = lowStockItems(inventory);
-  const actionItems = [...unscheduled, ...toRebook].slice(0, 6);
+  const currentWeek = useMemo(() => weekWindow(), []);
+  const schedule = useMemo(() => {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(currentWeek.start);
+      date.setDate(date.getDate() + index);
+      const key = date.toISOString().slice(0, 10);
+      const count = appointments.filter((appointment) => {
+        if (appointment.status === "Cancelled") return false;
+        const scheduled = new Date(appointment.scheduledAt);
+        return scheduled.toISOString().slice(0, 10) === key;
+      }).length;
+      return {
+        label: date.toLocaleDateString([], { weekday: "short" }),
+        date: date.getDate(),
+        value: count,
+      };
+    });
+  }, [appointments, currentWeek]);
+  const scheduleTotal = schedule.reduce((total, day) => total + day.value, 0);
+  const busiestDay = schedule.reduce((busiest, day) => day.value > busiest.value ? day : busiest, schedule[0]);
 
-  const workload = workloadToday(appointments, technicians);
-  const serviceMix = serviceMixThisMonth(appointments);
+  const workload = useMemo(() => {
+    const rows = technicians.map((technician) => ({
+      label: technician.name || technician.username || "Technician",
+      value: appointments.filter((appointment) => appointment.status !== "Cancelled"
+        && appointment.technicianId === technician.id
+        && new Date(appointment.scheduledAt) >= currentWeek.start
+        && new Date(appointment.scheduledAt) < currentWeek.end).length,
+    }));
+    const unassigned = appointments.filter((appointment) => appointment.status !== "Cancelled"
+      && !appointment.technicianId
+      && new Date(appointment.scheduledAt) >= currentWeek.start
+      && new Date(appointment.scheduledAt) < currentWeek.end).length;
+    if (unassigned > 0) rows.push({ label: "Unassigned", value: unassigned });
+    return rows.filter((row) => row.value > 0).sort((first, second) => second.value - first.value);
+  }, [appointments, currentWeek, technicians]);
+  const serviceMix = useMemo(() => {
+    const counts = new Map();
+    appointments
+      .filter((appointment) => appointment.status !== "Cancelled"
+        && new Date(appointment.scheduledAt) >= currentWeek.start
+        && new Date(appointment.scheduledAt) < currentWeek.end)
+      .forEach((appointment) => {
+        const label = appointment.pestConcern || appointment.serviceType || "Unspecified";
+        counts.set(label, (counts.get(label) || 0) + 1);
+      });
+    return [...counts.entries()].map(([label, value]) => ({ label, value })).sort((first, second) => second.value - first.value);
+  }, [appointments, currentWeek]);
   const completed = recentlyCompleted(appointments);
 
   const monthSpend = spendThisMonth(movements);
@@ -119,42 +162,40 @@ function OfficeDashboard() {
           />
         </TileRow>
 
-        <Panel title="Action required" action={<Link to="/scheduling" style={{ color: colors.brand, textDecoration: "none" }}>Open Scheduling →</Link>}>
-          {actionItems.length === 0 && <Empty>Nothing waiting. Every visit has a technician and a slot.</Empty>}
-          {actionItems.map((appointment, index) => (
-            <JobRow
-              key={appointment.id}
-              first={index === 0}
-              when={dateLabel(appointment.scheduledAt)}
-              title={`${nameOf(appointment)} — ${appointment.pestConcern || "Service"}`}
-              detail={appointment.status === "Reschedule"
-                ? "Reschedule · needs a new slot"
-                : "Pending · no technician assigned"}
-              action={(
-                <Link
-                  to="/scheduling"
-                  style={{
-                    ...(appointment.status === "Reschedule" ? secondaryButton : primaryButton),
-                    textDecoration: "none", padding: "0.5rem 0.75rem", fontSize: "0.76rem", whiteSpace: "nowrap",
-                  }}
-                >
-                  {appointment.status === "Reschedule" ? "Rebook" : "Assign"}
-                </Link>
-              )}
-            />
-          ))}
+        <Panel title="Scheduling overview" action={<Link to="/scheduling?view=week" style={{ color: colors.brand, textDecoration: "none" }}>This week</Link>}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", paddingBottom: "0.35rem" }}>
+              <div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{scheduleTotal}</div>
+                <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Appointments</div>
+              </div>
+              <div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{busiestDay.value}</div>
+                <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Peak day</div>
+              </div>
+              <div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{today.length}</div>
+                <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Today</div>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "0.55rem", alignItems: "end", height: "150px", padding: "0.75rem 0.25rem 0", borderTop: "1px solid #f3eaea", background: "repeating-linear-gradient(to top, transparent 0, transparent 37px, #f3eaea 38px)" }}>
+              {schedule.map((day) => (
+                <div key={`${day.label}-${day.date}`} title={`${day.value} ${day.value === 1 ? "appointment" : "appointments"} on ${day.label} ${day.date}`} style={{ display: "grid", gridTemplateRows: "1fr auto", alignItems: "end", gap: "0.35rem", height: "100%", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "end", justifyContent: "center", height: "100%" }}>
+                    <div style={{ width: "min(28px, 70%)", height: `${Math.max(8, busiestDay.value ? (day.value / busiestDay.value) * 100 : 8)}%`, minHeight: day.value ? "12px" : "5px", borderRadius: "4px 4px 2px 2px", background: day.value ? colors.brandLight : "#eadede" }} />
+                  </div>
+                  <div style={{ textAlign: "center", color: colors.muted, fontSize: "0.64rem", fontWeight: 700, whiteSpace: "nowrap" }}>{day.label}</div>
+                </div>
+              ))}
+            </div>
         </Panel>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-          <Panel title="Who's where today">
-            {workload.length === 0
-              ? <Empty>No technicians on the books.</Empty>
-              : <RankedBars rows={workload.map((row) => ({ label: row.name, value: row.count }))}
-                            format={(value) => `${value} job${value === 1 ? "" : "s"}`} />}
+          <Panel title="Who's where this week">
+            <PieChart rows={workload} format={(value) => `${value} ${value === 1 ? "job" : "jobs"}`} />
           </Panel>
 
-          <Panel title="Services this month">
-            <RankedBars rows={serviceMix.map((row) => ({ label: row.label, value: row.count }))} />
+          <Panel title="Services this week">
+            <PieChart rows={serviceMix} />
           </Panel>
         </div>
 
@@ -185,7 +226,10 @@ function OfficeDashboard() {
               <h3 style={{ margin: "0 0 0.6rem", fontSize: "0.8rem", fontWeight: 800, color: colors.body }}>
                 Spend by supplier
               </h3>
-              <RankedBars rows={suppliers} format={(value) => pesoCompact(value)} />
+              <RankedBars
+                rows={suppliers}
+                format={(value) => `${pesoCompact(value)} (${monthSpend > 0 ? Math.round((value / monthSpend) * 100) : 0}%)`}
+              />
             </div>
           )}
 

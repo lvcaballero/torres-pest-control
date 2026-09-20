@@ -7,14 +7,14 @@ function describeError(error) {
   return [error.message || "Unknown error", error.details ? ` - ${error.details}` : "", error.hint ? ` (hint: ${error.hint})` : ""].join("");
 }
 
-/** Fetch all active treatment methods, ordered by group then sort_order. */
+/** Fetch all active treatment methods, ordered by group then display label. */
 export async function fetchTreatmentMethods() {
   const { data, error } = await supabase
     .from("treatment_methods")
     .select("id, group_name, value, label, sort_order, is_active")
     .eq("is_active", true)
     .order("group_name", { ascending: true })
-    .order("sort_order", { ascending: true });
+    .order("label", { ascending: true });
   if (error) return { error: describeError(error), methods: [] };
   return { error: null, methods: data || [] };
 }
@@ -25,7 +25,7 @@ export async function fetchAllTreatmentMethods() {
     .from("treatment_methods")
     .select("id, group_name, value, label, sort_order, is_active")
     .order("group_name", { ascending: true })
-    .order("sort_order", { ascending: true });
+    .order("label", { ascending: true });
   if (error) return { error: describeError(error), methods: [] };
   return { error: null, methods: data || [] };
 }

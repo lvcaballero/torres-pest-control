@@ -152,6 +152,41 @@ export function RankedBars({ rows, format = (value) => value }) {
   );
 }
 
+const PIE_COLORS = ["#a52a25", "#b8794f", "#d6b48a", "#7f1111", "#c08a62", "#8b5e3c", "#d9c3a5"];
+
+export function PieChart({ rows, format = (value) => value }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  if (total === 0) return <Empty>Nothing scheduled yet.</Empty>;
+
+  let offset = 0;
+  const stops = rows.map((row, index) => {
+    const start = offset;
+    offset += (row.value / total) * 100;
+    return `${PIE_COLORS[index % PIE_COLORS.length]} ${start}% ${offset}%`;
+  });
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.85fr) minmax(0, 1.15fr)", gap: "1rem", alignItems: "center" }}>
+      <div style={{ width: "min(150px, 100%)", aspectRatio: "1", margin: "0 auto", borderRadius: "50%", background: `conic-gradient(${stops.join(", ")})`, position: "relative" }}>
+        <div style={{ position: "absolute", inset: "27%", borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", textAlign: "center", color: colors.ink, fontSize: "0.8rem", fontWeight: 800, lineHeight: 1.1 }}>
+          {total}<span style={{ display: "block", color: colors.muted, fontSize: "0.62rem", fontWeight: 600 }}>total</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: "0.5rem" }}>
+        {rows.map((row, index) => (
+          <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.6rem", minWidth: 0, color: colors.body, fontSize: "0.75rem" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: 0 }}>
+              <span style={{ width: "9px", height: "9px", flex: "none", borderRadius: "3px", background: PIE_COLORS[index % PIE_COLORS.length] }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+            </span>
+            <span style={{ flex: "none", color: colors.muted, fontVariantNumeric: "tabular-nums" }}>{format(row.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const timeLabel = (value) =>
   new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 

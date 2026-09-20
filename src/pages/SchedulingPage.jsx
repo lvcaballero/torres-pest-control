@@ -25,7 +25,7 @@ import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
 import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_TYPES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, endOf, findTechnicianConflicts, layoutDayAppointments, startOf } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, endOf, findTechnicianConflicts, layoutDayAppointments, startOf } from "../utils/scheduling";
 import { validateAttachment } from "../utils/validators";
 import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
 
@@ -35,7 +35,7 @@ import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } f
 const ROW_HEIGHT = 56;
 const MIN_CARD_HEIGHT = 22;
 const MAX_CARD_COLUMNS = 3;
-const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => index + DAY_START_HOUR);
+const HOURS = Array.from({ length: CALENDAR_END_HOUR - DAY_START_HOUR }, (_, index) => index + DAY_START_HOUR);
 
 // A card is filled with its technician's color. Overlapping cards are always
 // different technicians — the database forbids double-booking one — so color is
@@ -102,6 +102,11 @@ function toDateTimeLocal(value) {
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
+function defaultAppointmentDateTime() {
+  const date = new Date();
+  date.setHours(7, 0, 0, 0);
+  return toDateTimeLocal(date);
+}
 
 const STATUS_COLORS = {
   Pending: ["#fff7ed", "#c2410c"],
@@ -150,6 +155,7 @@ function SchedulingPage() {
   const [stockRows, setStockRows] = useState(STOCK_CATEGORIES.map((category) => ({ id: `stock-row-${category}`, category, itemId: "", amount: "", batchNumber: "" })));
   const [createOpen, setCreateOpen] = useState(false);
   const [createClientId, setCreateClientId] = useState("");
+  const [createScheduledAt, setCreateScheduledAt] = useState("");
   const [overflowGroup, setOverflowGroup] = useState(null);
   const [printRequest, setPrintRequest] = useState(null);
   const { methods: dynamicMethods, groups: dynamicGroups } = useTreatmentMethods();
@@ -197,12 +203,6 @@ function SchedulingPage() {
       ? current.filter((entry) => entry !== value)
       : [...current, value]);
   };
-
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
 
   const weekStart = startOfWeek(anchorDate);
   const weekStartTime = weekStart.getTime();
@@ -253,7 +253,7 @@ function SchedulingPage() {
       const date = new Date(appointment.scheduledAt);
       const bucket = byDay.get(localDateKey(date));
       if (!bucket) return;
-      if (date.getHours() < DAY_START_HOUR || date.getHours() >= DAY_END_HOUR) bucket.outside.push(appointment);
+      if (date.getHours() < DAY_START_HOUR || date.getHours() >= CALENDAR_END_HOUR) bucket.outside.push(appointment);
       else bucket.inRange.push(appointment);
     });
 
@@ -342,10 +342,15 @@ function SchedulingPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const nextValue = form.get("scheduledAt");
+    const nextScheduledAt = new Date(nextValue).toISOString();
+    const nextDuration = readDuration(form);
+    const nextStatus = form.get("status");
+    const timingChanged = new Date(nextScheduledAt).getTime() !== new Date(selected.scheduledAt).getTime()
+      || nextDuration !== (Number(selected.durationMinutes) || 60);
     const candidate = {
       ...selected,
-      scheduledAt: new Date(nextValue).toISOString(),
-      durationMinutes: readDuration(form),
+      scheduledAt: nextScheduledAt,
+      durationMinutes: nextDuration,
       technicianId: form.get("technicianId"),
     };
     // Cancelling a visit should not be blocked by the slot it used to hold.
@@ -357,15 +362,34 @@ function SchedulingPage() {
         return;
       }
     }
+
+    // The database checks the existing status before accepting a time change,
+    // so legacy after-hours appointments need the same two-step transition as
+    // drag-and-drop: mark Reschedule first, then save the new time.
+    if (timingChanged && selected.status !== "Reschedule") {
+      if (nextStatus !== "Reschedule") {
+        const refusal = "Set the status to Reschedule before changing the date, time, or duration.";
+        showError(refusal);
+        setMessage(refusal);
+        return;
+      }
+      const prepareResult = await updateAppointment({ ...selected, status: "Reschedule" });
+      if (typeof prepareResult === "string") {
+        showError(prepareResult);
+        setMessage(prepareResult);
+        return;
+      }
+    }
+
     const result = await updateAppointment({
       ...selected,
-      scheduledAt: new Date(nextValue).toISOString(),
-      durationMinutes: readDuration(form),
+      scheduledAt: nextScheduledAt,
+      durationMinutes: nextDuration,
       pestConcern: form.get("pestConcern"),
       serviceType: form.get("serviceType") || "",
       serviceLocation: form.get("serviceLocation") || "",
       technicianId: form.get("technicianId"),
-      status: form.get("status"),
+      status: nextStatus,
       notes: form.get("notes"),
       cancellationReason: form.get("cancellationReason") || "",
     });
@@ -496,10 +520,16 @@ function SchedulingPage() {
     if (typeof result === "string") return result;
     setCreateOpen(false);
     setSelectedId(result.id);
+    setCreateScheduledAt("");
     setView("week");
     setAnchorDate(startOfWeek(new Date(result.scheduledAt)));
     setMessage("Appointment created.");
     return true;
+  };
+
+  const openCreateAt = (dateKey, time) => {
+    setCreateScheduledAt(toDateTimeLocal(new Date(`${dateKey}T${time}:00`)));
+    setCreateOpen(true);
   };
 
   // `height` is the card's real pixel height in the week grid. Content is
@@ -575,7 +605,7 @@ ${technician?.name || technician?.username || "Unassigned"} · ${appointment.sta
           <div style={{ color: colors.brand, fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>Operations</div>
           <h1 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "2rem" }}>Scheduling</h1>
         </div>
-        <button type="button" style={primaryButton} onClick={() => setCreateOpen(true)}><Plus size={16} /> New appointment</button>
+        <button type="button" style={primaryButton} onClick={() => { setCreateScheduledAt(""); setCreateOpen(true); }}><Plus size={16} /> New appointment</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.25rem", alignItems: "start" }}>
@@ -624,6 +654,13 @@ ${technician?.name || technician?.username || "Unassigned"} · ${appointment.sta
                   const layout = weekLayout.get(key) || { placed: [], overflow: [] };
                   return <div
                     key={key}
+                    onClick={(event) => {
+                      if (event.target.closest("button")) return;
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      const rawMinutes = ((event.clientY - bounds.top) / ROW_HEIGHT) * 60 + DAY_START_HOUR * 60;
+                      const snapped = Math.min(DAY_END_HOUR * 60 - 10, Math.max(DAY_START_HOUR * 60, Math.round(rawMinutes / 10) * 10));
+                      openCreateAt(key, `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(snapped % 60).padStart(2, "0")}`);
+                    }}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       const bounds = event.currentTarget.getBoundingClientRect();
@@ -649,9 +686,6 @@ ${technician?.name || technician?.username || "Unassigned"} · ${appointment.sta
                         overflow: "hidden",
                       }, height);
                     })}
-                    {key === localDateKey(now) && now.getHours() >= DAY_START_HOUR && now.getHours() < DAY_END_HOUR && <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: `${(minutesFromGridStart(now) / 60) * ROW_HEIGHT}px`, height: "2px", background: colors.brand, zIndex: 4 }}>
-                      <span style={{ position: "absolute", left: "-4px", top: "-4px", width: "10px", height: "10px", borderRadius: "50%", background: colors.brand }} />
-                    </div>}
                     {layout.overflow.map((group) => {
                       const { top, height } = spanGeometry(group.start, group.end);
                       return <button
@@ -703,7 +737,7 @@ ${technician?.name || technician?.username || "Unassigned"} · ${appointment.sta
       </div>
       {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canReschedule={canReschedule} canFileService={ownsAppointment(selected)} getSignatureUrl={getSignatureUrl} treatmentMethods={treatmentMethods} onToggleMethod={toggleTreatmentMethod} dynamicMethods={dynamicMethods} dynamicGroups={dynamicGroups} onPrintServiceForm={() => printServiceForm(selected)} onProblem={showError} assignedName={activeAccounts.find((account) => account.id === selected.technicianId)?.name || activeAccounts.find((account) => account.id === selected.technicianId)?.username || "another technician"} canUpload={can("clientDocuments", "create") && ownsAppointment(selected)} canRemove={can("clientDocuments", "delete") && ownsAppointment(selected)} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} addAttachment={addAttachment} removeAttachment={removeAttachment} getAttachmentUrl={getAttachmentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} onScheduleFollowUp={scheduleFollowUp} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={showError} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />
-      {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} initialClientId={createClientId} onClose={() => { setCreateOpen(false); setCreateClientId(""); }} onCreate={handleCreate} />}
+      {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} initialClientId={createClientId} initialScheduledAt={createScheduledAt} onClose={() => { setCreateOpen(false); setCreateClientId(""); setCreateScheduledAt(""); }} onCreate={handleCreate} />}
       {overflowGroup && <div role="dialog" aria-modal="true" onClick={() => setOverflowGroup(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
         <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 460px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
@@ -1123,20 +1157,39 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
 }
 
 function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const timeRange = (appointment) => {
+    const start = new Date(appointment.scheduledAt);
+    const end = new Date(start.getTime() + (appointment.durationMinutes || 60) * 60000);
+    return `${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  };
+
   return (
-    <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #eadede" }}>
+    <>
+      <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #eadede" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
         <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Dispatch</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.1rem" }}>Technician availability</h2></div>
-        <span style={{ color: colors.muted, fontSize: "0.75rem" }}>Booked times are shown from saved appointments.</span>
+        <span style={{ color: colors.muted, fontSize: "0.75rem" }}>Select a day to view all booked times.</span>
       </div>
       <div style={{ overflowX: "auto" }}>
         <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
           <div style={{ padding: "0.6rem", background: "#fffafa", color: colors.muted, fontSize: "0.7rem", fontWeight: 800 }}>Account</div>
           {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fffafa", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.ink, fontSize: "0.78rem", fontWeight: 700 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <div key={`${account.id}-${localDateKey(day)}`} style={{ padding: "0.45rem", minHeight: "52px", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: dayAppointments.length ? "#fff7ed" : "#f0fdf4", color: dayAppointments.length ? "#9a3412" : "#166534", fontSize: "0.68rem", lineHeight: 1.4 }}>{dayAppointments.length ? dayAppointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id}>{new Date(appointment.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–{new Date(new Date(appointment.scheduledAt).getTime() + (appointment.durationMinutes || 60) * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {client?.name || "Client"} · {appointment.status}</div>; }) : "Available"}</div>; })}</div>)}
+          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.ink, fontSize: "0.78rem", fontWeight: 700 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: dayAppointments.length ? "#fff7ed" : "#f0fdf4", color: dayAppointments.length ? "#9a3412" : "#166534", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
         </div>
       </div>
-    </section>
+      </section>
+      {selectedDay && <div role="dialog" aria-modal="true" onClick={() => setSelectedDay(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
+        <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 500px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+            <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Technician schedule</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{selectedDay.account.name || selectedDay.account.username}</h2><div style={{ color: colors.muted, fontSize: "0.78rem", marginTop: "0.2rem" }}>{selectedDay.day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</div></div>
+            <button type="button" aria-label="Close schedule summary" onClick={() => setSelectedDay(null)} style={{ ...secondaryButton, padding: "0.4rem 0.55rem" }}><X size={16} /></button>
+          </div>
+          {selectedDay.appointments.length === 0 ? <div style={{ marginTop: "1rem", padding: "0.8rem", borderRadius: "9px", background: "#f0fdf4", color: "#166534", fontSize: "0.8rem", fontWeight: 700 }}>Available all day.</div> : <div style={{ display: "grid", gap: "0.55rem", marginTop: "1rem" }}>{selectedDay.appointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id} style={{ padding: "0.7rem", border: "1px solid #eadede", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "9px", background: "#fff7ed" }}><div style={{ color: colors.ink, fontWeight: 800, fontSize: "0.82rem" }}>{timeRange(appointment)}</div><div style={{ color: colors.body, fontSize: "0.8rem", marginTop: "0.2rem" }}>{client?.name || "Unknown client"}</div><div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>{appointment.pestConcern || appointment.serviceType || "Service"} · {appointment.status}</div></div>; })}</div>}
+        </section>
+      </div>}
+    </>
   );
 }
 
@@ -1195,12 +1248,10 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
                   placeholder="Batch / lot no. from the container — e.g. L24-0917"
                   style={{ ...inputStyle, padding: "0.5rem 0.55rem", fontSize: "0.74rem" }}
                 />}
-                {(rate || chosen?.rateNote) && <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", padding: "0.4rem 0.55rem", borderRadius: "8px", background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: "0.7rem" }}>
+                {rate && <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", padding: "0.4rem 0.55rem", borderRadius: "8px", background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: "0.7rem" }}>
                   <PackageCheck size={12} style={{ flex: "none", marginTop: "0.12rem" }} />
                   <span>
-                    {rate && <><strong>Standard rate:</strong> {rate}</>}
-                    {rate && chosen?.rateNote ? " · " : ""}
-                    {chosen?.rateNote}
+                    <strong>Standard rate:</strong> {rate}
                   </span>
                 </div>}
                 </div>
@@ -1216,12 +1267,15 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
   );
 }
 
-function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "", onClose, onCreate }) {
+function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "", initialScheduledAt = "", onClose, onCreate }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [clientId, setClientId] = useState(initialClientId);
   const [clientSearch, setClientSearch] = useState(
     () => clients.find((client) => client.id === initialClientId)?.name || ""
+  );
+  const [serviceLocation, setServiceLocation] = useState(
+    () => clients.find((client) => client.id === initialClientId)?.address || ""
   );
   const [listOpen, setListOpen] = useState(false);
   const clientFieldRef = useRef(null);
@@ -1256,12 +1310,14 @@ function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "
   const chooseClient = (client) => {
     setClientId(client.id);
     setClientSearch(client.name);
+    setServiceLocation(client.address || "");
     setListOpen(false);
   };
 
   const clearClient = () => {
     setClientId("");
     setClientSearch("");
+    setServiceLocation("");
     setListOpen(true);
     clientFieldRef.current?.querySelector("input")?.focus();
   };
@@ -1333,11 +1389,11 @@ function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "
 
           {!selectedClient && !listOpen && <span style={{ color: colors.muted, fontWeight: 600, fontSize: "0.72rem" }}>No client selected yet.</span>}
         </div>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={new Date(Date.now() + 3600000).toISOString().slice(0, 16)} style={inputStyle} required /></label>
+        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={initialScheduledAt || defaultAppointmentDateTime()} style={inputStyle} required /></label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Service type<select name="serviceType" style={inputStyle}><option value="">Select a service type</option>{SERVICE_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Service location<input name="serviceLocation" placeholder="Defaults to the client's address" style={inputStyle} /></label>
+        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Service location<input name="serviceLocation" value={serviceLocation} onChange={(event) => setServiceLocation(event.target.value)} placeholder="Defaults to the client's address" style={inputStyle} /></label>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Pest concern<select name="pestConcern" style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
         <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Notes<textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} /></label>
       </div>
@@ -1347,7 +1403,7 @@ function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "
   </div>;
 }
 
-function CreateAppointmentModal({ clients, activeAccounts, onClose, onCreate }) {
+function CreateAppointmentModal({ clients, activeAccounts, initialScheduledAt = "", onClose, onCreate }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -1372,7 +1428,7 @@ function CreateAppointmentModal({ clients, activeAccounts, onClose, onCreate }) 
     <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
       <form onSubmit={handleSubmit} style={{ ...card, width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div><div style={{ color: colors.brand, fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Scheduling</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink }}>New appointment</h2></div><button type="button" aria-label="Close new appointment" onClick={onClose} style={{ border: 0, background: "transparent", cursor: "pointer", color: colors.muted }}><X size={18} /></button></div>
-        <div style={{ display: "grid", gap: "1rem" }}><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Client<select name="clientId" style={inputStyle} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={new Date(Date.now() + 3600000).toISOString().slice(0, 16)} style={inputStyle} required /></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician or staff<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Notes<textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem", marginTop: "1rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.5rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.5rem" }} required /></label></div><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700, marginTop: "0.65rem" }}>Pest concern<select name="pestConcern" style={{ ...inputStyle, padding: "0.5rem" }}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+        <div style={{ display: "grid", gap: "1rem" }}><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Client<select name="clientId" style={inputStyle} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={initialScheduledAt || defaultAppointmentDateTime()} style={inputStyle} required /></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician or staff<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Notes<textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem", marginTop: "1rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.5rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.5rem" }} required /></label></div><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700, marginTop: "0.65rem" }}>Pest concern<select name="pestConcern" style={{ ...inputStyle, padding: "0.5rem" }}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
         {formError && <div role="alert" style={{ marginTop: "0.9rem", color: colors.danger, fontWeight: 700, fontSize: "0.8rem" }}>{formError}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1.25rem" }}><button type="button" onClick={onClose} style={secondaryButton}>Cancel</button><button type="submit" disabled={saving || clients.length === 0} style={primaryButton}>{saving ? "Creating..." : "Create appointment"}</button></div>
       </form>

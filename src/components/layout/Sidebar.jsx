@@ -10,6 +10,7 @@ import {
   BriefcaseBusiness,
   ClipboardPlus,
   Gauge,
+  ListChecks,
   Package,
   CalendarDays,
   UserCircle,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { label: "User Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Users },
   { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package },
   { label: "Scheduling", path: "/scheduling", subsystem: SUBSYSTEMS.SCHEDULING, action: "view", Icon: CalendarDays },
+  { label: "Treatment Methods", path: "/treatment-methods", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: ListChecks },
 ];
 
 const styles = {
@@ -124,9 +126,11 @@ function Sidebar() {
   const location = useLocation();
   const { currentUser, can, logout } = useAuth();
 
-  const navItems = NAV_ITEMS.filter(
-    (item) => !item.subsystem || can(item.subsystem, item.action)
-  );
+  const navItems = NAV_ITEMS.filter((item) => {
+    if (item.role && currentUser?.role !== item.role) return false;
+    if (item.subsystem && !can(item.subsystem, item.action)) return false;
+    return true;
+  });
 
   return (
     <nav style={styles.sidebar}>

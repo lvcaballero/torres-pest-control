@@ -32,6 +32,9 @@ const CREATE_FORM_DEFAULTS = {
   expirationDate: "",
   safetyLevel: "",
   hazardRating: "",
+  standardRate: "",
+  rateUnit: "",
+  rateNote: "",
   dateReceived: "",
   serialNumber: "",
   condition: "ACTIVE",
@@ -72,6 +75,86 @@ function UnitField({ value, onChange }) {
     </Field>
   );
 }
+
+
+/**
+ * What each movement section shows.
+ *
+ * The three types record genuinely different things, so a single combined
+ * table had to leave most cells as an em dash: a correction has no branch or
+ * purchase order, and consumption has no unit cost of its own. Splitting the
+ * history lets each section carry only the columns its rows actually fill.
+ */
+const HISTORY_SECTIONS = [
+  { key: "IN", label: "Stock In", accent: "#166534", empty: "No stock has been received yet." },
+  { key: "OUT", label: "Stock Out", accent: "#b91c1c", empty: "No stock has been used yet." },
+  { key: "CORRECTION", label: "Correction", accent: "#7c3aed", empty: "No corrections have been recorded." },
+];
+
+const peso = (value) => `₱${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const itemCell = (movement) => (
+  <div>
+    <div style={{ fontWeight: 700, color: "#111827" }}>{movement.itemName}</div>
+    {movement.itemUnit && <div style={{ fontSize: "0.76rem", color: "#6b7280" }}>Unit: {movement.itemUnit}</div>}
+  </div>
+);
+
+const HISTORY_COLUMNS = {
+  IN: {
+    template: "110px 1.2fr 110px 110px 130px 1.1fr 1.1fr 1fr",
+    minWidth: "1000px",
+    columns: [
+      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Item Name", render: itemCell },
+      { label: "Qty In", render: (m) => <span style={{ fontWeight: 700, color: "#166534" }}>+{Math.abs(m.quantityDelta)}</span> },
+      { label: "Unit Cost", render: (m) => <span style={{ color: "#475569" }}>{peso(m.unitCost)}</span> },
+      { label: "Total Spent", render: (m) => <span style={{ fontWeight: 700, color: "#047857" }}>{peso(m.totalCost)}</span> },
+      { label: "PO / Reference", render: (m) => <span style={{ color: "#1e293b", fontWeight: 600 }}>{m.reference || "—"}</span> },
+      { label: "Branch / Origin", render: (m) => <span style={{ color: "#475569" }}>{m.intakeBranchOrStation || "—"}</span> },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+    ],
+  },
+  OUT: {
+    template: "110px 1.4fr 110px 130px 1.3fr 1fr",
+    minWidth: "820px",
+    columns: [
+      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Item Name", render: itemCell },
+      { label: "Qty Out", render: (m) => <span style={{ fontWeight: 700, color: "#b91c1c" }}>-{Math.abs(m.quantityDelta)}</span> },
+      // Derived from the item's current cost, not a figure recorded on the row,
+      // so it is labelled as an estimate rather than presented as spend.
+      { label: "Est. Value", render: (m) => <span style={{ color: "#475569" }}>{peso(m.totalCost)}</span> },
+      {
+        label: "Used On",
+        render: (m) => (
+          <span style={{ color: "#1e293b", fontWeight: 600 }}>
+            {m.appointmentId ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}` : (m.reference || "—")}
+          </span>
+        ),
+      },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+    ],
+  },
+  CORRECTION: {
+    template: "110px 1.4fr 120px 1.6fr 1fr",
+    minWidth: "760px",
+    columns: [
+      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Item Name", render: itemCell },
+      {
+        label: "Adjustment",
+        render: (m) => (
+          <span style={{ fontWeight: 700, color: m.quantityDelta < 0 ? "#b91c1c" : "#166534" }}>
+            {m.quantityDelta > 0 ? "+" : ""}{m.quantityDelta}
+          </span>
+        ),
+      },
+      { label: "Reason", render: (m) => <span style={{ color: "#1e293b", fontWeight: 600 }}>{m.reference || "—"}</span> },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+    ],
+  },
+};
 
 function InventoryPage() {
   const { can } = useAuth();
@@ -125,7 +208,9 @@ function InventoryPage() {
   const [itemStockFilter, setItemStockFilter] = useState("ALL");
   const [historySearch, setHistorySearch] = useState("");
   const [historyItemFilter, setHistoryItemFilter] = useState("ALL");
-  const [historyMovementType, setHistoryMovementType] = useState("ALL");
+  // History is split by movement type, so the old "Movement Type" filter became
+  // the section itself. Each section shows only the columns its type records.
+  const [historySection, setHistorySection] = useState("IN"); // "IN" | "OUT" | "CORRECTION"
   const [historyBranchFilter, setHistoryBranchFilter] = useState("ALL");
   const [historyDateFilter, setHistoryDateFilter] = useState("ALL");
   const [historySort, setHistorySort] = useState("DATE_DESC");
@@ -176,6 +261,9 @@ function InventoryPage() {
     setItemStockFilter("ALL");
   };
 
+  const activeHistorySection = HISTORY_SECTIONS.find((section) => section.key === historySection) || HISTORY_SECTIONS[0];
+  const activeHistoryColumns = HISTORY_COLUMNS[historySection] || HISTORY_COLUMNS.IN;
+
   const filteredAndSortedMovements = useMemo(() => {
     let result = [...movements];
 
@@ -191,11 +279,9 @@ function InventoryPage() {
       result = result.filter((m) => m.itemId === historyItemFilter);
     }
 
-    if (historyMovementType !== "ALL") {
-      result = result.filter((m) => m.movementType === historyMovementType);
-    }
+    result = result.filter((m) => (m.movementType || "IN") === historySection);
 
-    if (historyBranchFilter !== "ALL") {
+    if (historySection === "IN" && historyBranchFilter !== "ALL") {
       result = result.filter((m) => m.intakeBranchOrStation === historyBranchFilter);
     }
 
@@ -223,7 +309,7 @@ function InventoryPage() {
     });
 
     return result;
-  }, [movements, historySearch, historyItemFilter, historyMovementType, historyBranchFilter, historyDateFilter, historySort]);
+  }, [movements, historySearch, historyItemFilter, historySection, historyBranchFilter, historyDateFilter, historySort]);
 
   useEffect(() => {
     if (tab === "history") refreshMovements();
@@ -251,6 +337,9 @@ function InventoryPage() {
       expirationDate: "",
       safetyLevel: "",
       hazardRating: "",
+      standardRate: "",
+      rateUnit: "",
+      rateNote: "",
       dateReceived: "",
       serialNumber: "",
       condition: "ACTIVE",
@@ -283,6 +372,9 @@ function InventoryPage() {
       newItem.expirationDate = form.expirationDate || null;
       newItem.safetyLevel = form.safetyLevel || null;
       newItem.hazardRating = form.hazardRating || null;
+      newItem.standardRate = form.standardRate || "";
+      newItem.rateUnit = form.rateUnit || "";
+      newItem.rateNote = form.rateNote || "";
       newItem.dateReceived = form.dateReceived || null;
     } else if (form.type === "EQUIPMENT") {
       newItem.serialNumber = form.serialNumber || null;
@@ -411,7 +503,7 @@ function InventoryPage() {
                         <option value="High">High</option>
                       </select>
                     </Field>
-                    <Field label="Hazard Rating">
+                    <Field label="Hazard Note">
                       <input name="hazardRating" value={form.hazardRating} onChange={handleChange} style={inputStyle} placeholder="Hazard description" />
                     </Field>
                     <Field label="Date Received">
@@ -761,16 +853,7 @@ function InventoryPage() {
                 </select>
               </Field>
 
-              <Field label="Movement Type">
-                <select value={historyMovementType} onChange={(e) => setHistoryMovementType(e.target.value)} style={inputStyle}>
-                  <option value="ALL">All Movements</option>
-                  <option value="IN">Stock In</option>
-                  <option value="OUT">Stock Out</option>
-                  <option value="CORRECTION">Corrections</option>
-                </select>
-              </Field>
-
-              <Field label="Branch / Station">
+              {historySection === "IN" && <Field label="Branch / Station">
                 <select value={historyBranchFilter} onChange={(e) => setHistoryBranchFilter(e.target.value)} style={inputStyle}>
                   <option value="ALL">All Stations / Branches</option>
                   {uniqueBranches.map((br) => (
@@ -779,7 +862,7 @@ function InventoryPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
+              </Field>}
 
               <Field label="Date Range">
                 <select value={historyDateFilter} onChange={(e) => setHistoryDateFilter(e.target.value)} style={inputStyle}>
@@ -804,14 +887,51 @@ function InventoryPage() {
             </div>
           </div>
 
+          {/* Section tabs — one per movement type */}
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            {HISTORY_SECTIONS.map((section) => {
+              const active = historySection === section.key;
+              const count = movements.filter((m) => (m.movementType || "IN") === section.key).length;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => setHistorySection(section.key)}
+                  aria-pressed={active}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "0.5rem",
+                    padding: "0.6rem 1rem",
+                    borderRadius: "999px",
+                    border: `1px solid ${active ? section.accent : "rgba(148, 163, 184, 0.35)"}`,
+                    background: active ? section.accent : "#ffffff",
+                    color: active ? "#ffffff" : "#475569",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  {section.label}
+                  <span style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 800,
+                    borderRadius: "999px",
+                    padding: "0.1rem 0.45rem",
+                    background: active ? "rgba(255,255,255,0.22)" : "#f1f5f9",
+                    color: active ? "#ffffff" : "#64748b",
+                  }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Records Table */}
           <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "110px 1.2fr 100px 100px 110px 125px 1.1fr 1.1fr 1fr",
-                  minWidth: "1040px",
+                  gridTemplateColumns: activeHistoryColumns.template,
+                  minWidth: activeHistoryColumns.minWidth,
                   gap: "0.75rem",
                   padding: "1rem 1.25rem",
                   background: "#f8fafc",
@@ -822,16 +942,9 @@ function InventoryPage() {
                   letterSpacing: "0.06em",
                 }}
               >
-                <span>Date</span>
-                <span>Item Name</span>
-                <span>Movement</span>
-                <span>Amount</span>
-                <span>Unit Cost</span>
-                <span>Total Spent</span>
-                <span>PO / Reference</span>
-                <span>Branch / Origin</span>
-                <span>Recorded By</span>
+                {activeHistoryColumns.columns.map((column) => <span key={column.label}>{column.label}</span>)}
               </div>
+
               {movementsError && (
                 <div style={{ padding: "1.25rem", color: "#b91c1c", background: "#fef2f2" }}>
                   Could not load history — {movementsError}
@@ -844,7 +957,7 @@ function InventoryPage() {
 
               {!movementsError && !movementsLoading && filteredAndSortedMovements.length === 0 && (
                 <div style={{ padding: "1.75rem", textAlign: "center", color: "#6b7280" }}>
-                  No inventory movements match the current filters.
+                  {activeHistorySection.empty}
                 </div>
               )}
 
@@ -853,8 +966,8 @@ function InventoryPage() {
                   key={movement.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "110px 1.2fr 100px 100px 110px 125px 1.1fr 1.1fr 1fr",
-                    minWidth: "1040px",
+                    gridTemplateColumns: activeHistoryColumns.template,
+                    minWidth: activeHistoryColumns.minWidth,
                     gap: "0.75rem",
                     padding: "0.95rem 1.25rem",
                     borderTop: "1px solid #f1f5f9",
@@ -862,32 +975,9 @@ function InventoryPage() {
                     fontSize: "0.9rem",
                   }}
                 >
-                  <div style={{ color: "#374151" }}>{new Date(movement.movementDate).toLocaleDateString()}</div>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>{movement.itemName}</div>
-                    {movement.itemUnit && <div style={{ fontSize: "0.76rem", color: "#6b7280" }}>Unit: {movement.itemUnit}</div>}
-                  </div>
-                  <div style={{ fontWeight: 800, color: movement.movementType === "OUT" ? "#b91c1c" : movement.movementType === "CORRECTION" ? "#7c3aed" : "#166534" }}>
-                    {movement.movementType || "IN"}
-                  </div>
-                  <div style={{ fontWeight: 700, color: movement.quantityDelta < 0 ? "#b91c1c" : "#166534" }}>
-                    {movement.quantityDelta > 0 ? "+" : ""}{movement.quantityDelta}
-                  </div>
-                  <div style={{ color: "#475569" }}>
-                    ₱{(movement.unitCost || 0).toFixed(2)}
-                  </div>
-                  <div style={{ fontWeight: 700, color: "#047857" }}>
-                    ₱{(movement.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div style={{ color: "#1e293b", fontWeight: 600 }}>
-                    {movement.reference || (movement.appointmentId ? `Appointment ${movement.appointmentId}` : "—")}
-                  </div>
-                  <div style={{ color: "#475569" }}>
-                    {movement.intakeBranchOrStation || "—"}
-                  </div>
-                  <div style={{ color: "#64748b" }}>
-                    {movement.actor || "—"}
-                  </div>
+                  {activeHistoryColumns.columns.map((column) => (
+                    <div key={column.label}>{column.render(movement)}</div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -1040,6 +1130,9 @@ function EditItemModal({ item, onClose, onSave }) {
     expirationDate: item.expirationDate || "",
     safetyLevel: item.safetyLevel || "",
     hazardRating: item.hazardRating || "",
+    standardRate: item.standardRate === 0 || item.standardRate ? String(item.standardRate) : "",
+    rateUnit: item.rateUnit || "",
+    rateNote: item.rateNote || "",
     dateReceived: item.dateReceived || "",
     serialNumber: item.serialNumber || "",
     condition: item.condition || "ACTIVE",
@@ -1123,7 +1216,9 @@ function EditItemModal({ item, onClose, onSave }) {
                   <option value="High">High</option>
                 </select>
               </Field>
-              <Field label="Hazard Rating"><input name="hazardRating" value={values.hazardRating} onChange={handleChange} style={inputStyle} /></Field>
+              <Field label="Hazard Note"><input name="hazardRating" value={values.hazardRating} onChange={handleChange} style={inputStyle} /></Field>
+              <Field label="Standard Rate"><input name="standardRate" type="number" step="any" min="0" value={values.standardRate} onChange={handleChange} style={inputStyle} placeholder="10" /></Field>
+              <Field label="Rate Unit"><input name="rateUnit" value={values.rateUnit} onChange={handleChange} style={inputStyle} placeholder="mL per 1 L water" /></Field>
               <Field label="Date Received"><input name="dateReceived" type="date" value={values.dateReceived} onChange={handleChange} style={inputStyle} /></Field>
             </div>
           </section>
@@ -1433,7 +1528,8 @@ function InventoryDetailModal({ item, onClose }) {
             <DetailRow label="Chemical Type" value={item.chemicalType} />
             {item.expirationDate && <DetailRow label="Expiration Date" value={new Date(item.expirationDate).toLocaleDateString()} />}
             {item.safetyLevel && <DetailRow label="Safety Level" value={item.safetyLevel} />}
-            {item.hazardRating && <DetailRow label="Hazard Rating" value={item.hazardRating} />}
+              {item.hazardRating && <DetailRow label="Hazard Note" value={item.hazardRating} />}
+            {item.standardRate !== "" && item.standardRate !== null && <DetailRow label="Standard Rate" value={`${item.standardRate} ${item.rateUnit || ""}`.trim()} />}
             {item.dateReceived && <DetailRow label="Date Received" value={new Date(item.dateReceived).toLocaleDateString()} />}
           </div>
         </div>

@@ -10,6 +10,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { ClientsProvider } from "./context/ClientsContext";
 import { InventoryProvider } from "./context/InventoryContext";
 import { SchedulingProvider } from "./context/SchedulingContext";
+import { NotificationsProvider } from "./context/NotificationsContext";
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import RoleBasedRoute from "./components/auth/RoleBasedRoute";
@@ -22,11 +23,13 @@ import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
 import CreateUserPage from "./pages/CreateUserPage";
 import UserAccountPage from "./pages/UserAccountPage";
+import SettingsPage from "./pages/SettingsPage";
 import ClientsPage from "./pages/ClientsPage";
 import CreateClientPage from "./pages/CreateClientPage";
 import ClientDetailPage from "./pages/ClientDetailPage";
 import InventoryPage from "./pages/InventoryPage";
 import SchedulingPage from "./pages/SchedulingPage";
+import TreatmentMethodsPage from "./pages/TreatmentMethodsPage";
 
 import { SUBSYSTEMS } from "./utils/permissions";
 import { isSupabaseConfigured } from "./services/supabaseClient";
@@ -71,12 +74,14 @@ function App() {
           <ClientsProvider>
             <InventoryProvider>
               <SchedulingProvider>
+                <NotificationsProvider>
                 <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
                 <Route path="/" element={<Guarded><DashboardPage /></Guarded>} />
                 <Route path="/account" element={<Guarded><UserAccountPage /></Guarded>} />
+                <Route path="/settings" element={<Guarded><SettingsPage /></Guarded>} />
                 <Route
                   path="/users"
                   element={<Guarded subsystem={SUBSYSTEMS.USERS} action="view"><UsersPage /></Guarded>}
@@ -107,8 +112,13 @@ function App() {
                   path="/scheduling"
                   element={<Guarded subsystem={SUBSYSTEMS.SCHEDULING} action="view"><SchedulingPage /></Guarded>}
                 />
+                <Route
+                  path="/treatment-methods"
+                  element={<Guarded subsystem={SUBSYSTEMS.SETTINGS} action="view"><TreatmentMethodsPage /></Guarded>}
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                </NotificationsProvider>
               </SchedulingProvider>
             </InventoryProvider>
           </ClientsProvider>

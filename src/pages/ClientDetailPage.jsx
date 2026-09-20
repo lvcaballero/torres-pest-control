@@ -1,7 +1,9 @@
 // Single client profile route (/clients/:id).
 
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ClientDetails from "../components/clients/ClientDetails";
+import ConfirmDialog from "../components/common/ConfirmDialog";
 import PageHeader from "../components/common/PageHeader";
 import useAuth from "../hooks/useAuth";
 import useClients from "../hooks/useClients";
@@ -16,6 +18,7 @@ function ClientDetailPage() {
     useClients();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const client = getClient(id);
 
@@ -51,33 +54,45 @@ function ClientDetailPage() {
     else showError(result);
   };
 
-  const handleUpload = (file) => addDocument(client.id, file);
+  const handleUpload = (file, category) => addDocument(client.id, file, category);
   const handleRemove = (document) => removeDocument(client.id, document);
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete ${client.name} permanently? This action cannot be undone.`)) return;
+    setDeleteDialogOpen(false);
     const result = await deleteClient(client.id);
     if (result === true) {
       showSuccess("Client profile permanently deleted.");
       navigate("/clients");
     } else {
-      window.alert(result);
+      showError(result);
     }
   };
 
   return (
-    <ClientDetails
-      client={client}
-      canEdit={can(SUBSYSTEMS.CLIENTS, "edit")}
-      canDelete={can(SUBSYSTEMS.CLIENTS, "delete")}
-      canUploadDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "create")}
-      canRemoveDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "delete")}
-      onSave={handleSave}
-      onDelete={handleDelete}
-      onUploadDocument={handleUpload}
-      onRemoveDocument={handleRemove}
-      onResolveDocumentUrl={getDocumentUrl}
-    />
+    <>
+      <ClientDetails
+        client={client}
+        canEdit={can(SUBSYSTEMS.CLIENTS, "edit")}
+        canDelete={can(SUBSYSTEMS.CLIENTS, "delete")}
+        canUploadDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "create")}
+        canRemoveDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "delete")}
+        onSave={handleSave}
+        onDelete={() => setDeleteDialogOpen(true)}
+        onUploadDocument={handleUpload}
+        onRemoveDocument={handleRemove}
+        onResolveDocumentUrl={getDocumentUrl}
+      />
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete client permanently?"
+        message={`Delete ${client.name} permanently? This action cannot be undone.`}
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep client"
+        tone="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteDialogOpen(false)}
+      />
+    </>
   );
 }
 

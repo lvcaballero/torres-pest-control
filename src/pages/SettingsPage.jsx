@@ -7,11 +7,13 @@
 import { Link } from "react-router-dom";
 import PageHeader from "../components/common/PageHeader";
 import ChangePassword from "../components/settings/ChangePassword";
+import TreatmentMethodsAdmin from "../components/settings/TreatmentMethodsAdmin";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
 import useAuth from "../hooks/useAuth";
+import { ROLES } from "../utils/constants";
 import { card, colors, pageShell, primaryButton } from "../styles/theme";
-import { Globe, Lock, ShieldCheck, UserCheck } from "lucide-react";
+import { ClipboardList, Globe, Lock, ShieldCheck, UserCheck } from "lucide-react";
 
 function SettingsPage() {
   const { changeOwnPassword } = useUsers();
@@ -118,6 +120,11 @@ function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Treatment Methods Management — admin only */}
+        {currentUser?.role === ROLES.ADMIN && (
+          <TreatmentMethodsAdmin />
+        )}
 
         {/* Current Session Summary */}
         <section style={{ ...card, padding: "1.5rem" }}>

@@ -36,7 +36,7 @@ const MATRIX = {
     inventory: ALL,
     scheduling: ALL,
     logs: READ_ONLY,
-    settings: READ_ONLY,
+    settings: ALL,
   },
   [ROLES.STAFF]: {
     users: NONE,
@@ -45,7 +45,7 @@ const MATRIX = {
     inventory: READ_ONLY,
     scheduling: ["view", "edit"],
     logs: NONE,
-    settings: READ_ONLY,
+    settings: NONE,
   },
   [ROLES.TECHNICIAN]: {
     users: NONE,
@@ -54,7 +54,7 @@ const MATRIX = {
     inventory: READ_ONLY,
     scheduling: ["view", "edit"],
     logs: NONE,
-    settings: READ_ONLY,
+    settings: NONE,
   },
 };
 

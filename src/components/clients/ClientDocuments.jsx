@@ -16,8 +16,8 @@
 // URL when clicked. That replaces the old URL.createObjectURL approach, where
 // the "URL" was a pointer into this tab's memory that died on reload.
 
-import { useRef, useState } from "react";
-import { Trash2, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Eye, FileText, Trash2, UploadCloud, X } from "lucide-react";
 import EmptyState from "../common/EmptyState";
 import { validateDocument } from "../../utils/validators";
 import { formatDate, formatFileSize } from "../../utils/formatters";
@@ -25,7 +25,7 @@ import { colors } from "../../styles/theme";
 
 // Report files carry a category (migration 029). OTHER is deliberately absent —
 // an untyped file shows no pill, which is also how pre-029 rows render.
-const CATEGORY_TAGS = {
+export const CATEGORY_TAGS = {
   BEFORE: { label: "Before", background: "#fef3c7", color: "#92400e" },
   AFTER: { label: "After", background: "#dcfce7", color: "#166534" },
   INSPECTION: { label: "Inspection", background: "#e0f2fe", color: "#075985" },
@@ -60,6 +60,82 @@ export function CategoryTag({ category }) {
   );
 }
 
+export function FileThumbnail({ file, onResolveUrl, onPreview }) {
+  const [src, setSrc] = useState(file.url || file.previewUrl || null);
+  const isImage = Boolean(
+    file.type?.startsWith("image/") ||
+    /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name || "")
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (file.url || file.previewUrl) {
+      setSrc(file.url || file.previewUrl);
+      return;
+    }
+    if (isImage && onResolveUrl) {
+      onResolveUrl(file, { download: false })
+        .then((result) => {
+          if (active && result?.url) {
+            setSrc(result.url);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [file, isImage, onResolveUrl]);
+
+  if (!isImage) {
+    return (
+      <div
+        className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 text-slate-500"
+        style={{
+          width: "2.25rem",
+          height: "2.25rem",
+          borderRadius: "0.5rem",
+          border: "1px solid #e2e8f0",
+          backgroundColor: "#f8fafc",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          color: "#64748b",
+        }}
+      >
+        <FileText className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onPreview}
+      className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative group cursor-pointer"
+      title="Click to preview"
+      style={{
+        width: "2.25rem",
+        height: "2.25rem",
+        borderRadius: "0.5rem",
+        overflow: "hidden",
+        border: "1px solid #e2e8f0",
+        backgroundColor: "#f1f5f9",
+        flexShrink: 0,
+        position: "relative",
+        cursor: "pointer",
+      }}
+    >
+      <img
+        src={src || file.url || file.previewUrl}
+        alt={file.name || "Attachment preview"}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
+  );
+}
+
 function ClientDocuments({
   documents = [],
   canUpload = false,
@@ -67,18 +143,22 @@ function ClientDocuments({
   onUpload,
   onRemove,
   onResolveUrl,
+  onPreview,
   title = "Attached Documents",
   hint = "PDF, DOCX, PNG up to 2MB",
   accept = ".pdf,.doc,.docx,.png,.jpg,.jpeg",
   validate = validateDocument,
   emptyMessage = "No documents attached yet.",
   compact = false,
+  variant = null,
   uploadLabel = "Upload file",
 }) {
   const [message, setMessage] = useState(null); // { text, tone }
   const [busyId, setBusyId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [modalFile, setModalFile] = useState(null);
+  const [modalUrl, setModalUrl] = useState(null);
   const inputRef = useRef(null);
 
   const processFile = async (file) => {
@@ -151,6 +231,32 @@ function ClientDocuments({
 
     // Signed URLs expire, so navigate immediately rather than rendering a link.
     window.open(url, download ? "_self" : "_blank", "noopener,noreferrer");
+  };
+
+  const handlePreview = async (document) => {
+    if (onPreview) {
+      onPreview(document);
+      return;
+    }
+    const isImage = Boolean(
+      document.type?.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|svg)$/i.test(document.name || "")
+    );
+
+    if (isImage) {
+      setModalFile(document);
+      if (document.url || document.previewUrl) {
+        setModalUrl(document.url || document.previewUrl);
+      } else if (onResolveUrl) {
+        setModalUrl(null);
+        const res = await onResolveUrl(document, { download: false });
+        if (res?.url) {
+          setModalUrl(res.url);
+        }
+      }
+    } else {
+      await handleOpen(document, false);
+    }
   };
 
   const handleRemove = async (document) => {
@@ -279,6 +385,363 @@ function ClientDocuments({
       </div>
     );
   });
+
+  // Compact upload tile grid mode — used by the Report tab attachments grid.
+  if (variant === "tile") {
+    return (
+      <div
+        {...dragHandlers}
+        className="p-3.5 bg-slate-50/60 border border-slate-200/80 rounded-2xl flex flex-col justify-between overflow-hidden transition-colors"
+        style={{
+          padding: "0.875rem",
+          backgroundColor: isDragging ? "#fff1f2" : "rgba(248, 250, 252, 0.6)",
+          border: `1px solid ${isDragging ? "#ef4444" : "rgba(226, 232, 240, 0.8)"}`,
+          borderRadius: "1rem",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          minWidth: 0,
+          overflow: "hidden",
+          transition: "background-color 0.15s ease, border-color 0.15s ease",
+        }}
+      >
+        <div style={{ width: "100%", minWidth: 0 }}>
+          {/* Category Header & Upload Action */}
+          <div
+            className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/60 mb-2"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.5rem",
+              paddingBottom: "0.5rem",
+              borderBottom: "1px solid rgba(226, 232, 240, 0.6)",
+              marginBottom: "0.5rem",
+              minWidth: 0,
+            }}
+          >
+            <span
+              className="text-xs font-bold text-slate-800 flex items-center gap-1.5 truncate"
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                color: "#1e293b",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                minWidth: 0,
+              }}
+            >
+              <span className="truncate" title={title}>{title}</span>
+              <span
+                className="text-[11px] font-normal text-slate-400 shrink-0"
+                style={{ fontSize: "0.6875rem", fontWeight: 400, color: "#94a3b8" }}
+              >
+                ({documents.length})
+              </span>
+            </span>
+
+            {canUpload && (
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-2xs transition-colors shrink-0"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.6875rem",
+                  fontWeight: 600,
+                  color: "#475569",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.5rem",
+                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+                  cursor: uploading ? "default" : "pointer",
+                  opacity: uploading ? 0.6 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                <UploadCloud
+                  className="w-3 h-3 text-slate-400"
+                  style={{ width: "0.75rem", height: "0.75rem", color: "#94a3b8" }}
+                />
+                <span>{uploading ? "..." : "Upload"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Sleek File Item Rows */}
+          {documents.length === 0 ? (
+            <div
+              className="text-[11px] text-slate-400 italic py-2 text-center"
+              style={{ fontSize: "0.6875rem", color: "#94a3b8", fontStyle: "italic", padding: "0.5rem 0", textAlign: "center" }}
+            >
+              {emptyMessage}
+            </div>
+          ) : (
+            <div className="w-full" style={{ width: "100%", minWidth: 0 }}>
+              {documents.map((file) => {
+                const busy = busyId === file.id;
+
+                return (
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between gap-3 p-2 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 transition-colors mb-2"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
+                      padding: "0.5rem",
+                      backgroundColor: "#ffffff",
+                      borderRadius: "0.75rem",
+                      border: "1px solid rgba(226, 232, 240, 0.8)",
+                      marginBottom: "0.5rem",
+                      minWidth: 0,
+                      transition: "border-color 0.15s ease",
+                    }}
+                  >
+                    <div
+                      className="flex items-center gap-2.5 min-w-0 flex-1"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.625rem",
+                        minWidth: 0,
+                        flex: "1 1 0%",
+                      }}
+                    >
+                      {/* Thumbnail or Fallback */}
+                      <FileThumbnail
+                        file={file}
+                        onResolveUrl={onResolveUrl}
+                        onPreview={() => handlePreview(file)}
+                      />
+                      <div
+                        className="flex flex-col min-w-0"
+                        style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+                      >
+                        <span
+                          className="text-xs font-semibold text-slate-800 truncate"
+                          title={file.name}
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            color: "#1e293b",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {file.name}
+                        </span>
+                        <span
+                          className="text-[10px] text-slate-400 truncate"
+                          style={{ fontSize: "0.625rem", color: "#94a3b8" }}
+                        >
+                          {file.size ? `${typeof file.size === "number" ? formatFileSize(file.size) : file.size} • ` : ""}
+                          {file.uploadedAt ? formatDate(file.uploadedAt) : "Attached"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 }}
+                    >
+                      <button
+                        type="button"
+                        title="Preview"
+                        onClick={() => handlePreview(file)}
+                        disabled={busy}
+                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                        style={{
+                          padding: "0.25rem",
+                          color: "#94a3b8",
+                          backgroundColor: "transparent",
+                          border: "none",
+                          borderRadius: "0.375rem",
+                          cursor: busy ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Eye className="w-3.5 h-3.5" style={{ width: "0.875rem", height: "0.875rem" }} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Download"
+                        onClick={() => handleOpen(file, true)}
+                        disabled={busy}
+                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                        style={{
+                          padding: "0.25rem",
+                          color: "#94a3b8",
+                          backgroundColor: "transparent",
+                          border: "none",
+                          borderRadius: "0.375rem",
+                          cursor: busy ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Download className="w-3.5 h-3.5" style={{ width: "0.875rem", height: "0.875rem" }} />
+                      </button>
+                      {canRemove && (
+                        <button
+                          type="button"
+                          title={`Remove ${file.name}`}
+                          onClick={() => handleRemove(file)}
+                          disabled={busy}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          style={{
+                            padding: "0.25rem",
+                            color: "#94a3b8",
+                            backgroundColor: "transparent",
+                            border: "none",
+                            borderRadius: "0.375rem",
+                            cursor: busy ? "default" : "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" style={{ width: "0.875rem", height: "0.875rem" }} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {fileInput}
+        {statusMessage}
+
+        {modalFile && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setModalFile(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs"
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1rem",
+              backgroundColor: "rgba(15, 23, 42, 0.8)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full"
+              style={{
+                position: "relative",
+                maxWidth: "52rem",
+                maxHeight: "90vh",
+                backgroundColor: "#ffffff",
+                borderRadius: "1rem",
+                overflow: "hidden",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+              }}
+            >
+              <div
+                className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.75rem 1rem",
+                  borderBottom: "1px solid #e2e8f0",
+                  backgroundColor: "#f8fafc",
+                }}
+              >
+                <span
+                  className="text-xs font-bold text-slate-800 truncate"
+                  style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {modalFile.name}
+                </span>
+                <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpen(modalFile, true)}
+                    title="Download"
+                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                    style={{
+                      padding: "0.375rem",
+                      color: "#64748b",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Download className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalFile(null)}
+                    title="Close"
+                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                    style={{
+                      padding: "0.375rem",
+                      color: "#64748b",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
+                  </button>
+                </div>
+              </div>
+              <div
+                className="p-4 flex items-center justify-center overflow-auto min-h-[240px] bg-slate-950"
+                style={{
+                  padding: "1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "auto",
+                  minHeight: "240px",
+                  backgroundColor: "#090d16",
+                }}
+              >
+                {modalUrl ? (
+                  <img
+                    src={modalUrl}
+                    alt={modalFile.name}
+                    className="max-h-[75vh] max-w-full object-contain rounded-md"
+                    style={{ maxHeight: "75vh", maxWidth: "100%", objectFit: "contain", borderRadius: "0.375rem" }}
+                  />
+                ) : (
+                  <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                    Loading preview...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // One file type, one section, one upload button — used by the Report tab.
   if (compact) {

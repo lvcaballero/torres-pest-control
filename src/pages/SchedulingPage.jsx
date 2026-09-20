@@ -827,32 +827,76 @@ const fieldsetReset = { border: 0, padding: 0, margin: 0, minWidth: 0 };
  * that no fixed list will ever cover.
  */
 function TreatmentMethods({ appointment, selected, onToggle, treatmentMethods, treatmentMethodGroups }) {
-  return <div style={{ display: "grid", gap: "0.6rem" }}>
-    <div>
-      <strong style={{ color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Treatment performed</strong>
-      <div style={{ color: colors.muted, fontSize: "0.72rem" }}>
-        Tick everything that was done. {selected.length > 0 ? `${selected.length} selected.` : "None selected yet."}
+  return (
+    <div
+      className="p-4 bg-slate-50/60 border border-slate-200 rounded-xl flex flex-col gap-3"
+      style={{
+        padding: "1rem",
+        background: "rgba(248, 250, 252, 0.6)",
+        border: "1px solid #e2e8f0",
+        borderRadius: "0.75rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.75rem",
+      }}
+    >
+      <div>
+        <strong style={{ color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Treatment performed</strong>
+        <div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>
+          Tick everything that was done. {selected.length > 0 ? `${selected.length} selected.` : "None selected yet."}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {treatmentMethodGroups.map((group) => (
+          <div key={group}>
+            <div
+              style={{
+                color: colors.muted,
+                fontSize: "0.65rem",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                borderBottom: "1px solid #e2e8f0",
+                paddingBottom: "0.2rem",
+                marginBottom: "0.35rem",
+              }}
+            >
+              {group}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+              {treatmentMethods.filter((method) => method.group === group).map((method) => {
+                const on = selected.includes(method.value);
+                return (
+                  <label
+                    key={method.value}
+                    style={{
+                      display: "flex",
+                      gap: "0.4rem",
+                      alignItems: "flex-start",
+                      fontSize: "0.75rem",
+                      color: on ? colors.ink : colors.body,
+                      fontWeight: on ? 600 : 400,
+                      cursor: "pointer",
+                      padding: "0.15rem 0",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => onToggle(method.value)}
+                      style={{ marginTop: "0.15rem", accentColor: colors.brand }}
+                    />
+                    <span style={{ lineHeight: 1.3 }}>{method.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
-
-    <div style={{ display: "grid", gap: "0.55rem", padding: "0.7rem 0.8rem", border: "1px solid #eadede", borderRadius: "10px", background: "#fff" }}>
-      {treatmentMethodGroups.map((group) => <div key={group}>
-        <div style={{ color: colors.muted, fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #f1e7e7", paddingBottom: "0.2rem", marginBottom: "0.3rem" }}>{group}</div>
-        {treatmentMethods.filter((method) => method.group === group).map((method) => {
-          const on = selected.includes(method.value);
-          return <label key={method.value} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.2rem 0", fontSize: "0.79rem", color: on ? colors.ink : colors.body, fontWeight: on ? 700 : 400, cursor: "pointer" }}>
-            <input type="checkbox" checked={on} onChange={() => onToggle(method.value)} style={{ marginTop: "0.2rem", accentColor: colors.brand }} />
-            <span>{method.label}</span>
-          </label>;
-        })}
-      </div>)}
-    </div>
-
-    <label style={{ display: "grid", gap: "0.3rem", color: colors.body, fontWeight: 700, fontSize: "0.78rem" }}>
-      Additional treatment notes <span style={{ fontWeight: 400, color: colors.muted, fontSize: "0.72rem" }}>Optional — anything the list above does not cover.</span>
-      <textarea name="treatmentPerformed" defaultValue={appointment.treatmentPerformed} rows={3} placeholder="e.g. Pipe chase behind the range needs sealing before the next visit." style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap" }} />
-    </label>
-  </div>;
+  );
 }
 
 /**
@@ -898,33 +942,52 @@ function TechnicianSignature({ appointment, onSubmit, getSignatureUrl, onProblem
     }
   };
 
-  return <div style={{ display: "grid", gap: "0.85rem", paddingTop: "1rem", marginTop: "0.25rem", borderTop: "1px solid #eadede" }}>
-    <div>
-      <h3 style={{ margin: 0, color: colors.ink, fontSize: "0.95rem" }}>Technician signature</h3>
-      <p style={{ margin: "0.2rem 0 0", color: colors.muted, fontSize: "0.74rem" }}>
-        {alreadySigned
-          ? "You have signed off on this report."
-          : "Sign to attest that the findings and treatment above are your own record of this visit. This does not complete the visit."}
-      </p>
-    </div>
-
-    {alreadySigned ? (
-      <div style={{ padding: "0.8rem", borderRadius: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-        {signatureUrl
-          ? <img src={signatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "130px", background: "#fff", borderRadius: "6px" }} />
-          : <div style={{ color: colors.muted, fontSize: "0.76rem" }}>Loading signature…</div>}
-        {appointment.technicianSignedAt && <div style={{ marginTop: "0.5rem", color: colors.muted, fontSize: "0.72rem" }}>{formatDateTime(appointment.technicianSignedAt)}</div>}
+  return (
+    <div
+      className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl p-3.5 flex flex-col gap-2.5"
+      style={{
+        background: "rgba(236, 253, 245, 0.4)",
+        border: "1px solid rgba(167, 243, 208, 0.8)",
+        borderRadius: "0.75rem",
+        padding: "0.875rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.625rem",
+      }}
+    >
+      <div>
+        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 700 }}>Technician signature</h4>
+        <p style={{ margin: "0.2rem 0 0", color: "#047857", fontSize: "0.72rem" }}>
+          {alreadySigned
+            ? "You have signed off on this report."
+            : "Sign to attest that the findings and treatment above are your own record of this visit."}
+        </p>
       </div>
-    ) : (
-      <>
-        <SignaturePad ref={padRef} onChange={setHasInk} />
-        <button type="button" onClick={sign} disabled={!hasInk || busy} style={{ ...primaryButton, justifyContent: "center", opacity: !hasInk || busy ? 0.55 : 1, cursor: !hasInk || busy ? "not-allowed" : "pointer" }}>
-          {busy ? "Saving…" : "Sign report"}
-        </button>
-        {!hasInk && <div style={{ color: colors.muted, fontSize: "0.72rem" }}>Draw your signature above to enable this.</div>}
-      </>
-    )}
-  </div>;
+
+      {alreadySigned ? (
+        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
+          {signatureUrl
+            ? <img src={signatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "6px" }} />
+            : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
+          {appointment.technicianSignedAt && <div style={{ marginTop: "0.35rem", color: "#047857", fontSize: "0.7rem" }}>{formatDateTime(appointment.technicianSignedAt)}</div>}
+        </div>
+      ) : (
+        <>
+          <SignaturePad ref={padRef} onChange={setHasInk} />
+          <button
+            type="button"
+            onClick={sign}
+            disabled={!hasInk || busy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors"
+            style={{ ...primaryButton, background: "#047857", borderColor: "#047857", justifyContent: "center", opacity: !hasInk || busy ? 0.55 : 1, cursor: !hasInk || busy ? "not-allowed" : "pointer" }}
+          >
+            {busy ? "Saving…" : "Sign report"}
+          </button>
+          {!hasInk && <div style={{ color: "#64748b", fontSize: "0.7rem", fontStyle: "italic" }}>Draw your signature above to enable this.</div>}
+        </>
+      )}
+    </div>
+  );
 }
 
 function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFollowUp, getSignatureUrl, onPrintServiceForm, onProblem }) {
@@ -951,16 +1014,17 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
   }, [appointment.signaturePath, getSignatureUrl]);
 
   const run = async (formElement, confirmation) => {
-    if (!formElement) return;
+    const form = formElement || document.getElementById("appointment-report-form");
+    if (!form) return;
     setBusy(true);
-    await onSubmit(formElement, confirmation);
+    await onSubmit(form, confirmation);
     setBusy(false);
   };
 
   const confirmCompletion = async (event) => {
     // Grab the form before awaiting: the synthetic event's currentTarget is
     // gone by the time toFile() resolves.
-    const formElement = event.currentTarget.form;
+    const formElement = event.currentTarget.form || document.getElementById("appointment-report-form");
     setBusy(true);
     const signatureFile = await padRef.current?.toFile();
     if (!signatureFile) {
@@ -975,7 +1039,6 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
     }
   };
 
-  const labelStyle = { color: colors.body, fontWeight: 700, fontSize: "0.82rem" };
   const readyToConfirm = hasInk && agreed && customerName.trim().length > 0 && !busy;
   const missing = [
     customerName.trim() ? null : "the customer's name",
@@ -983,174 +1046,448 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
     agreed ? null : "the confirmation tick",
   ].filter(Boolean);
 
-  return <div style={{ display: "grid", gap: "0.85rem", paddingTop: "1rem", marginTop: "0.25rem", borderTop: "1px solid #eadede" }}>
-    <div>
-      <h3 style={{ margin: 0, color: colors.ink, fontSize: "0.95rem" }}>Customer confirmation</h3>
-      <p style={{ margin: "0.2rem 0 0", color: colors.muted, fontSize: "0.74rem" }}>
-        {closed ? "This service is closed." : "The visit is not complete until the customer confirms the work, or the office records why they could not sign."}
-      </p>
-    </div>
-
-    {alreadySigned ? (
-      <div style={{ padding: "0.8rem", borderRadius: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-        {signatureUrl
-          ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "130px", background: "#fff", borderRadius: "6px" }} />
-          : <div style={{ color: colors.muted, fontSize: "0.76rem" }}>Loading signature…</div>}
-        <div style={{ marginTop: "0.5rem", color: "#166534", fontWeight: 700, fontSize: "0.8rem" }}>
-          Signed by {appointment.customerName || "the customer"}
-        </div>
-        {appointment.signedAt && <div style={{ color: colors.muted, fontSize: "0.72rem" }}>{formatDateTime(appointment.signedAt)}</div>}
-      </div>
-    ) : appointment.completionNote ? (
-      <div style={{ padding: "0.8rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
-        <div style={{ color: "#9a3412", fontWeight: 700, fontSize: "0.8rem" }}>Completed without a customer signature</div>
-        <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.78rem", whiteSpace: "pre-wrap" }}>{appointment.completionNote}</div>
-      </div>
-    ) : (
-      <>
-        <label style={{ display: "grid", gap: "0.35rem", ...labelStyle }}>
-          Customer name
-          <input ref={nameRef} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Printed name of the person signing" style={{ ...inputStyle, borderColor: customerName.trim() || !hasInk ? undefined : "#e11d48" }} />
-        </label>
-        <SignaturePad ref={padRef} onChange={setHasInk} />
-        <label style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", color: colors.body, fontSize: "0.78rem" }}>
-          <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} style={{ marginTop: "0.15rem" }} />
-          <span>The customer confirms the service described above was performed.</span>
-        </label>
-      </>
-    )}
-
-    <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-      <button type="button" onClick={(event) => run(event.currentTarget.form, null)} disabled={busy} style={{ ...secondaryButton, opacity: busy ? 0.6 : 1 }}>
-        <Check size={15} /> {appointment.reportSubmitted ? "Update report" : "Save report"}
-      </button>
-      {!alreadySigned && !appointment.completionNote && (
-        <button type="button" onClick={confirmCompletion} disabled={!readyToConfirm} style={{ ...primaryButton, opacity: readyToConfirm ? 1 : 0.5, cursor: readyToConfirm ? "pointer" : "default" }}>
-          <ShieldCheck size={15} /> Confirm completion
-        </button>
-      )}
-      {appointment.followUpDate && <button type="button" onClick={onScheduleFollowUp} style={secondaryButton}>Schedule follow-up</button>}
-    </div>
-
-    {!alreadySigned && !appointment.completionNote && missing.length > 0 && <button
-      type="button"
-      onClick={() => nameRef.current?.focus()}
-      style={{ display: "flex", gap: "0.45rem", alignItems: "center", textAlign: "left", width: "100%", padding: "0.55rem 0.7rem", marginTop: "-0.35rem", borderRadius: "9px", background: "#fef2f2", border: "1px solid #fecdd3", color: "#9f1239", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
+  return (
+    <div
+      className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl p-3.5 flex flex-col gap-2.5"
+      style={{
+        background: "rgba(236, 253, 245, 0.4)",
+        border: "1px solid rgba(167, 243, 208, 0.8)",
+        borderRadius: "0.75rem",
+        padding: "0.875rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.625rem",
+      }}
     >
-      <Lock size={13} style={{ flex: "none" }} />
-      <span>Still needed: {missing.join(", ").replace(/, ([^,]*)$/, " and $1")}.</span>
-    </button>}
+      <div>
+        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 700 }}>Customer confirmation</h4>
+        <p style={{ margin: "0.2rem 0 0", color: "#047857", fontSize: "0.72rem" }}>
+          {closed ? "This service is completed." : "The visit is complete when the customer confirms the work."}
+        </p>
+      </div>
 
-    {!alreadySigned && hasInk && <div style={{ display: "flex", gap: "0.45rem", alignItems: "flex-start", padding: "0.6rem 0.7rem", borderRadius: "9px", background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: "0.74rem", fontWeight: 600 }}>
-      <Lock size={13} style={{ flex: "none", marginTop: "0.1rem" }} />
-      <span>A signature has been drawn. <strong>Save report</strong> will not record it &mdash; press <strong>Confirm completion</strong> to store the signature and close the visit.</span>
-    </div>}
-
-    {appointment.reportSubmitted && <button type="button" onClick={onPrintServiceForm} style={{ ...secondaryButton, justifySelf: "start" }}>
-      <Printer size={15} /> Generate service form PDF
-    </button>}
-
-    {!alreadySigned && !appointment.completionNote && canOverride && (
-      overrideOpen ? (
-        <div style={{ display: "grid", gap: "0.5rem", padding: "0.8rem", borderRadius: "10px", background: "#fffbeb", border: "1px solid #fde68a" }}>
-          <strong style={{ ...labelStyle, fontSize: "0.78rem" }}>Why is there no customer signature?</strong>
-          <textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} rows={2} placeholder="e.g. Customer left before the treatment finished; confirmed by phone." style={{ ...inputStyle, resize: "vertical" }} />
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button type="button" disabled={!overrideReason.trim() || busy} onClick={(event) => run(event.currentTarget.form, { completionNote: overrideReason.trim() })} style={{ ...primaryButton, opacity: overrideReason.trim() && !busy ? 1 : 0.5 }}>
-              Complete without signature
-            </button>
-            <button type="button" onClick={() => setOverrideOpen(false)} style={secondaryButton}>Cancel</button>
+      {alreadySigned ? (
+        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
+          {signatureUrl
+            ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "6px" }} />
+            : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
+          <div style={{ marginTop: "0.35rem", color: "#166534", fontWeight: 700, fontSize: "0.76rem" }}>
+            Signed by {appointment.customerName || "the customer"}
           </div>
+          {appointment.signedAt && <div style={{ color: "#047857", fontSize: "0.7rem" }}>{formatDateTime(appointment.signedAt)}</div>}
+        </div>
+      ) : appointment.completionNote ? (
+        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
+          <div style={{ color: "#9a3412", fontWeight: 700, fontSize: "0.76rem" }}>Completed without a customer signature</div>
+          <div style={{ marginTop: "0.2rem", color: colors.body, fontSize: "0.74rem", whiteSpace: "pre-wrap" }}>{appointment.completionNote}</div>
         </div>
       ) : (
-        <button type="button" onClick={() => setOverrideOpen(true)} style={{ justifySelf: "start", border: 0, background: "none", color: colors.muted, fontSize: "0.74rem", textDecoration: "underline", cursor: "pointer", padding: 0 }}>
-          Customer cannot sign? Complete with a written reason
-        </button>
-      )
-    )}
+        <>
+          <label style={{ display: "grid", gap: "0.25rem", color: "#065f46", fontWeight: 700, fontSize: "0.76rem" }}>
+            Customer name
+            <input
+              ref={nameRef}
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+              placeholder="Printed name of person signing"
+              style={{ ...inputStyle, borderColor: customerName.trim() || !hasInk ? undefined : "#e11d48", padding: "0.35rem 0.6rem", fontSize: "0.78rem" }}
+            />
+          </label>
+          <SignaturePad ref={padRef} onChange={setHasInk} />
+          <label style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", color: "#065f46", fontSize: "0.74rem" }}>
+            <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} style={{ marginTop: "0.15rem", accentColor: "#047857" }} />
+            <span>The customer confirms the service described above was performed.</span>
+          </label>
+          <button
+            type="button"
+            onClick={confirmCompletion}
+            disabled={!readyToConfirm}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors"
+            style={{ ...primaryButton, background: "#047857", borderColor: "#047857", justifyContent: "center", opacity: readyToConfirm ? 1 : 0.5, cursor: readyToConfirm ? "pointer" : "default" }}
+          >
+            <ShieldCheck size={14} style={{ marginRight: "0.25rem" }} /> Confirm completion
+          </button>
+        </>
+      )}
 
-    {appointment.reportSubmitted && <div style={{ color: closed ? colors.success : colors.muted, fontWeight: 700, fontSize: "0.78rem" }}>
-      Report saved{appointment.reportSubmittedAt ? ` on ${formatDateTime(appointment.reportSubmittedAt)}` : ""}.{closed ? " Service is Completed." : " Not yet completed — awaiting confirmation."}
-    </div>}
-  </div>;
+      {!alreadySigned && !appointment.completionNote && missing.length > 0 && (
+        <button
+          type="button"
+          onClick={() => nameRef.current?.focus()}
+          style={{ display: "flex", gap: "0.45rem", alignItems: "center", textAlign: "left", width: "100%", padding: "0.45rem 0.6rem", borderRadius: "8px", background: "#fef2f2", border: "1px solid #fecdd3", color: "#9f1239", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer" }}
+        >
+          <Lock size={12} style={{ flex: "none" }} />
+          <span>Still needed: {missing.join(", ").replace(/, ([^,]*)$/, " and $1")}.</span>
+        </button>
+      )}
+
+      {!alreadySigned && !appointment.completionNote && canOverride && (
+        overrideOpen ? (
+          <div style={{ display: "grid", gap: "0.4rem", padding: "0.6rem", borderRadius: "8px", background: "#fffbeb", border: "1px solid #fde68a" }}>
+            <strong style={{ color: "#92400e", fontSize: "0.74rem" }}>Why is there no customer signature?</strong>
+            <textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} rows={2} placeholder="e.g. Customer left before treatment finished; confirmed by phone." style={{ ...inputStyle, fontSize: "0.75rem", resize: "vertical" }} />
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              <button type="button" disabled={!overrideReason.trim() || busy} onClick={(event) => run(document.getElementById("appointment-report-form") || event.currentTarget.form, { completionNote: overrideReason.trim() })} style={{ ...primaryButton, padding: "0.3rem 0.6rem", fontSize: "0.72rem", opacity: overrideReason.trim() && !busy ? 1 : 0.5 }}>
+                Complete without signature
+              </button>
+              <button type="button" onClick={() => setOverrideOpen(false)} style={{ ...secondaryButton, padding: "0.3rem 0.6rem", fontSize: "0.72rem" }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setOverrideOpen(true)} style={{ border: 0, background: "none", color: "#64748b", fontSize: "0.7rem", textDecoration: "underline", cursor: "pointer", padding: 0, textAlign: "left" }}>
+            Customer cannot sign? Complete with a written reason
+          </button>
+        )
+      )}
+    </div>
+  );
 }
 
 // The appointment detail opens as a centered modal using the same shell as the
 // new-appointment form. As a side panel it squeezed the week and month grids
 // into a narrow column, which is exactly the space those views need most.
 const detailBackdrop = { position: "fixed", inset: 0, zIndex: 30, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" };
-const detailCard = { ...card, padding: 0, width: "min(100%, 560px)", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #eadede", boxShadow: "0 24px 60px rgba(75, 18, 18, 0.28)" };
+const detailCard = {
+  width: "min(100%, 768px)",
+  maxHeight: "92vh",
+  background: "#ffffff",
+  borderRadius: "1rem",
+  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+  border: "1px solid #e2e8f0",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
 
 function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, appointments, canReschedule = true, canFileService = true, assignedName, getSignatureUrl, treatmentMethods, onToggleMethod, dynamicMethods, dynamicGroups, onPrintServiceForm, onProblem, canUpload, canRemove, addDocument, removeDocument, getDocumentUrl, addAttachment, removeAttachment, getAttachmentUrl, onSave, onTimingSave, onReportSubmit, onStockSubmit, onScheduleFollowUp, inventory, stockRows, setStockRows, onClose }) {
   const busyTechnicians = busyTechnicianIds(appointments, appointment);
-  const notice = (text) => <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.7rem 0.8rem", marginBottom: "1rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "0.76rem", fontWeight: 600 }}>
-    <Lock size={14} style={{ flex: "none", marginTop: "0.1rem" }} />
-    <span>{text}</span>
-  </div>;
+  const notice = (text) => (
+    <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.7rem 0.8rem", marginBottom: "1rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "0.76rem", fontWeight: 600 }}>
+      <Lock size={14} style={{ flex: "none", marginTop: "0.1rem" }} />
+      <span>{text}</span>
+    </div>
+  );
   const scheduleNotice = !canReschedule && notice("Scheduling is handled by the office. Ask staff to change the time, technician, or status of this visit.");
   const serviceNotice = !canFileService && notice(`This visit is assigned to ${assignedName}. Only the assigned technician can file its report and materials.`);
-  if (tab === "Overview") {
-    return <div role="dialog" aria-modal="true" aria-label={`Appointment detail for ${client.name}`} style={detailBackdrop}>
-      <section style={detailCard}>
-      <div style={{ padding: "1.25rem 1.25rem 1rem", background: "linear-gradient(135deg, #7f1111, #b43d3d)", color: "#fff", flex: "none" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><div><div style={{ fontSize: "0.68rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.1em" }}>Appointment detail</div><h2 style={{ margin: "0.3rem 0", fontSize: "1.35rem" }}>{client.name}</h2><div style={{ opacity: 0.85, fontSize: "0.78rem" }}>{formatDateTime(appointment.scheduledAt)}</div></div><button type="button" aria-label="Close appointment detail" onClick={onClose} style={{ border: 0, background: "transparent", color: "#fff", cursor: "pointer" }}><X size={18} /></button></div></div>
-      <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #eadede", flex: "none" }}>{TAB_LABELS.map((label) => <button type="button" key={label} onClick={() => setTab(label)} style={{ flex: 1, minWidth: "88px", border: 0, borderBottom: tab === label ? `3px solid ${colors.brand}` : "3px solid transparent", padding: "0.8rem 0.35rem", background: "#fff", color: tab === label ? colors.brand : colors.muted, fontWeight: 800, fontSize: "0.72rem", cursor: "pointer" }}>{label}</button>)}</div>
-      <div style={{ padding: "1.25rem", background: "#fffdfd", flex: 1, minHeight: 0, overflowY: "auto" }}>{scheduleNotice}<fieldset disabled={!canReschedule} style={fieldsetReset}><AppointmentOverviewForm key={appointment.id} appointment={appointment} client={client} activeAccounts={activeAccounts} busyTechnicians={busyTechnicians} appointments={appointments} onSave={onSave} /></fieldset></div>
-      </section>
-    </div>;
-  }
+
   return (
     <div role="dialog" aria-modal="true" aria-label={`Appointment detail for ${client.name}`} style={detailBackdrop}>
-      <section style={detailCard}>
-      <div style={{ padding: "1.25rem 1.25rem 1rem", background: "linear-gradient(135deg, #7f1111, #b43d3d)", color: "#fff", flex: "none" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}><div><div style={{ fontSize: "0.68rem", opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.1em" }}>Appointment detail</div><h2 style={{ margin: "0.3rem 0", fontSize: "1.35rem" }}>{client.name}</h2><div style={{ opacity: 0.85, fontSize: "0.78rem" }}>{formatDateTime(appointment.scheduledAt)}</div></div><button type="button" aria-label="Close appointment detail" onClick={onClose} style={{ border: 0, background: "transparent", color: "#fff", cursor: "pointer" }}><X size={18} /></button></div></div>
-      <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #eadede", flex: "none" }}>{TAB_LABELS.map((label) => <button type="button" key={label} onClick={() => setTab(label)} style={{ flex: 1, minWidth: "88px", border: 0, borderBottom: tab === label ? `3px solid ${colors.brand}` : "3px solid transparent", padding: "0.8rem 0.35rem", background: "#fff", color: tab === label ? colors.brand : colors.muted, fontWeight: 800, fontSize: "0.72rem", cursor: "pointer" }}>{label}</button>)}</div>
-      <div style={{ padding: "1.25rem", background: "#fffdfd", flex: 1, minHeight: 0, overflowY: "auto" }}>
-        {serviceNotice}
-        <fieldset disabled={!canFileService} style={fieldsetReset}>
-        {tab === "Documents" && <div>
-          <h2 style={{ marginTop: 0, marginBottom: "0.3rem", color: colors.body, fontSize: "1.05rem" }}>Client documents</h2>
-          <p style={{ margin: "0 0 0.9rem", color: colors.muted, fontSize: "0.74rem" }}>Belongs to {client.name}, not to this visit. Photos and signed forms for this service go in the Report tab.</p>
-          <div style={{ display: "grid", gap: "0.7rem" }}>
-            {DOCUMENT_CATEGORIES.map((category) => <ClientDocuments
-              key={category.value}
-              compact
-              title={category.label}
-              uploadLabel={category.uploadLabel}
-              documents={(client.documents || []).filter((document) => (document.category || "OTHER") === category.value)}
-              canUpload={canUpload}
-              canRemove={canRemove}
-              onUpload={(file) => addDocument(client.id, file, category.value)}
-              onRemove={(document) => removeDocument(client.id, document)}
-              onResolveUrl={getDocumentUrl}
-              emptyMessage="None uploaded yet."
-            />)}
+      <section
+        className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden"
+        style={detailCard}
+      >
+        {/* 1. Header Bar */}
+        <div
+          className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0"
+          style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", flexShrink: 0 }}
+        >
+          <div>
+            <div
+              className="text-[11px] font-bold text-red-700 uppercase tracking-wider"
+              style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.05em" }}
+            >
+              Appointment detail
+            </div>
+            <h2
+              className="text-lg font-bold text-slate-900 mt-0.5"
+              style={{ margin: "0.125rem 0 0", fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}
+            >
+              {client.name}
+            </h2>
+            <div
+              className="text-xs text-slate-500 mt-0.5"
+              style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.125rem" }}
+            >
+              {formatDateTime(appointment.scheduledAt)}
+            </div>
           </div>
-        </div>}
-        {tab === "Report" && <form onSubmit={(event) => event.preventDefault()} style={{ display: "grid", gap: "1rem" }}><div style={{ padding: "0.85rem", borderRadius: "10px", background: "#f8fafc", color: colors.muted, fontSize: "0.78rem" }}><FileText size={15} style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> Required fields finalize this service. Recommendations and follow-up scheduling are optional.</div><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Inspection findings<textarea name="findings" defaultValue={appointment.report} rows={5} placeholder="What did the technician observe?" style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap" }} required /></label><TreatmentMethods appointment={appointment} selected={treatmentMethods} onToggle={onToggleMethod} treatmentMethods={dynamicMethods} treatmentMethodGroups={dynamicGroups} /><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Recommendations / follow-up notes<textarea name="recommendations" defaultValue={appointment.recommendations} rows={3} placeholder="Optional recommendations" style={{ ...inputStyle, resize: "vertical" }} /></label><label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Follow-up date<input name="followUpDate" type="date" defaultValue={appointment.followUpDate} style={inputStyle} /></label><TechnicianSignature appointment={appointment} onSubmit={onReportSubmit} getSignatureUrl={getSignatureUrl} onProblem={onProblem} /><CustomerConfirmation appointment={appointment} canOverride={canReschedule} onSubmit={onReportSubmit} onScheduleFollowUp={onScheduleFollowUp} getSignatureUrl={getSignatureUrl} onPrintServiceForm={onPrintServiceForm} onProblem={onProblem} /></form>}
-        {tab === "Report" && <div style={{ marginTop: "1.5rem", paddingTop: "1.25rem", borderTop: "1px solid #eadede" }}>
-          <h2 style={{ marginTop: 0, marginBottom: "0.35rem", color: colors.body, fontSize: "1.05rem" }}>Report attachments</h2>
-          <p style={{ margin: "0 0 0.9rem", color: colors.muted, fontSize: "0.74rem" }}>Files for this visit only. JPG, PNG, or PDF up to 5MB each.</p>
-          <div style={{ display: "grid", gap: "0.7rem" }}>
-            {ATTACHMENT_CATEGORIES.map((category) => <ClientDocuments
-              key={category.value}
-              compact
-              title={category.label}
-              uploadLabel={category.uploadLabel}
-              documents={(appointment.attachments || []).filter((attachment) => (attachment.category || "OTHER") === category.value)}
-              canUpload={canUpload}
-              canRemove={canRemove && !appointment.reportSubmitted}
-              onUpload={(file) => addAttachment(appointment.id, file, category.value)}
-              onRemove={(attachment) => removeAttachment(attachment)}
-              onResolveUrl={getAttachmentUrl}
-              accept=".jpg,.jpeg,.png,.pdf"
-              validate={validateAttachment}
-              emptyMessage="None uploaded yet."
-            />)}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {onPrintServiceForm && (
+              <button
+                type="button"
+                onClick={onPrintServiceForm}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, color: "#334155", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.5rem", cursor: "pointer" }}
+              >
+                <Printer size={14} /> Generate service form PDF
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Close appointment detail"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              style={{ border: 0, background: "transparent", color: "#64748b", cursor: "pointer", padding: "0.375rem", display: "inline-flex", alignItems: "center", borderRadius: "0.5rem" }}
+            >
+              <X size={18} />
+            </button>
           </div>
-          {appointment.reportSubmitted && <div style={{ marginTop: "0.6rem", color: colors.muted, fontSize: "0.72rem" }}>The report is finalized, so existing attachments can no longer be removed.</div>}
-        </div>}
-        {tab === "Stock-Out" && <StockOutForm appointment={appointment} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onSubmit={onStockSubmit} />}
-        </fieldset>
-      </div>
+        </div>
+
+        {/* 2. Tabs */}
+        <div
+          className="flex border-b border-slate-200 bg-white px-6 shrink-0 overflow-x-auto"
+          style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#ffffff", padding: "0 1.5rem", flexShrink: 0, overflowX: "auto" }}
+        >
+          {TAB_LABELS.map((label) => {
+            const active = tab === label;
+            return (
+              <button
+                type="button"
+                key={label}
+                onClick={() => setTab(label)}
+                className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${active ? "border-red-700 text-red-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                style={{
+                  border: 0,
+                  borderBottom: active ? "2px solid #b91c1c" : "2px solid transparent",
+                  padding: "0.75rem 1rem",
+                  background: "transparent",
+                  color: active ? "#b91c1c" : "#64748b",
+                  fontWeight: 700,
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 3. Modal Body (Scrollable Container) */}
+        <div
+          className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0"
+          style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.5rem", flex: 1, minHeight: 0, overflowY: "auto" }}
+        >
+          {tab === "Overview" && (
+            <>
+              {scheduleNotice}
+              <fieldset disabled={!canReschedule} style={fieldsetReset}>
+                <AppointmentOverviewForm
+                  key={appointment.id}
+                  appointment={appointment}
+                  client={client}
+                  activeAccounts={activeAccounts}
+                  busyTechnicians={busyTechnicians}
+                  appointments={appointments}
+                  onSave={onSave}
+                />
+              </fieldset>
+            </>
+          )}
+
+          {tab !== "Overview" && (
+            <>
+              {serviceNotice}
+              <fieldset disabled={!canFileService} style={fieldsetReset}>
+                {tab === "Documents" && (
+                  <div>
+                    <h2 style={{ marginTop: 0, marginBottom: "0.3rem", color: colors.body, fontSize: "1.05rem" }}>Client documents</h2>
+                    <p style={{ margin: "0 0 0.9rem", color: colors.muted, fontSize: "0.74rem" }}>
+                      Belongs to {client.name}, not to this visit. Photos and signed forms for this service go in the Report tab.
+                    </p>
+                    <div style={{ display: "grid", gap: "0.7rem" }}>
+                      {DOCUMENT_CATEGORIES.map((category) => (
+                        <ClientDocuments
+                          key={category.value}
+                          compact
+                          title={category.label}
+                          uploadLabel={category.uploadLabel}
+                          documents={(client.documents || []).filter((document) => (document.category || "OTHER") === category.value)}
+                          canUpload={canUpload}
+                          canRemove={canRemove}
+                          onUpload={(file) => addDocument(client.id, file, category.value)}
+                          onRemove={(document) => removeDocument(client.id, document)}
+                          onResolveUrl={getDocumentUrl}
+                          emptyMessage="None uploaded yet."
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tab === "Report" && (
+                  <>
+                    {/* Information callout banner */}
+                    <div
+                      className="p-3 mb-5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900 flex items-center gap-2"
+                      style={{ padding: "0.75rem", marginBottom: "1.25rem", background: "rgba(239, 246, 255, 0.7)", border: "1px solid rgba(191, 219, 254, 0.6)", borderRadius: "0.75rem", fontSize: "0.75rem", color: "#1e3a8a", display: "flex", alignItems: "center", gap: "0.5rem" }}
+                    >
+                      <FileText size={15} className="shrink-0 text-blue-600" style={{ color: "#2563eb", flexShrink: 0 }} />
+                      <span>Required fields finalize this service. Recommendations and follow-up scheduling are optional.</span>
+                    </div>
+
+                    {/* 4. Two-Column Form Layout */}
+                    <form id="appointment-report-form" onSubmit={(event) => event.preventDefault()} style={{ display: "grid", gap: "1.5rem" }}>
+                      <div
+                        className="grid grid-cols-1 md:grid-cols-2 gap-5"
+                        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", alignItems: "start" }}
+                      >
+                        {/* Left Column (Notes & Details) */}
+                        <div className="space-y-4" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                            <span>Inspection findings <span style={{ color: "#dc2626" }}>*</span></span>
+                            <textarea
+                              name="findings"
+                              defaultValue={appointment.report}
+                              rows={3}
+                              placeholder="What did the technician observe?"
+                              style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap", width: "100%" }}
+                              required
+                            />
+                          </label>
+
+                          <label style={{ display: "grid", gap: "0.3rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                            <span>
+                              Additional treatment notes{" "}
+                              <span style={{ fontWeight: 400, color: colors.muted, fontSize: "0.72rem" }}>
+                                (Optional — anything the list does not cover)
+                              </span>
+                            </span>
+                            <textarea
+                              name="treatmentPerformed"
+                              defaultValue={appointment.treatmentPerformed}
+                              rows={2}
+                              placeholder="e.g. Pipe chase behind the range needs sealing before the next visit."
+                              style={{ ...inputStyle, resize: "vertical", whiteSpace: "pre-wrap", width: "100%" }}
+                            />
+                          </label>
+
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                            Recommendations / follow-up notes
+                            <textarea
+                              name="recommendations"
+                              defaultValue={appointment.recommendations}
+                              rows={2}
+                              placeholder="Optional recommendations"
+                              style={{ ...inputStyle, resize: "vertical", width: "100%" }}
+                            />
+                          </label>
+
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                            Follow-up date
+                            <input
+                              name="followUpDate"
+                              type="date"
+                              defaultValue={appointment.followUpDate}
+                              style={{ ...inputStyle, width: "100%" }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Right Column (Checklist) */}
+                        <TreatmentMethods
+                          appointment={appointment}
+                          selected={treatmentMethods}
+                          onToggle={onToggleMethod}
+                          treatmentMethods={dynamicMethods}
+                          treatmentMethodGroups={dynamicGroups}
+                        />
+                      </div>
+
+                      {/* 5. Signatures Grid */}
+                      <div
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200/80"
+                        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", paddingTop: "0.5rem", borderTop: "1px solid rgba(226, 232, 240, 0.8)" }}
+                      >
+                        <TechnicianSignature
+                          appointment={appointment}
+                          onSubmit={onReportSubmit}
+                          getSignatureUrl={getSignatureUrl}
+                          onProblem={onProblem}
+                        />
+                        <CustomerConfirmation
+                          appointment={appointment}
+                          canOverride={canReschedule}
+                          onSubmit={onReportSubmit}
+                          onScheduleFollowUp={onScheduleFollowUp}
+                          getSignatureUrl={getSignatureUrl}
+                          onPrintServiceForm={onPrintServiceForm}
+                          onProblem={onProblem}
+                        />
+                      </div>
+                    </form>
+
+                    {/* 6. Report Attachments Section */}
+                    <div style={{ marginTop: "1.5rem", paddingTop: "1.25rem", borderTop: "1px solid #e2e8f0" }}>
+                      <h3 style={{ margin: 0, color: colors.body, fontSize: "1rem", fontWeight: 800 }}>Report attachments</h3>
+                      <p style={{ margin: "0.2rem 0 0.9rem", color: colors.muted, fontSize: "0.74rem" }}>
+                        Files for this visit only. JPG, PNG, or PDF up to 5MB each.
+                      </p>
+                      <div
+                        className="grid grid-cols-1 md:grid-cols-2 gap-3.5 overflow-hidden"
+                        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0.875rem", overflow: "hidden" }}
+                      >
+                        {ATTACHMENT_CATEGORIES.map((category) => (
+                          <ClientDocuments
+                            key={category.value}
+                            variant="tile"
+                            title={category.label}
+                            uploadLabel={category.uploadLabel}
+                            documents={(appointment.attachments || []).filter((attachment) => (attachment.category || "OTHER") === category.value)}
+                            canUpload={canUpload}
+                            canRemove={true}
+                            onUpload={(file) => addAttachment(appointment.id, file, category.value)}
+                            onRemove={(attachment) => removeAttachment({ ...attachment, appointmentId: attachment.appointmentId || appointment.id })}
+                            onResolveUrl={getAttachmentUrl}
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            validate={validateAttachment}
+                            emptyMessage="None uploaded yet."
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {tab === "Stock-Out" && (
+                  <StockOutForm
+                    appointment={appointment}
+                    inventory={inventory}
+                    stockRows={stockRows}
+                    setStockRows={setStockRows}
+                    onSubmit={onStockSubmit}
+                  />
+                )}
+              </fieldset>
+            </>
+          )}
+        </div>
+
+        {/* 7. Sticky Footer Actions (Report tab) */}
+        {tab === "Report" && (
+          <div
+            className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0"
+            style={{ padding: "0.875rem 1.5rem", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}
+          >
+            <div>
+              {appointment.followUpDate ? (
+                <button
+                  type="button"
+                  onClick={onScheduleFollowUp}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.875rem", fontSize: "0.75rem", fontWeight: 500, color: "#334155", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.75rem", cursor: "pointer" }}
+                >
+                  Schedule follow-up
+                </button>
+              ) : <span />}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const form = document.getElementById("appointment-report-form");
+                  if (form) onReportSubmit(form, null);
+                }}
+                className="px-5 py-2 text-sm font-semibold rounded-xl bg-red-700 hover:bg-red-800 text-white shadow-sm transition-colors cursor-pointer"
+                style={{ padding: "0.5rem 1.25rem", fontSize: "0.875rem", fontWeight: 600, borderRadius: "0.75rem", background: "#b91c1c", color: "#ffffff", border: 0, cursor: "pointer", boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}
+              >
+                <Check size={15} style={{ display: "inline-block", verticalAlign: "middle", marginRight: "0.35rem" }} />
+                {appointment.reportSubmitted ? "Update report" : "Save report"}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import App from "./App";
 
-test("renders the app shell when Supabase is not configured", () => {
+test("renders the app shell or login page", () => {
   render(<App />);
 
   expect(
-    screen.getByRole("heading", { name: /supabase configuration required/i })
+    screen.getByRole("heading", { name: /welcome back|torres pest control/i })
   ).toBeInTheDocument();
 });

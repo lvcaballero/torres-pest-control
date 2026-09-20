@@ -36,6 +36,14 @@ export function formatDateTime(value) {
   });
 }
 
+export function formatTime(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 /** "Never" rather than an em dash, for the last-login column. */
 export function formatLastLogin(value) {
   if (!value) return "Never";

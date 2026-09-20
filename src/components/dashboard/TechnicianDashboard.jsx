@@ -12,10 +12,10 @@ import useClients from "../../hooks/useClients";
 import { useScheduling } from "../../context/SchedulingContext";
 import { colors, pageShell, primaryButton } from "../../styles/theme";
 import {
+  appointmentsThisWeek,
   completedToday,
   remainingToday,
   appointmentsToday,
-  tomorrowsJobs,
 } from "../../utils/dashboardMetrics";
 import { greetingFor } from "../../utils/greetings";
 import { Chip, Empty, JobRow, Panel, StatTile, TileRow, timeLabel } from "./DashboardParts";
@@ -36,8 +36,12 @@ function TechnicianDashboard() {
   const mineToday = appointmentsToday(appointments).filter((entry) => entry.technicianId === me);
   const remaining = remainingToday(appointments, me);
   const done = completedToday(appointments, me);
-  const tomorrow = tomorrowsJobs(appointments, me);
   const nextUp = remaining[0];
+  const weeklyJobs = appointmentsThisWeek(appointments).filter((entry) => entry.technicianId === me);
+  const weeklyFiled = weeklyJobs.filter((entry) => entry.reportSubmitted).length;
+  const nextScheduled = appointments
+    .filter((entry) => entry.technicianId === me && entry.status !== "Cancelled" && new Date(entry.scheduledAt) >= new Date())
+    .sort((first, second) => new Date(first.scheduledAt) - new Date(second.scheduledAt))[0];
 
   const note = useMemo(() => {
     if (loading) return "Loading your schedule…";
@@ -81,6 +85,22 @@ function TechnicianDashboard() {
           />
         </TileRow>
 
+        <Panel title="Field summary" action="This week">
+          <TileRow min="145px">
+            <StatTile label="Scheduled this week" value={loading ? "—" : weeklyJobs.length} note="Assigned visits" />
+            <StatTile label="Reports filed" value={loading ? "—" : weeklyFiled} note="Completed reports" tone="done" />
+            <StatTile label="Reports to file" value={loading ? "—" : weeklyJobs.length - weeklyFiled} note="Visits still open" tone={weeklyJobs.length - weeklyFiled > 0 ? "attn" : "done"} />
+          </TileRow>
+          {nextScheduled ? (
+            <div style={{ padding: "0.8rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
+              <div style={{ color: "#9a3412", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Next scheduled visit</div>
+              <div style={{ marginTop: "0.25rem", color: colors.ink, fontSize: "0.92rem", fontWeight: 800 }}>{nameOf(nextScheduled)}</div>
+              <div style={{ marginTop: "0.2rem", color: colors.body, fontSize: "0.78rem" }}>{new Date(nextScheduled.scheduledAt).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {nextScheduled.durationMinutes || 60} minutes</div>
+              <div style={{ marginTop: "0.15rem", color: colors.muted, fontSize: "0.75rem" }}>{whereOf(nextScheduled) || "No service address recorded."}</div>
+            </div>
+          ) : <Empty>No upcoming visit is scheduled.</Empty>}
+        </Panel>
+
         <Panel title="My schedule today" action={new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}>
           {loading && mineToday.length === 0 && <Empty>Loading your schedule…</Empty>}
           {!loading && mineToday.length === 0 && <Empty>No visits booked for you today.</Empty>}
@@ -98,18 +118,6 @@ function TechnicianDashboard() {
           ))}
         </Panel>
 
-        <Panel title="Tomorrow, first three" action="Load the truck">
-          {tomorrow.length === 0 && <Empty>Nothing booked for you tomorrow.</Empty>}
-          {tomorrow.map((appointment, index) => (
-            <JobRow
-              key={appointment.id}
-              first={index === 0}
-              when={timeLabel(appointment.scheduledAt)}
-              title={nameOf(appointment)}
-              detail={[whereOf(appointment), appointment.pestConcern].filter(Boolean).join(" · ")}
-            />
-          ))}
-        </Panel>
       </div>
     </div>
   );

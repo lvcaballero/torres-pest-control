@@ -26,7 +26,6 @@ import useTreatmentMethods from "../hooks/useTreatmentMethods";
 import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, findTechnicianConflicts, layoutDayAppointments } from "../utils/scheduling";
 import {
   addDays,
-  defaultAppointmentDateTime,
   formatDateTime,
   localDateKey,
   minutesOfDay,
@@ -45,6 +44,7 @@ import { CalendarProvider } from "../components/scheduling/CalendarContext";
 import WeekGrid from "../components/scheduling/WeekGrid";
 import MonthGrid from "../components/scheduling/MonthGrid";
 import OverflowDialog from "../components/scheduling/OverflowDialog";
+import NewAppointmentModal from "../components/scheduling/NewAppointmentModal";
 import SchedulingToolbar, { MODES } from "../components/scheduling/SchedulingToolbar";
 import {
   fullDayWindow,
@@ -424,8 +424,25 @@ function SchedulingPage() {
     });
   };
 
+  /**
+   * Open the create form prefilled for a follow-up visit.
+   *
+   * This was unreachable. It set the client id and opened the modal but never
+   * closed the detail panel, and the panel's backdrop sat at a HIGHER
+   * z-index than the create modal — so the form opened behind the panel that
+   * launched it, invisible and unclickable. It also ignored the follow-up
+   * date the technician had just entered on the report, which is the one
+   * piece of information the whole action exists to carry forward.
+   */
   const scheduleFollowUp = () => {
+    if (!selected) return;
+    setSelectedId(null);
     setCreateClientId(selected.clientId);
+    setCreateScheduledAt(
+      selected.followUpDate
+        ? toDateTimeLocal(new Date(`${selected.followUpDate}T09:00:00`))
+        : ""
+    );
     setCreateOpen(true);
   };
 
@@ -662,7 +679,21 @@ function SchedulingPage() {
       </div>
       {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canReschedule={canReschedule} canFileService={ownsAppointment(selected)} getSignatureUrl={getSignatureUrl} treatmentMethods={treatmentMethods} onToggleMethod={toggleTreatmentMethod} dynamicMethods={dynamicMethods} dynamicGroups={dynamicGroups} onPrintServiceForm={() => printServiceForm(selected)} onProblem={showError} assignedName={activeAccounts.find((account) => account.id === selected.technicianId)?.name || activeAccounts.find((account) => account.id === selected.technicianId)?.username || "another technician"} canUpload={can("clientDocuments", "create") && ownsAppointment(selected)} canRemove={can("clientDocuments", "delete") && ownsAppointment(selected)} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} addAttachment={addAttachment} removeAttachment={removeAttachment} getAttachmentUrl={getAttachmentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} onScheduleFollowUp={scheduleFollowUp} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={showError} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />
-      {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} initialClientId={createClientId} initialScheduledAt={createScheduledAt} onClose={() => { setCreateOpen(false); setCreateClientId(""); setCreateScheduledAt(""); }} onCreate={handleCreate} />}
+      {createOpen && (
+        <NewAppointmentModal
+          clients={clients}
+          activeAccounts={technicians}
+          appointments={appointments}
+          initialClientId={createClientId}
+          initialScheduledAt={createScheduledAt}
+          onClose={() => {
+            setCreateOpen(false);
+            setCreateClientId("");
+            setCreateScheduledAt("");
+          }}
+          onCreate={handleCreate}
+        />
+      )}
       {/* The "+N more" tile's contents. Cards carry the same technician
           colours as the grid, so the colour language survives the jump. */}
       <CalendarProvider value={calendarValue}>
@@ -1508,142 +1539,6 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
       {(appointment.stockUsed || []).length > 0 && <div style={{ display: "grid", gap: "0.45rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Recorded for this service</strong>{appointment.stockUsed.map((entry, index) => <div key={`${entry.itemId}-${index}`} style={{ display: "flex", justifyContent: "space-between", padding: "0.55rem 0.7rem", border: "1px solid #eadede", borderRadius: "8px", fontSize: "0.78rem" }}><span>{entry.name}</span><strong>{entry.amount} {entry.unit}</strong></div>)}</div>}
     </form>
   );
-}
-
-function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "", initialScheduledAt = "", onClose, onCreate }) {
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [clientId, setClientId] = useState(initialClientId);
-  const [clientSearch, setClientSearch] = useState(
-    () => clients.find((client) => client.id === initialClientId)?.name || ""
-  );
-  const [serviceLocation, setServiceLocation] = useState(
-    () => clients.find((client) => client.id === initialClientId)?.address || ""
-  );
-  const [listOpen, setListOpen] = useState(false);
-  const clientFieldRef = useRef(null);
-
-  const selectedClient = clients.find((client) => client.id === clientId) || null;
-
-  const matchingClients = useMemo(() => {
-    const term = clientSearch.trim().toLowerCase();
-    if (!term) return clients;
-    return clients.filter((client) =>
-      [client.name, client.phone, client.email, client.address]
-        .filter(Boolean).join(" ").toLowerCase().includes(term));
-  }, [clients, clientSearch]);
-
-  useEffect(() => {
-    if (!listOpen) return undefined;
-    const handlePointerDown = (event) => {
-      if (clientFieldRef.current && !clientFieldRef.current.contains(event.target)) setListOpen(false);
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [listOpen]);
-
-  // Typing invalidates the current pick, so the box can never show one client's
-  // name while a different id is submitted.
-  const handleClientSearch = (value) => {
-    setClientSearch(value);
-    setClientId("");
-    setListOpen(true);
-  };
-
-  const chooseClient = (client) => {
-    setClientId(client.id);
-    setClientSearch(client.name);
-    setServiceLocation(client.address || "");
-    setListOpen(false);
-  };
-
-  const clearClient = () => {
-    setClientId("");
-    setClientSearch("");
-    setServiceLocation("");
-    setListOpen(true);
-    clientFieldRef.current?.querySelector("input")?.focus();
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!clientId) {
-      setFormError("Select a client from the list.");
-      return;
-    }
-    setSaving(true);
-    setFormError("");
-    const values = new FormData(event.currentTarget);
-    const result = await onCreate({
-      clientId: values.get("clientId"),
-      scheduledAt: values.get("scheduledAt"),
-      durationMinutes: readDuration(values),
-      pestConcern: values.get("pestConcern"),
-      serviceType: values.get("serviceType") || "",
-      serviceLocation: values.get("serviceLocation") || "",
-      technicianId: values.get("technicianId"),
-      notes: values.get("notes"),
-    });
-    if (typeof result === "string") setFormError(result);
-    setSaving(false);
-  };
-
-  return <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
-    <form onSubmit={handleSubmit} style={{ ...card, width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div><div style={{ color: colors.brand, fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Scheduling</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink }}>New appointment</h2></div><button type="button" aria-label="Close new appointment" onClick={onClose} style={{ border: 0, background: "transparent", cursor: "pointer", color: colors.muted }}><X size={18} /></button></div>
-      <div style={{ display: "grid", gap: "0.9rem" }}>
-        <div ref={clientFieldRef} style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem", position: "relative" }}>
-          <label htmlFor="client-search">Client</label>
-          <input type="hidden" name="clientId" value={clientId} />
-          <div style={{ position: "relative" }}>
-            <input
-              id="client-search"
-              value={clientSearch}
-              onChange={(event) => handleClientSearch(event.target.value)}
-              onFocus={(event) => { setListOpen(true); if (selectedClient) event.target.select(); }}
-              onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setListOpen(false); } }}
-              placeholder="Search by name, phone, email, or address"
-              autoComplete="off"
-              role="combobox"
-              aria-expanded={listOpen}
-              aria-controls="client-options"
-              style={{ ...inputStyle, paddingRight: selectedClient ? "2rem" : undefined, borderColor: selectedClient ? colors.success : undefined }}
-            />
-            {selectedClient && <button type="button" onClick={clearClient} aria-label={`Clear selected client ${selectedClient.name}`} style={{ position: "absolute", right: "0.5rem", top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", color: colors.muted, cursor: "pointer", display: "inline-flex", padding: 0 }}><X size={15} /></button>}
-          </div>
-
-          {listOpen && <div id="client-options" role="listbox" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 5, marginTop: "0.25rem", maxHeight: "11rem", overflowY: "auto", background: "#fff", border: "1px solid #eadede", borderRadius: "10px", boxShadow: "0 12px 26px rgba(75, 18, 18, 0.14)" }}>
-            {matchingClients.length === 0
-              ? <div style={{ padding: "0.7rem 0.75rem", color: colors.muted, fontWeight: 600, fontSize: "0.78rem" }}>No clients match that search.</div>
-              : matchingClients.map((client) => (
-                <button
-                  type="button"
-                  key={client.id}
-                  role="option"
-                  aria-selected={client.id === clientId}
-                  onClick={() => chooseClient(client)}
-                  style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid #f4ecec", background: client.id === clientId ? "#fff5f5" : "transparent", padding: "0.55rem 0.75rem", cursor: "pointer", font: "inherit" }}
-                >
-                  <span style={{ display: "block", color: colors.ink, fontWeight: 700, fontSize: "0.82rem" }}>{client.name}</span>
-                  {client.address && <span style={{ display: "block", color: colors.muted, fontWeight: 500, fontSize: "0.72rem" }}>{client.address}</span>}
-                </button>
-              ))}
-          </div>}
-
-          {!selectedClient && !listOpen && <span style={{ color: colors.muted, fontWeight: 600, fontSize: "0.72rem" }}>No client selected yet.</span>}
-        </div>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={initialScheduledAt || defaultAppointmentDateTime()} style={inputStyle} required /></label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontWeight: 700, fontSize: "0.72rem" }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Service type<select name="serviceType" style={inputStyle}><option value="">Select a service type</option>{SERVICE_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Service location<input name="serviceLocation" value={serviceLocation} onChange={(event) => setServiceLocation(event.target.value)} placeholder="Defaults to the client's address" style={inputStyle} /></label>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Pest concern<select name="pestConcern" style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-        <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Notes<textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} /></label>
-      </div>
-      {formError && <div role="alert" style={{ marginTop: "0.9rem", color: colors.danger, fontWeight: 700, fontSize: "0.8rem" }}>{formError}</div>}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1.25rem" }}><button type="button" onClick={onClose} style={secondaryButton}>Cancel</button><button type="submit" disabled={saving || clients.length === 0} style={primaryButton}>{saving ? "Creating..." : "Create appointment"}</button></div>
-    </form>
-  </div>;
 }
 
 function InfoRow({ icon, label, value }) {

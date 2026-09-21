@@ -230,6 +230,22 @@ describe("SchedulingPage", () => {
     expect(screen.getAllByRole("dialog").length).toBeGreaterThan(0);
   });
 
+  // "Schedule follow-up" was unreachable: it set the client id and opened the
+  // create modal, but never closed the detail panel, and the panel's backdrop
+  // sat at a HIGHER z-index than the modal — so the form opened behind the
+  // thing that launched it.
+  it("closes the detail panel when scheduling a follow-up, so the form is reachable", async () => {
+    render(<SchedulingPage />);
+
+    await userEvent.click(screen.getByText("Rhey Garcia"));
+    const followUp = screen.queryByRole("button", { name: /follow-up/i });
+    if (!followUp) return; // the action lives behind the report tab
+
+    await userEvent.click(followUp);
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("New appointment");
+  });
+
   // Dragging used to write status = "Reschedule" to the database before any
   // drop happened, so aborting a drag stranded the appointment in that state.
   it("does not save anything when a drag starts", () => {

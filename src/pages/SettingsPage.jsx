@@ -13,7 +13,7 @@ import { useToast } from "../context/ToastContext";
 import useAuth from "../hooks/useAuth";
 import { ROLES } from "../utils/constants";
 import { card, colors, pageShell, primaryButton } from "../styles/theme";
-import { ClipboardList, Globe, Lock, ShieldCheck, UserCheck } from "lucide-react";
+import { Globe, Lock, ShieldCheck, UserCheck } from "lucide-react";
 
 function SettingsPage() {
   const { changeOwnPassword } = useUsers();

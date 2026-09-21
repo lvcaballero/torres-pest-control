@@ -8,7 +8,7 @@ import { Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
 import ConfirmDialog from "../common/ConfirmDialog";
 import { useToast } from "../../context/ToastContext";
 import { fetchAllTreatmentMethods, addTreatmentMethod, updateTreatmentMethod, deleteTreatmentMethod, setTreatmentMethodActive } from "../../services/settingsService";
-import { card, colors, inputStyle, primaryButton, secondaryButton, dangerButton } from "../../styles/theme";
+import { card, colors, inputStyle, primaryButton, secondaryButton } from "../../styles/theme";
 
 const GROUP_OPTIONS = ["Application", "Other work"];
 

@@ -7,6 +7,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import { layout } from "../../styles/tokens";
 import { appBackground } from "../../styles/theme";
 
 function Layout({ children }) {
@@ -15,12 +16,15 @@ function Layout({ children }) {
       <Sidebar />
       <div
         className="app-content"
-        style={{ padding: "2.25rem 2rem 2.5rem", background: "rgba(255, 247, 247, 0.42)" }}
+        style={{ padding: "30px 30px 45px" }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") event.preventDefault();
         }}
       >
-        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        {/* One max-width, matching pageShell. The inner wrapper used to be
+            1280px while every page also applied pageShell's 1200px, so the
+            outer constraint never did anything. */}
+        <div style={{ maxWidth: layout.pageMaxWidth, margin: "0 auto" }}>
           <Navbar />
           {children || <Outlet />}
         </div>

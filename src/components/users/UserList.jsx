@@ -15,16 +15,9 @@ import { useEffect, useMemo, useState } from "react";
 import { MoreHorizontal, Search, X } from "lucide-react";
 import Field from "../common/Field";
 import EmptyState from "../common/EmptyState";
-import UserRoleSelector from "./UserRoleSelector";
 import { ACCOUNT_STATUS, SPRINT_ROLES } from "../../utils/constants";
 import { validateEmailFormat, isEmailTaken, isUsernameTaken, validatePhilippinePhone } from "../../utils/validators";
-import {
-  colors,
-  inputStyle,
-  invalidInputStyle,
-  primaryButton,
-  secondaryButton,
-} from "../../styles/theme";
+import { inputStyle, invalidInputStyle } from "../../styles/theme";
 
 const roleBadgeColors = {
   ADMIN: { background: "#f5f3ff", color: "#6d28d9", border: "1px solid rgba(167, 139, 250, 0.5)" },

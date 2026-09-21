@@ -13,11 +13,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal, Search } from "lucide-react";
 import useInventory from "../hooks/useInventory";
-import useAuth from "../hooks/useAuth";
-import { SUBSYSTEMS } from "../utils/permissions";
 import { useToast } from "../context/ToastContext";
 import { INVENTORY_STATUS } from "../services/inventoryService";
-import { card, colors, primaryButton, secondaryButton, dangerButton, successButton } from "../styles/theme";
+import { card, colors, primaryButton, secondaryButton } from "../styles/theme";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 
 const CREATE_FORM_DEFAULTS = {
@@ -157,8 +155,6 @@ const HISTORY_COLUMNS = {
 };
 
 function InventoryPage() {
-  const { can } = useAuth();
-
   const {
     inventory,
     addItem: onAddItem,
@@ -1623,17 +1619,6 @@ function Field({ label, children }) {
 function buttonWhen(disabled, base = primaryButton, extra = {}) {
   return { ...base, ...extra, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 };
 }
-
-const actionButtonSize = {
-  padding: "0.45rem 0.7rem",
-  fontSize: "0.8rem",
-  borderRadius: "8px",
-};
-
-const actionButtonStyle = {
-  ...secondaryButton,
-  ...actionButtonSize,
-};
 
 const menuActionStyle = {
   width: "100%",

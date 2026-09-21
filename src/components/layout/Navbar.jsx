@@ -6,12 +6,20 @@
 //
 // The two dropdowns live in NotificationMenu and ProfileMenu; this only owns
 // which of them is open and the outside-click that closes both.
+//
+// The left slot holds a dateline rather than the page name: every page already
+// opens with a PageHeader carrying its own eyebrow + title, so a title here
+// would print the same words twice, 24px apart. A dateline is the same rhythm
+// device — the reference describes the eyebrow as having "the cadence of a
+// newspaper dateline" — and in a scheduling business today's date is worth
+// keeping permanently on screen.
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 import { useNotifications } from "../../context/NotificationsContext";
 import { surface } from "../../styles/tokens";
+import { eyebrow } from "../../styles/theme";
 import NotificationMenu from "./NotificationMenu";
 import ProfileMenu from "./ProfileMenu";
 
@@ -45,6 +53,16 @@ function Navbar() {
 
   if (!currentUser) return null;
 
+  const today = new Date();
+  const dateline = today
+    .toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "long", year: "numeric" })
+    .toUpperCase();
+  // Local calendar date, not toISOString() — that converts to UTC first and
+  // would read as yesterday for anyone west of Greenwich after 4pm.
+  const datelineValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+    today.getDate()
+  ).padStart(2, "0")}`;
+
   const toggleBell = () => {
     setOpenMenu((current) => {
       const next = current === "bell" ? null : "bell";
@@ -77,7 +95,7 @@ function Navbar() {
       ref={menuRef}
       style={{
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         alignItems: "center",
         gap: "10px",
         padding: "0 0 15px",
@@ -87,21 +105,27 @@ function Navbar() {
         position: "relative",
       }}
     >
-      <NotificationMenu
-        notifications={notifications}
-        unreadCount={unreadCount}
-        open={openMenu === "bell"}
-        onToggle={toggleBell}
-        onOpenNotification={openNotification}
-      />
+      <time dateTime={datelineValue} style={{ ...eyebrow, whiteSpace: "nowrap" }}>
+        {dateline}
+      </time>
 
-      <ProfileMenu
-        user={currentUser}
-        open={openMenu === "profile"}
-        onToggle={() => setOpenMenu((current) => (current === "profile" ? null : "profile"))}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <NotificationMenu
+          notifications={notifications}
+          unreadCount={unreadCount}
+          open={openMenu === "bell"}
+          onToggle={toggleBell}
+          onOpenNotification={openNotification}
+        />
+
+        <ProfileMenu
+          user={currentUser}
+          open={openMenu === "profile"}
+          onToggle={() => setOpenMenu((current) => (current === "profile" ? null : "profile"))}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+        />
+      </div>
     </header>
   );
 }

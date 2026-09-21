@@ -27,6 +27,15 @@
 -- HOW TO RUN IT
 --   Supabase dashboard → SQL Editor → paste → Run. It is one transaction:
 --   any error rolls the whole thing back and your old data survives.
+--
+--   This file is ~58 KB and the SQL Editor's paste box does not reliably
+--   take that in one piece. A paste cut off mid-statement fails with
+--   "syntax error at end of input" pointing at an empty line. If that
+--   happens, run supabase/seed-parts/1..5 instead — same SQL, split into
+--   9-16 KB pieces that each paste cleanly, verified to produce identical
+--   data. With psql, prefer this single file: one transaction across the
+--   whole seed is a stronger guarantee than five.
+--     psql "$SUPABASE_DB_URL" -f supabase/seed-demo-data.sql
 --   Afterwards, run `notify pgrst, 'reload schema';` if the app reports a
 --   missing column (the last statement here already does).
 --

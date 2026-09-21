@@ -42,7 +42,7 @@ function ActivityLogPage() {
             ))}
           </select>
         </Field>
-        <p style={{ margin: "0.85rem 0 0", color: "#6b7280", fontSize: "0.86rem", lineHeight: 1.6 }}>
+        <p style={{ margin: "0.85rem 0 0", color: "#96897b", fontSize: "0.86rem", lineHeight: 1.6 }}>
           Note: activity is stored in this browser only. It is not yet a shared audit trail —
           teammates each see their own history until the log moves to the database.
         </p>

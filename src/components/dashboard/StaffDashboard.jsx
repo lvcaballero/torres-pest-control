@@ -36,13 +36,13 @@ function StaffDashboard() {
         <MetricCard
           title="Total Clients"
           value={clients.length}
-          accent={`linear-gradient(135deg, ${colors.brand} 0%, #b43d3d 100%)`}
+          accent={colors.brand}
           Icon={BriefcaseBusiness}
         />
         <MetricCard
           title="Attached Documents"
           value={documentCount}
-          accent="linear-gradient(135deg, #374151 0%, #64748b 100%)"
+          accent="#50463c"
           Icon={FilePlus2}
         />
       </div>
@@ -65,9 +65,9 @@ function StaffDashboard() {
               border: `1px solid ${colors.line}`,
               background: "#fff",
               color: colors.body,
-              borderRadius: "12px",
+              borderRadius: "3.75px",
               padding: "0.9rem 1.2rem",
-              fontWeight: 700,
+              fontWeight: 500,
               textDecoration: "none",
             }}
           >

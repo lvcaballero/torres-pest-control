@@ -20,15 +20,15 @@ import { validateEmailFormat, isEmailTaken, isUsernameTaken, validatePhilippineP
 import { inputStyle, invalidInputStyle } from "../../styles/theme";
 
 const roleBadgeColors = {
-  ADMIN: { background: "#f5f3ff", color: "#6d28d9", border: "1px solid rgba(167, 139, 250, 0.5)" },
-  STAFF: { background: "#eff6ff", color: "#1d4ed8", border: "1px solid rgba(147, 197, 253, 0.6)" },
-  TECHNICIAN: { background: "#ecfeff", color: "#0f766e", border: "1px solid rgba(103, 232, 249, 0.7)" },
+  ADMIN: { background: "#efe9e0", color: "#8b1e1e", border: "1px solid rgba(167, 139, 250, 0.5)" },
+  STAFF: { background: "#efe9e0", color: "#50463c", border: "1px solid rgba(147, 197, 253, 0.6)" },
+  TECHNICIAN: { background: "#eef2ec", color: "#4a6b4a", border: "1px solid rgba(103, 232, 249, 0.7)" },
 };
 
 const statusBadgeColors = {
-  ACTIVE: { background: "#ecfdf5", color: "#047857", border: "1px solid rgba(110, 231, 183, 0.6)" },
-  INACTIVE: { background: "#fef2f2", color: "#b91c1c", border: "1px solid rgba(254, 202, 202, 0.8)" },
-  PENDING: { background: "#fff7ed", color: "#c2410c", border: "1px solid rgba(253, 186, 116, 0.8)" },
+  ACTIVE: { background: "#eef2ec", color: "#4a6b4a", border: "1px solid rgba(110, 231, 183, 0.6)" },
+  INACTIVE: { background: "#f9ecea", color: "#9a2d24", border: "1px solid rgba(254, 202, 202, 0.8)" },
+  PENDING: { background: "#faf0e2", color: "#a06a24", border: "1px solid rgba(253, 186, 116, 0.8)" },
 };
 
 function uppercaseLabel(value) {
@@ -141,7 +141,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
   };
 
   return (
-    <div style={{ background: "#f8fafc", borderRadius: "20px", border: "1px solid rgba(148, 163, 184, 0.18)", overflow: "hidden" }}>
+    <div style={{ background: "#efe9e0", borderRadius: "7.5px", border: "1px solid #efe9e0", overflow: "hidden" }}>
       <div
         style={{
           display: "flex",
@@ -149,16 +149,16 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
           gap: "0.85rem",
           padding: "1rem 1rem 0.75rem",
           background: "#ffffff",
-          borderBottom: "1px solid #e2e8f0",
+          borderBottom: "1px solid #efe9e0",
           alignItems: "end",
         }}
       >
         <div style={{ flex: "1 1 260px", minWidth: "220px" }}>
-          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#475569", marginBottom: "0.45rem" }}>
+          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 500, color: "#50463c", marginBottom: "0.45rem" }}>
             Search
           </label>
           <div style={{ position: "relative" }}>
-            <Search size={15} style={{ position: "absolute", left: "0.8rem", top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+            <Search size={15} style={{ position: "absolute", left: "0.8rem", top: "50%", transform: "translateY(-50%)", color: "#96897b" }} />
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -169,7 +169,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
         </div>
 
         <div style={{ flex: "0 0 170px" }}>
-          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#475569", marginBottom: "0.45rem" }}>
+          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 500, color: "#50463c", marginBottom: "0.45rem" }}>
             Role
           </label>
           <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={inputStyle}>
@@ -183,7 +183,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
         </div>
 
         <div style={{ flex: "0 0 170px" }}>
-          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#475569", marginBottom: "0.45rem" }}>
+          <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 500, color: "#50463c", marginBottom: "0.45rem" }}>
             Status
           </label>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
@@ -201,8 +201,8 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff" }}>
-            <thead style={{ background: "#f8fafc" }}>
-              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+            <thead style={{ background: "#efe9e0" }}>
+              <tr style={{ borderBottom: "1px solid #efe9e0" }}>
                 {[
                   "User",
                   "Employee No.",
@@ -218,8 +218,8 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                     style={{
                       textAlign: "left",
                       fontSize: "0.76rem",
-                      fontWeight: 700,
-                      color: "#64748b",
+                      fontWeight: 500,
+                      color: "#96897b",
                       letterSpacing: "0.04em",
                       textTransform: "uppercase",
                       padding: "0.9rem 1rem",
@@ -244,7 +244,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                 const avatarSrc = user.avatarUrl;
 
                 return (
-                  <tr key={user.id} style={{ borderBottom: "1px solid #e2e8f0", background: "#fff" }}>
+                  <tr key={user.id} style={{ borderBottom: "1px solid #efe9e0", background: "#fff" }}>
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                         <div
@@ -267,15 +267,15 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                               width: "2.9rem",
                               height: "2.9rem",
                               borderRadius: "999px",
-                              background: avatarSrc ? "transparent" : isActive ? "#fef2f2" : "#e2e8f0",
-                              color: isActive ? "#991b1b" : "#475569",
-                              fontWeight: 700,
+                              background: avatarSrc ? "transparent" : isActive ? "#f9ecea" : "#efe9e0",
+                              color: isActive ? "#9a2d24" : "#50463c",
+                              fontWeight: 500,
                               display: "grid",
                               placeItems: "center",
                               fontSize: "0.82rem",
                               position: "relative",
                               overflow: "hidden",
-                              boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.25)",
+                              boxShadow: "inset 0 0 0 1px #efe9e0",
                             }}
                           >
                             {avatarSrc ? (
@@ -290,13 +290,13 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.96rem" }}>{user.name}</div>
-                          <div style={{ color: "#64748b", fontSize: "0.78rem", marginTop: "0.1rem" }}>{user.email}</div>
+                          <div style={{ fontWeight: 500, color: "#211b15", fontSize: "0.96rem" }}>{user.name}</div>
+                          <div style={{ color: "#96897b", fontSize: "0.78rem", marginTop: "0.1rem" }}>{user.email}</div>
                         </div>
                       </div>
                     </td>
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
-                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.82rem", fontWeight: 700, color: "#475569", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "0.2rem 0.45rem", whiteSpace: "nowrap" }}>{user.reference || "—"}</span>
+                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.82rem", fontWeight: 500, color: "#50463c", background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", padding: "0.2rem 0.45rem", whiteSpace: "nowrap" }}>{user.reference || "—"}</span>
                     </td>
 
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
@@ -305,9 +305,9 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           display: "inline-flex",
                           alignItems: "center",
                           borderRadius: "999px",
-                          background: roleBadgeColors[user.role]?.background || "#f8fafc",
-                          color: roleBadgeColors[user.role]?.color || "#475569",
-                          border: roleBadgeColors[user.role]?.border || "1px solid rgba(148, 163, 184, 0.5)",
+                          background: roleBadgeColors[user.role]?.background || "#efe9e0",
+                          color: roleBadgeColors[user.role]?.color || "#50463c",
+                          border: roleBadgeColors[user.role]?.border || "1px solid #efe9e0",
                           padding: "0.28rem 0.7rem",
                           fontSize: "0.72rem",
                           fontWeight: 500,
@@ -324,9 +324,9 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           display: "inline-flex",
                           alignItems: "center",
                           borderRadius: "999px",
-                          background: statusBadgeColors[user.status]?.background || "#f1f5f9",
-                          color: statusBadgeColors[user.status]?.color || "#475569",
-                          border: statusBadgeColors[user.status]?.border || "1px solid rgba(148, 163, 184, 0.6)",
+                          background: statusBadgeColors[user.status]?.background || "#efe9e0",
+                          color: statusBadgeColors[user.status]?.color || "#50463c",
+                          border: statusBadgeColors[user.status]?.border || "1px solid #efe9e0",
                           padding: "0.28rem 0.7rem",
                           fontSize: "0.72rem",
                           fontWeight: 500,
@@ -339,7 +339,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                             height: "0.375rem",
                             borderRadius: "999px",
                             display: "inline-block",
-                            background: user.status === "ACTIVE" ? "#10b981" : user.status === "PENDING" ? "#f59e0b" : "#94a3b8",
+                            background: user.status === "ACTIVE" ? "#10b981" : user.status === "PENDING" ? "#f59e0b" : "#96897b",
                             marginRight: "0.38rem",
                           }}
                         />
@@ -347,15 +347,15 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                       </span>
                     </td>
 
-                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#334155", fontSize: "0.9rem" }}>
+                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
                       {user.phone || "—"}
                     </td>
 
-                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#475569", fontSize: "0.9rem" }}>
+                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
                       {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
                     </td>
 
-                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#475569", fontSize: "0.9rem" }}>
+                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
                     </td>
 
@@ -368,10 +368,10 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                           style={{
                             width: "2rem",
                             height: "2rem",
-                            borderRadius: "9px",
-                            border: "1px solid #e2e8f0",
+                            borderRadius: "3.75px",
+                            border: "1px solid #efe9e0",
                             background: "#fff",
-                            color: "#475569",
+                            color: "#50463c",
                             display: "grid",
                             placeItems: "center",
                             cursor: "pointer",
@@ -390,9 +390,9 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                             bottom: menuDirection[user.id] === "up" ? "calc(100% - 0.2rem)" : "auto",
                             zIndex: 2,
                             background: "#fff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "12px",
-                            boxShadow: "0 12px 24px rgba(15, 23, 42, 0.08)",
+                            border: "1px solid #efe9e0",
+                            borderRadius: "3.75px",
+                            boxShadow: "none",
                             minWidth: "170px",
                             padding: "0.35rem",
                           }}
@@ -405,11 +405,11 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                                 width: "100%",
                                 border: "none",
                                 background: "transparent",
-                                color: "#0f172a",
+                                color: "#211b15",
                                 textAlign: "left",
                                 padding: "0.6rem 0.7rem",
-                                borderRadius: "8px",
-                                fontWeight: 600,
+                                borderRadius: "3.75px",
+                                fontWeight: 500,
                                 cursor: "pointer",
                               }}
                             >
@@ -423,11 +423,11 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                               width: "100%",
                               border: "none",
                               background: "transparent",
-                              color: isActive ? "#b91c1c" : "#166534",
+                              color: isActive ? "#9a2d24" : "#4a6b4a",
                               textAlign: "left",
                               padding: "0.6rem 0.7rem",
-                              borderRadius: "8px",
-                              fontWeight: 600,
+                              borderRadius: "3.75px",
+                              fontWeight: 500,
                               cursor: "pointer",
                             }}
                           >
@@ -440,11 +440,11 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                               width: "100%",
                               border: "none",
                               background: "transparent",
-                              color: "#475569",
+                              color: "#50463c",
                               textAlign: "left",
                               padding: "0.6rem 0.7rem",
-                              borderRadius: "8px",
-                              fontWeight: 600,
+                              borderRadius: "3.75px",
+                              fontWeight: 500,
                               cursor: "pointer",
                             }}
                           >
@@ -482,9 +482,9 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
             onClick={(event) => event.stopPropagation()}
             style={{
               background: "#ffffff",
-              borderRadius: "16px",
+              borderRadius: "7.5px",
               boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)",
-              border: "1px solid #e2e8f0",
+              border: "1px solid #efe9e0",
               maxWidth: "32rem",
               width: "100%",
               padding: "1.5rem",
@@ -492,7 +492,7 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
             }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.5rem" }}>Edit User Account</h2>
+              <h2 style={{ margin: 0, color: "#211b15", fontSize: "1.5rem" }}>Edit User Account</h2>
               <button
                 type="button"
                 aria-label="Close edit user modal"
@@ -500,10 +500,10 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                 style={{
                   width: "2rem",
                   height: "2rem",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #efe9e0",
                   borderRadius: "999px",
                   background: "#ffffff",
-                  color: "#475569",
+                  color: "#50463c",
                   display: "grid",
                   placeItems: "center",
                   cursor: "pointer",
@@ -574,10 +574,10 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                 style={{
                   padding: "0.6rem 1rem",
                   fontSize: "0.875rem",
-                  color: "#334155",
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "10px",
+                  color: "#50463c",
+                  background: "#efe9e0",
+                  border: "1px solid #efe9e0",
+                  borderRadius: "3.75px",
                   cursor: "pointer",
                 }}
               >
@@ -592,9 +592,9 @@ function UserList({ users, canEdit, onEdit, onToggleStatus, onResetPassword }) {
                   color: "#ffffff",
                   background: "#7f1d1d",
                   border: "none",
-                  borderRadius: "10px",
+                  borderRadius: "3.75px",
                   cursor: "pointer",
-                  fontWeight: 600,
+                  fontWeight: 500,
                 }}
               >
                 Save Changes

@@ -6,11 +6,11 @@ function MetricCard({ title, value, accent, Icon }) {
   return (
     <div
       style={{
-        background: "linear-gradient(180deg, #ffffff 0%, #fffdfd 100%)",
+        background: "#fcfaf1",
         border: `1px solid ${colors.softLine}`,
-        borderRadius: "20px",
+        borderRadius: "7.5px",
         padding: "1.25rem",
-        boxShadow: "0 18px 32px rgba(15, 23, 42, 0.06)",
+        boxShadow: "none",
         minHeight: "128px",
       }}
     >
@@ -19,7 +19,7 @@ function MetricCard({ title, value, accent, Icon }) {
           style={{
             fontSize: "0.8rem",
             color: colors.muted,
-            fontWeight: 700,
+            fontWeight: 500,
             letterSpacing: "0.04em",
             textTransform: "uppercase",
           }}
@@ -30,18 +30,18 @@ function MetricCard({ title, value, accent, Icon }) {
           style={{
             width: "42px",
             height: "42px",
-            borderRadius: "14px",
+            borderRadius: "7.5px",
             display: "grid",
             placeItems: "center",
             background: accent,
             color: "#ffffff",
-            boxShadow: "0 12px 24px rgba(127, 17, 17, 0.2)",
+            boxShadow: "none",
           }}
         >
           {Icon && <Icon size={18} />}
         </div>
       </div>
-      <div style={{ fontSize: "2.1rem", fontWeight: 800, color: colors.ink, lineHeight: 1.1 }}>
+      <div style={{ fontSize: "2.1rem", fontWeight: 500, color: colors.ink, lineHeight: 1.1 }}>
         {value}
       </div>
     </div>

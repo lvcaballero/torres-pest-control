@@ -11,10 +11,10 @@
 import { colors } from "../../styles/theme";
 
 export const TONE = {
-  plain: { border: "#eadede", surface: "#ffffff", ink: colors.ink, label: colors.muted },
+  plain: { border: "#efe9e0", surface: "#ffffff", ink: colors.ink, label: colors.muted },
   attn: { border: "#f0c489", surface: "#fdf6ea", ink: "#9a5b0b", label: "#9a5b0b" },
-  crit: { border: "#eeb0ac", surface: "#fdf0ef", ink: "#b3261e", label: "#b3261e" },
-  done: { border: "#b9e0d0", surface: "#f0f9f5", ink: "#1f7a5f", label: "#1f7a5f" },
+  crit: { border: "#eeb0ac", surface: "#fdf0ef", ink: "#9a2d24", label: "#9a2d24" },
+  done: { border: "#b9e0d0", surface: "#f0f9f5", ink: "#4a6b4a", label: "#4a6b4a" },
 };
 
 /**
@@ -37,7 +37,7 @@ export function StatTile({ label, value, note, tone = "plain", title }) {
     <div style={{
       background: shade.surface,
       border: `1px solid ${shade.border}`,
-      borderRadius: "14px",
+      borderRadius: "7.5px",
       padding: "0.95rem 1rem",
       display: "grid",
       gap: "0.2rem",
@@ -45,14 +45,14 @@ export function StatTile({ label, value, note, tone = "plain", title }) {
       minWidth: 0,
     }}>
       <span style={{
-        fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.07em",
+        fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.07em",
         textTransform: "uppercase", color: shade.label,
         minWidth: 0, overflowWrap: "anywhere",
       }}>{label}</span>
       <span
         title={title}
         style={{
-          fontSize: figureSize(value), fontWeight: 800, lineHeight: 1.1,
+          fontSize: figureSize(value), fontWeight: 500, lineHeight: 1.1,
           color: shade.ink, fontVariantNumeric: "tabular-nums",
           minWidth: 0, overflowWrap: "anywhere",
         }}
@@ -74,16 +74,16 @@ export function Panel({ title, action, children }) {
   return (
     <section style={{
       background: "#fff",
-      border: "1px solid #eadede",
-      borderRadius: "14px",
+      border: "1px solid #efe9e0",
+      borderRadius: "7.5px",
       overflow: "hidden",
     }}>
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        gap: "0.75rem", padding: "0.8rem 1rem", borderBottom: "1px solid #eadede",
+        gap: "0.75rem", padding: "0.8rem 1rem", borderBottom: "1px solid #efe9e0",
       }}>
-        <h2 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 800, color: colors.ink }}>{title}</h2>
-        {action && <span style={{ fontSize: "0.74rem", fontWeight: 700, color: colors.brand }}>{action}</span>}
+        <h2 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 500, color: colors.ink }}>{title}</h2>
+        {action && <span style={{ fontSize: "0.74rem", fontWeight: 500, color: colors.brand }}>{action}</span>}
       </div>
       <div style={{ padding: "0.85rem 1rem", display: "grid", gap: "0.7rem" }}>{children}</div>
     </section>
@@ -103,11 +103,11 @@ export function JobRow({ when, title, detail, action, first = false }) {
       borderTop: first ? "none" : "1px solid #f3eaea",
     }}>
       <span style={{
-        flex: "none", width: "66px", fontSize: "0.78rem", fontWeight: 800,
+        flex: "none", width: "66px", fontSize: "0.78rem", fontWeight: 500,
         color: colors.ink, fontVariantNumeric: "tabular-nums", paddingTop: "0.1rem",
       }}>{when}</span>
       <span style={{ flex: 1, minWidth: 0, display: "grid", gap: "0.1rem" }}>
-        <span style={{ fontSize: "0.87rem", fontWeight: 700, color: colors.ink }}>{title}</span>
+        <span style={{ fontSize: "0.87rem", fontWeight: 500, color: colors.ink }}>{title}</span>
         {detail && <span style={{ fontSize: "0.75rem", color: colors.muted }}>{detail}</span>}
       </span>
       {action && <span style={{ flex: "none", alignSelf: "center" }}>{action}</span>}
@@ -118,7 +118,7 @@ export function JobRow({ when, title, detail, action, first = false }) {
 export function Chip({ tone = "done", children }) {
   const shade = TONE[tone] || TONE.done;
   return <span style={{
-    fontSize: "0.64rem", fontWeight: 800, letterSpacing: "0.05em",
+    fontSize: "0.64rem", fontWeight: 500, letterSpacing: "0.05em",
     textTransform: "uppercase", borderRadius: "999px", padding: "0.15rem 0.5rem",
     background: shade.surface, color: shade.ink, border: `1px solid ${shade.border}`,
     whiteSpace: "nowrap",
@@ -135,15 +135,15 @@ export function RankedBars({ rows, format = (value) => value }) {
         <div key={row.label} style={{ display: "grid", gap: "0.25rem" }}>
           <div style={{
             display: "flex", justifyContent: "space-between", gap: "0.75rem",
-            fontSize: "0.8rem", fontWeight: 600, color: colors.body,
+            fontSize: "0.8rem", fontWeight: 500, color: colors.body,
           }}>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
             <span style={{ color: colors.muted, fontVariantNumeric: "tabular-nums", flex: "none" }}>{format(row.value)}</span>
           </div>
-          <div style={{ height: "7px", borderRadius: "4px", background: "#f3eaea", overflow: "hidden" }}>
+          <div style={{ height: "7px", borderRadius: "3.75px", background: "#f3eaea", overflow: "hidden" }}>
             <div style={{
               width: top > 0 ? `${Math.max(2, (row.value / top) * 100)}%` : "0%",
-              height: "100%", borderRadius: "4px", background: colors.brandLight,
+              height: "100%", borderRadius: "3.75px", background: colors.brandLight,
             }} />
           </div>
         </div>
@@ -168,15 +168,15 @@ export function PieChart({ rows, format = (value) => value }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.85fr) minmax(0, 1.15fr)", gap: "1rem", alignItems: "center" }}>
       <div style={{ width: "min(150px, 100%)", aspectRatio: "1", margin: "0 auto", borderRadius: "50%", background: `conic-gradient(${stops.join(", ")})`, position: "relative" }}>
-        <div style={{ position: "absolute", inset: "27%", borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", textAlign: "center", color: colors.ink, fontSize: "0.8rem", fontWeight: 800, lineHeight: 1.1 }}>
-          {total}<span style={{ display: "block", color: colors.muted, fontSize: "0.62rem", fontWeight: 600 }}>total</span>
+        <div style={{ position: "absolute", inset: "27%", borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", textAlign: "center", color: colors.ink, fontSize: "0.8rem", fontWeight: 500, lineHeight: 1.1 }}>
+          {total}<span style={{ display: "block", color: colors.muted, fontSize: "0.62rem", fontWeight: 500 }}>total</span>
         </div>
       </div>
       <div style={{ display: "grid", gap: "0.5rem" }}>
         {rows.map((row, index) => (
           <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.6rem", minWidth: 0, color: colors.body, fontSize: "0.75rem" }}>
             <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: 0 }}>
-              <span style={{ width: "9px", height: "9px", flex: "none", borderRadius: "3px", background: PIE_COLORS[index % PIE_COLORS.length] }} />
+              <span style={{ width: "9px", height: "9px", flex: "none", borderRadius: "3.75px", background: PIE_COLORS[index % PIE_COLORS.length] }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
             </span>
             <span style={{ flex: "none", color: colors.muted, fontVariantNumeric: "tabular-nums" }}>{format(row.value)}</span>

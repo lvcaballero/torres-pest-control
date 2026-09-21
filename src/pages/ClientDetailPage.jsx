@@ -40,7 +40,7 @@ function ClientDetailPage() {
           <p style={{ margin: "0 0 1rem", color: colors.muted }}>
             That client profile doesn't exist, or it was deleted.
           </p>
-          <Link to="/clients" style={{ color: colors.brandInk, fontWeight: 700 }}>
+          <Link to="/clients" style={{ color: colors.brandInk, fontWeight: 500 }}>
             Back to Client Profiles
           </Link>
         </div>

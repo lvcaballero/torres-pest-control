@@ -126,21 +126,52 @@ describe("badgeStyle and statusAccent", () => {
 });
 
 describe("contentTier", () => {
-  it.each([
-    [120, "full"],
-    [88, "full"],
-    [76, "full"],
-    [60, "medium"],
-    [48, "medium"],
-    [40, "compact"],
-    [30, "compact"],
-  ])("puts a %ipx card in the %s tier", (height, tier) => {
-    expect(contentTier(height)).toBe(tier);
+  describe("by height, at full width", () => {
+    it.each([
+      [120, "full"],
+      [88, "full"],
+      [76, "full"],
+      // A one-hour visit at a 72px row height, which is the most common card
+      // on the board and must not lose its technician line.
+      [70, "full"],
+      [67, "medium"],
+      [60, "medium"],
+      [48, "medium"],
+      [40, "compact"],
+      [30, "compact"],
+    ])("puts a %ipx card in the %s tier", (height, tier) => {
+      expect(contentTier(height)).toBe(tier);
+    });
+  });
+
+  // Width caps what height would otherwise allow: a long name in a narrow
+  // card wraps and pushes the lines below it out of the box.
+  describe("by width", () => {
+    it("demotes a tall card sharing its slot with one other", () => {
+      expect(contentTier(90)).toBe("full");
+      expect(contentTier(90, 2)).toBe("medium");
+    });
+
+    it("gives a third-width card one line whatever its height", () => {
+      expect(contentTier(200, 3)).toBe("compact");
+      expect(contentTier(90, 3)).toBe("compact");
+    });
+
+    it("does not promote a short card just because it is wide", () => {
+      expect(contentTier(40, 1)).toBe("compact");
+      expect(contentTier(60, 2)).toBe("medium");
+    });
+
+    it("treats a single column as the default", () => {
+      expect(contentTier(90, 1)).toBe(contentTier(90));
+    });
   });
 
   it("never returns a tier the card cannot render", () => {
     [0, 1, 29, 1000].forEach((height) => {
-      expect(["full", "medium", "compact"]).toContain(contentTier(height));
+      [1, 2, 3].forEach((columns) => {
+        expect(["full", "medium", "compact"]).toContain(contentTier(height, columns));
+      });
     });
   });
 });

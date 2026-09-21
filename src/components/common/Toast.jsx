@@ -1,9 +1,9 @@
 // A single toast. Rendered by ToastProvider, not used directly.
 
 const TONES = {
-  success: { background: "#f0fdf4", border: "#bbf7d0", color: "#166534" },
-  error: { background: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
-  info: { background: "#f8fafc", border: "#e2e8f0", color: "#334155" },
+  success: { background: "#eef2ec", border: "#bbf7d0", color: "#4a6b4a" },
+  error: { background: "#f9ecea", border: "#fecaca", color: "#9a2d24" },
+  info: { background: "#efe9e0", border: "#efe9e0", color: "#50463c" },
 };
 
 function Toast({ message, tone = "success", onDismiss }) {
@@ -19,11 +19,11 @@ function Toast({ message, tone = "success", onDismiss }) {
         background: palette.background,
         border: `1px solid ${palette.border}`,
         color: palette.color,
-        borderRadius: "14px",
+        borderRadius: "7.5px",
         padding: "0.85rem 1rem",
-        fontWeight: 600,
+        fontWeight: 500,
         fontSize: "0.9rem",
-        boxShadow: "0 18px 32px rgba(15, 23, 42, 0.12)",
+        boxShadow: "none",
       }}
     >
       <span style={{ flex: 1, lineHeight: 1.45 }}>{message}</span>
@@ -35,7 +35,7 @@ function Toast({ message, tone = "success", onDismiss }) {
           border: "none",
           background: "transparent",
           color: "inherit",
-          fontWeight: 800,
+          fontWeight: 500,
           cursor: "pointer",
           lineHeight: 1,
           fontSize: "1rem",

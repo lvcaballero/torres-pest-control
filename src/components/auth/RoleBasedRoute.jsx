@@ -22,7 +22,7 @@ function AccessDenied({ role }) {
     <div style={pageShell}>
       <PageHeader eyebrow="Restricted" title="You don't have access to this page" />
       <div style={card}>
-        <p style={{ margin: "0 0 1.25rem", color: "#4b5563", lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 1.25rem", color: "#50463c", lineHeight: 1.6 }}>
           Your role ({role || "unknown"}) doesn't include permission for this module. If you think
           this is wrong, ask a system administrator to review your role.
         </p>

@@ -40,7 +40,7 @@ function ClientsPage() {
         }
       />
 
-      <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", marginBottom: "1rem", overflow: "hidden" }}>
+      <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", marginBottom: "1rem", overflow: "hidden" }}>
         <ClientSearch
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
@@ -49,7 +49,7 @@ function ClientsPage() {
           status={status}
           onStatusChange={setStatus}
         />
-        <div style={{ padding: "0.7rem 1.25rem", borderTop: "1px solid #f1f5f9", background: "#f8fafc", color: colors.muted, fontSize: "0.78rem" }}>
+        <div style={{ padding: "0.7rem 1.25rem", borderTop: "1px solid #efe9e0", background: "#efe9e0", color: colors.muted, fontSize: "0.78rem" }}>
           Showing {visibleClients.length} of {clients.length} client
           {clients.length === 1 ? "" : "s"}.
         </div>

@@ -68,9 +68,9 @@ function UserAccountPage() {
             <div
               style={{
                 background: "#ffffff",
-                border: "1px solid rgba(148, 163, 184, 0.24)",
+                border: "1px solid #efe9e0",
                 borderRadius: "1.5rem",
-                boxShadow: "0 10px 28px rgba(15, 23, 42, 0.04)",
+                boxShadow: "none",
                 padding: "2rem",
               }}
             >
@@ -82,8 +82,8 @@ function UserAccountPage() {
                   marginBottom: "1.5rem",
                   padding: "0.35rem",
                   borderRadius: "999px",
-                  background: "#f8fafc",
-                  border: "1px solid rgba(148, 163, 184, 0.18)",
+                  background: "#efe9e0",
+                  border: "1px solid #efe9e0",
                 }}
               >
                 <button
@@ -94,7 +94,7 @@ function UserAccountPage() {
                     borderRadius: "999px",
                     border: "none",
                     background: "transparent",
-                    color: "#64748b",
+                    color: "#96897b",
                     fontWeight: 500,
                     fontSize: "0.84rem",
                     cursor: "pointer",
@@ -109,9 +109,9 @@ function UserAccountPage() {
                     padding: "0.55rem 1.25rem",
                     borderRadius: "999px",
                     border: "none",
-                    background: "#fef2f2",
+                    background: "#f9ecea",
                     color: "#7f1d1d",
-                    fontWeight: 700,
+                    fontWeight: 500,
                     fontSize: "0.84rem",
                     cursor: "pointer",
                   }}

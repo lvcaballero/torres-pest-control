@@ -13,6 +13,10 @@
 // that height the name gets two clamped lines instead of one ellipsised one.
 // A 95px-wide column will never fit every name, so the native title
 // attribute still carries the full detail on hover.
+//
+// `columns` matters as much as height. A card sharing its slot with two
+// others is a third of a column wide, and a wrapped name there overflows the
+// box no matter how tall it is — so the tier is capped by width too.
 
 import { Check, RotateCcw, X } from "lucide-react";
 import { neutral, radius, text, weight } from "../../styles/tokens";
@@ -61,7 +65,7 @@ function StatusGlyph({ visual, color }) {
   return <Icon size={11} strokeWidth={2.5} color={color} aria-hidden="true" style={{ flex: "none" }} />;
 }
 
-function AppointmentCard({ appointment, height = null, placement = null, dense = false }) {
+function AppointmentCard({ appointment, height = null, columns = 1, placement = null, dense = false }) {
   const {
     clients,
     accounts,
@@ -85,7 +89,7 @@ function AppointmentCard({ appointment, height = null, placement = null, dense =
 
   // A month cell or a dialog row has no measured height; treat it as the
   // middle tier, which is what those layouts have room for.
-  const tier = height === null ? (dense ? "compact" : "medium") : contentTier(height);
+  const tier = height === null ? (dense ? "compact" : "medium") : contentTier(height, columns);
   const startLabel = clockLabel(appointment.scheduledAt);
   const endLabel = clockLabel(endOf(appointment));
   const railColor = visual.railColor || tone.bar;
@@ -152,7 +156,17 @@ ${technicianName} · ${appointment.status}${appointment.pestConcern ? ` · ${app
               {client.name}
             </span>
           </span>
-          <span style={{ fontSize: "10px", opacity: 0.85, whiteSpace: "nowrap" }}>
+          <span
+            style={{
+              fontSize: "10px",
+              opacity: 0.85,
+              whiteSpace: "nowrap",
+              // A half-width card cannot fit a full range; ellipsise rather
+              // than clip a digit in half.
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
             {startLabel} – {endLabel}
           </span>
         </>

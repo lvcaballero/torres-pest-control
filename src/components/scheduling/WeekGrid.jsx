@@ -201,6 +201,7 @@ function WeekGrid({
                     key={appointment.id}
                     appointment={appointment}
                     height={height}
+                    columns={columns}
                     placement={{
                       position: "absolute",
                       top: `${top + 1}px`,

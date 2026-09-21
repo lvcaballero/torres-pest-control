@@ -21,7 +21,7 @@ function CenteredMessage({ children }) {
         gap: "1rem",
         padding: "2rem",
         textAlign: "center",
-        color: "#374151",
+        color: "#50463c",
       }}
     >
       {children}
@@ -35,14 +35,14 @@ function AccountsGate({ children }) {
   if (error) {
     return (
       <CenteredMessage>
-        <div style={{ fontWeight: 700 }}>Could not load accounts.</div>
+        <div style={{ fontWeight: 500 }}>Could not load accounts.</div>
         <div
           style={{
             fontSize: "0.85rem",
             color: colors.danger,
-            background: "#fef2f2",
+            background: "#f9ecea",
             border: "1px solid #fecaca",
-            borderRadius: "10px",
+            borderRadius: "3.75px",
             padding: "0.75rem 1rem",
             maxWidth: "560px",
             wordBreak: "break-word",
@@ -55,11 +55,11 @@ function AccountsGate({ children }) {
           onClick={logout}
           style={{
             border: "none",
-            borderRadius: "12px",
-            background: `linear-gradient(135deg, ${colors.brand} 0%, ${colors.brandLight} 100%)`,
+            borderRadius: "3.75px",
+            background: colors.brand,
             color: "#fff",
             padding: "0.75rem 1.2rem",
-            fontWeight: 700,
+            fontWeight: 500,
             cursor: "pointer",
           }}
         >
@@ -72,7 +72,7 @@ function AccountsGate({ children }) {
   if (!currentUser && loading) {
     return (
       <CenteredMessage>
-        <div style={{ color: colors.muted, fontWeight: 600 }}>Loading your account…</div>
+        <div style={{ color: colors.muted, fontWeight: 500 }}>Loading your account…</div>
       </CenteredMessage>
     );
   }

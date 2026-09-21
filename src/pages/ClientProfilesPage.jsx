@@ -20,18 +20,18 @@ function ClientProfilesPage({ clients }) {
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
       <div style={{ marginBottom: "1.25rem" }}>
-        <p style={{ color: "#8b1e1e", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+        <p style={{ color: "#8b1e1e", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", fontSize: "0.75rem" }}>
           Client Management
         </p>
-        <h1 style={{ margin: "0.2rem 0 0", fontSize: "2rem", color: "#111827" }}>Client Profile Search</h1>
+        <h1 style={{ margin: "0.2rem 0 0", fontSize: "2rem", color: "#211b15" }}>Client Profile Search</h1>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #ebebeb", borderRadius: "16px", padding: "1rem 1.25rem", boxShadow: "0 12px 22px rgba(15, 23, 42, 0.03)" }}>
+      <div style={{ background: "#fff", border: "1px solid #ebebeb", borderRadius: "7.5px", padding: "1rem 1.25rem", boxShadow: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-          <label style={{ display: "block", fontWeight: 700, color: "#374151", marginBottom: "0.5rem", flex: 1 }}>Search client</label>
+          <label style={{ display: "block", fontWeight: 500, color: "#50463c", marginBottom: "0.5rem", flex: 1 }}>Search client</label>
           <Link
             to="/clients/new"
-            style={{ border: "none", background: "#8b1e1e", color: "#fff", borderRadius: "10px", padding: "0.7rem 1rem", fontWeight: 700, cursor: "pointer", textDecoration: "none" }}
+            style={{ border: "none", background: "#8b1e1e", color: "#fff", borderRadius: "3.75px", padding: "0.7rem 1rem", fontWeight: 500, cursor: "pointer", textDecoration: "none" }}
           >
             Create Client Profile
           </Link>
@@ -41,7 +41,7 @@ function ClientProfilesPage({ clients }) {
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
           placeholder="Search by name, phone, or email"
-          style={{ width: "100%", border: "1px solid #d7d7d7", borderRadius: "10px", padding: "0.8rem 0.9rem", fontSize: "0.96rem" }}
+          style={{ width: "100%", border: "1px solid #d7d7d7", borderRadius: "3.75px", padding: "0.8rem 0.9rem", fontSize: "0.96rem" }}
         />
 
         {filteredClients.length > 0 && (
@@ -54,15 +54,15 @@ function ClientProfilesPage({ clients }) {
                 style={{
                   textAlign: "left",
                   border: selectedClient?.id === client.id ? "1px solid #8b1e1e" : "1px solid #ececec",
-                  background: selectedClient?.id === client.id ? "#fef2f2" : "#ffffff",
-                  borderRadius: "12px",
+                  background: selectedClient?.id === client.id ? "#f9ecea" : "#ffffff",
+                  borderRadius: "3.75px",
                   padding: "0.8rem 1rem",
                   cursor: "pointer",
-                  color: "#111827",
+                  color: "#211b15",
                 }}
               >
-                <div style={{ fontWeight: 700 }}>{client.name}</div>
-                <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>{client.phone || "No phone provided"} • {client.email || "No email provided"}</div>
+                <div style={{ fontWeight: 500 }}>{client.name}</div>
+                <div style={{ fontSize: "0.85rem", color: "#96897b" }}>{client.phone || "No phone provided"} • {client.email || "No email provided"}</div>
               </button>
             ))}
           </div>
@@ -70,11 +70,11 @@ function ClientProfilesPage({ clients }) {
       </div>
 
       {selectedClient ? (
-        <div style={{ marginTop: "1.5rem", background: "#fff", borderRadius: "16px", border: "1px solid #ebebeb", padding: "1.5rem" }}>
+        <div style={{ marginTop: "1.5rem", background: "#fff", borderRadius: "7.5px", border: "1px solid #ebebeb", padding: "1.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: "1.5rem", color: "#111827" }}>{selectedClient.name}</h2>
-              <p style={{ margin: "0.35rem 0 0", color: "#6b7280" }}>{selectedClient.classification}</p>
+              <h2 style={{ margin: 0, fontSize: "1.5rem", color: "#211b15" }}>{selectedClient.name}</h2>
+              <p style={{ margin: "0.35rem 0 0", color: "#96897b" }}>{selectedClient.classification}</p>
             </div>
             <Link
               to={`/clients/${selectedClient.id}`}
@@ -82,9 +82,9 @@ function ClientProfilesPage({ clients }) {
                 textDecoration: "none",
                 background: "#8b1e1e",
                 color: "#fff",
-                borderRadius: "10px",
+                borderRadius: "3.75px",
                 padding: "0.72rem 1rem",
-                fontWeight: 700,
+                fontWeight: 500,
               }}
             >
               View Full Profile
@@ -98,12 +98,12 @@ function ClientProfilesPage({ clients }) {
             <InfoRow label="Source" value={selectedClient.source || "—"} />
           </div>
 
-          <div style={{ marginTop: "1.5rem", padding: "1.25rem", background: "#fafafa", borderRadius: "12px", border: "1px solid #f1f1f1", color: "#6b7280" }}>
+          <div style={{ marginTop: "1.5rem", padding: "1.25rem", background: "#efe9e0", borderRadius: "3.75px", border: "1px solid #efe9e0", color: "#96897b" }}>
             History will be available in a future sprint. For Sprint 1, this client profile focuses on basic profile details and attached documents.
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: "1.5rem", background: "#fff", border: "1px solid #ebebeb", borderRadius: "16px", padding: "1.5rem", color: "#6b7280" }}>
+        <div style={{ marginTop: "1.5rem", background: "#fff", border: "1px solid #ebebeb", borderRadius: "7.5px", padding: "1.5rem", color: "#96897b" }}>
           No client matches your search.
         </div>
       )}
@@ -113,9 +113,9 @@ function ClientProfilesPage({ clients }) {
 
 function InfoRow({ label, value }) {
   return (
-    <div style={{ background: "#fafafa", borderRadius: "12px", padding: "0.85rem 1rem", border: "1px solid #f1f1f1" }}>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.25rem" }}>{label}</div>
-      <div style={{ fontWeight: 700, color: "#111827" }}>{value || "—"}</div>
+    <div style={{ background: "#efe9e0", borderRadius: "3.75px", padding: "0.85rem 1rem", border: "1px solid #efe9e0" }}>
+      <div style={{ fontSize: "0.8rem", color: "#96897b", marginBottom: "0.25rem" }}>{label}</div>
+      <div style={{ fontWeight: 500, color: "#211b15" }}>{value || "—"}</div>
     </div>
   );
 }

@@ -72,7 +72,7 @@ function ResetPasswordDialog({ user, onSubmit, onClose }) {
         onSubmit={handleSubmit}
         style={{
           background: "#fff",
-          borderRadius: "20px",
+          borderRadius: "7.5px",
           padding: "1.75rem",
           maxWidth: "440px",
           width: "100%",
@@ -112,7 +112,7 @@ function ResetPasswordDialog({ user, onSubmit, onClose }) {
         </div>
 
         {formError && (
-          <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 700, fontSize: "0.9rem" }}>
+          <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 500, fontSize: "0.9rem" }}>
             {formError}
           </div>
         )}

@@ -100,25 +100,25 @@ function ChangePassword({ onSubmit }) {
       </div>
 
       {formError && (
-        <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 700, fontSize: "0.9rem" }}>
+        <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 500, fontSize: "0.9rem" }}>
           {formError}
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "1.25rem", marginTop: "1.25rem", borderTop: "1px solid #f1f5f9" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "1.25rem", marginTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
         <button
           type="submit"
           disabled={submitting}
           style={{
             ...buttonWhen(submitting),
-            background: "#b91c1c",
+            background: "#9a2d24",
             border: "1px solid rgba(185, 28, 28, 0.2)",
             borderRadius: "0.75rem",
             padding: "0.7rem 1.5rem",
             fontSize: "0.88rem",
             fontWeight: 500,
             color: "#fff",
-            boxShadow: "0 8px 18px rgba(185, 28, 28, 0.14)",
+            boxShadow: "none",
           }}
         >
           {submitting ? "Updating…" : "Update Password"}

@@ -45,7 +45,7 @@ const SignaturePad = forwardRef(function SignaturePad({ onChange, disabled = fal
     context.lineWidth = 2;
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.strokeStyle = "#0f172a";
+    context.strokeStyle = "#211b15";
 
     if (previous) {
       const image = new Image();
@@ -137,9 +137,9 @@ const SignaturePad = forwardRef(function SignaturePad({ onChange, disabled = fal
       <div
         style={{
           position: "relative",
-          border: `1px solid ${hasInk ? colors.brand : "#dfe4ea"}`,
-          borderRadius: "10px",
-          background: disabled ? "#f8fafc" : "#ffffff",
+          border: `1px solid ${hasInk ? colors.brand : "#efe9e0"}`,
+          borderRadius: "3.75px",
+          background: disabled ? "#efe9e0" : "#ffffff",
           overflow: "hidden",
         }}
       >
@@ -201,13 +201,13 @@ const SignaturePad = forwardRef(function SignaturePad({ onChange, disabled = fal
             display: "inline-flex",
             alignItems: "center",
             gap: "0.35rem",
-            border: "1px solid #e2e8f0",
-            background: "#f8fafc",
+            border: "1px solid #efe9e0",
+            background: "#efe9e0",
             color: colors.body,
-            borderRadius: "8px",
+            borderRadius: "3.75px",
             padding: "0.4rem 0.7rem",
             fontSize: "0.74rem",
-            fontWeight: 700,
+            fontWeight: 500,
             cursor: hasInk ? "pointer" : "default",
             opacity: hasInk ? 1 : 0.5,
           }}

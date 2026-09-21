@@ -157,14 +157,32 @@ export const HATCH_IMAGE =
   "repeating-linear-gradient(45deg, rgba(33, 27, 21, 0.06) 0 6px, transparent 6px 12px)";
 
 /**
- * How much of an appointment a card of this pixel height can show.
+ * How much of an appointment a card can show.
+ *
+ * Height alone is not enough: a card in a three-deep cluster is a third of a
+ * column wide, so a long client name wraps to two or three lines and pushes
+ * everything below it out of the box. The same 70px card that comfortably
+ * holds time, a two-line name and a technician at full width is overfull at
+ * half width. So width, expressed as the number of side-by-side columns,
+ * caps the tier that height would otherwise allow.
  *
  * The old flags (`roomy`, `tight`, `compact`) were read directly in the
  * render and each tier redefined its own font sizes inline. Naming the tiers
  * means the card has one switch instead of four conditionals.
  */
-export function contentTier(height) {
-  if (height >= 76) return "full"; // time + glyph, name over two lines, technician + concern
-  if (height >= 48) return "medium"; // name on one line, time range, glyph
-  return "compact"; // name and start time, one line
+export function contentTier(height, columns = 1) {
+  // A third of a column fits one line of anything, whatever the height.
+  if (columns >= 3) return "compact";
+
+  // 68 rather than a rounder number on purpose: a one-hour visit is the most
+  // common booking, and in a nine-hour window it renders at 70px (a 72px row
+  // less the 2px gap). A 76px threshold pushed exactly that case down a tier,
+  // so the most common card lost its technician line for six pixels.
+  const byHeight = height >= 68 ? "full" : height >= 48 ? "medium" : "compact";
+
+  // Half width has room for a name and a time, not for a wrapped name plus a
+  // technician line.
+  if (columns === 2 && byHeight === "full") return "medium";
+
+  return byHeight;
 }

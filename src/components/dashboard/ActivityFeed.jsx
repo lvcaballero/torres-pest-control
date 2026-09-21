@@ -9,16 +9,16 @@ function ActivityFeed({ logs, title = "Recent Activity", footer }) {
   return (
     <div
       style={{
-        background: "linear-gradient(180deg, #ffffff 0%, #fffdfd 100%)",
+        background: "#fcfaf1",
         border: `1px solid ${colors.softLine}`,
-        borderRadius: "20px",
-        boxShadow: "0 18px 32px rgba(15, 23, 42, 0.06)",
+        borderRadius: "7.5px",
+        boxShadow: "none",
       }}
     >
       <div
         style={{
           padding: "1.25rem 1.5rem",
-          borderBottom: "1px solid #f1f5f9",
+          borderBottom: "1px solid #efe9e0",
           display: "flex",
           alignItems: "center",
           gap: "0.75rem",
@@ -28,10 +28,10 @@ function ActivityFeed({ logs, title = "Recent Activity", footer }) {
           style={{
             width: "36px",
             height: "36px",
-            borderRadius: "12px",
+            borderRadius: "3.75px",
             display: "grid",
             placeItems: "center",
-            background: `linear-gradient(135deg, ${colors.brand}, #b43d3d)`,
+            background: colors.brand,
             color: "#fff",
           }}
         >
@@ -53,14 +53,14 @@ function ActivityFeed({ logs, title = "Recent Activity", footer }) {
                   justifyContent: "space-between",
                   gap: "1rem",
                   padding: "0.85rem 0.9rem",
-                  borderRadius: "12px",
-                  background: "#fafafa",
-                  border: "1px solid #f1f1f1",
+                  borderRadius: "3.75px",
+                  background: "#efe9e0",
+                  border: "1px solid #efe9e0",
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, color: "#1f2937" }}>{log.actor}</div>
-                  <div style={{ color: "#4b5563", marginTop: "0.15rem" }}>{log.message}</div>
+                  <div style={{ fontWeight: 500, color: "#211b15" }}>{log.actor}</div>
+                  <div style={{ color: "#50463c", marginTop: "0.15rem" }}>{log.message}</div>
                 </div>
                 <div style={{ whiteSpace: "nowrap", color: colors.muted, fontSize: "0.8rem" }}>
                   {formatDate(log.timestamp)}

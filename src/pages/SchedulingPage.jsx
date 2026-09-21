@@ -671,8 +671,8 @@ function SchedulingPage() {
           </CalendarProvider>
 
           <div style={{ display: "flex", gap: "1rem", color: colors.muted, fontSize: "0.72rem", marginTop: "0.6rem", alignItems: "center" }}>{canReschedule ? <><GripVertical size={14} /> Drag any appointment to reschedule it. Dropping it saves the new time as Confirmed.</> : <><Lock size={14} /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.</>}</div>
-          {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 700, fontSize: "0.82rem" }}>Loading appointments...</div>}
-          {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 700, fontSize: "0.82rem" }}>{error || message}</div>}
+          {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 500, fontSize: "0.82rem" }}>Loading appointments...</div>}
+          {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 500, fontSize: "0.82rem" }}>{error || message}</div>}
           {clients.length === 0 && <div style={{ padding: "2rem 1rem", textAlign: "center", color: colors.muted }}>Client profiles will appear here once they are loaded.</div>}
           {appointmentSearch && visibleAppointments.length === 0 && <div style={{ padding: "1rem", textAlign: "center", color: colors.muted }}>No appointments match this search.</div>}
         </section>
@@ -719,8 +719,8 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
     <InfoRow icon={<MapPin size={15} />} label="Service address" value={appointment.serviceLocation || client.address || "No address"} />
     <InfoRow icon={<UserRound size={15} />} label="Classification" value={client.classificationOther || client.classification || "Not classified"} />
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Date and time</strong><input name="scheduledAt" type="datetime-local" defaultValue={toDateTimeLocal(appointment.scheduledAt)} style={inputStyle} />{appointment.status !== "Reschedule" && <span style={hintStyle}>Set the status to Reschedule before changing the date, time, or duration.</span>}</div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue={hours} style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue={minutes} style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Technician</strong><select name="technicianId" value={technicianId} onChange={(event) => setTechnicianId(event.target.value)} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={isBusy(account.id)}>{account.reference ? `${account.reference} — ` : ""}{account.name || account.username}{isBusy(account.id) ? " - busy at this time" : ""}</option>)}</select>{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 700 }}>Conflict: this technician overlaps another appointment.</span>}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue={hours} style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue={minutes} style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Technician</strong><select name="technicianId" value={technicianId} onChange={(event) => setTechnicianId(event.target.value)} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={isBusy(account.id)}>{account.reference ? `${account.reference} — ` : ""}{account.name || account.username}{isBusy(account.id) ? " - busy at this time" : ""}</option>)}</select>{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 500 }}>Conflict: this technician overlaps another appointment.</span>}</div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service type</strong><select name="serviceType" defaultValue={appointment.serviceType || ""} style={inputStyle}><option value="">Select a service type</option>{SERVICE_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service location</strong><input name="serviceLocation" defaultValue={appointment.serviceLocation || ""} placeholder={client.address || "Client address"} style={inputStyle} /><span style={hintStyle}>Leave blank to use the client's address.</span></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Pest concern</strong><select name="pestConcern" defaultValue={appointment.pestConcern || ""} style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
@@ -732,14 +732,14 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
 }
 
 function AppointmentListView({ appointments, clients, accounts, onSelect }) {
-  return <div style={{ overflowX: "auto", border: "1px solid #eadede", borderRadius: "10px" }}>
+  return <div style={{ overflowX: "auto", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
     <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
-      <thead><tr style={{ background: "#fffafa" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #eadede" }}>{label}</th>)}</tr></thead>
+      <thead><tr style={{ background: "#fcfaf1" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #efe9e0" }}>{label}</th>)}</tr></thead>
       <tbody>{appointments.map((appointment) => {
         const client = clients.find((entry) => entry.id === appointment.clientId);
         const technician = accounts.find((entry) => entry.id === appointment.technicianId);
         return <tr key={appointment.id} onClick={() => onSelect(appointment.id)} style={{ cursor: "pointer" }}>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 700, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{client?.name || "Unknown client"}</td>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{technician?.name || technician?.username || "Unassigned"}</td>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{appointment.pestConcern || "Inspection"}</td>
@@ -770,7 +770,7 @@ function TreatmentMethods({ appointment, selected, onToggle, treatmentMethods, t
       style={{
         padding: "1rem",
         background: "rgba(248, 250, 252, 0.6)",
-        border: "1px solid #e2e8f0",
+        border: "1px solid #efe9e0",
         borderRadius: "0.75rem",
         display: "flex",
         flexDirection: "column",
@@ -778,7 +778,7 @@ function TreatmentMethods({ appointment, selected, onToggle, treatmentMethods, t
       }}
     >
       <div>
-        <strong style={{ color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Treatment performed</strong>
+        <strong style={{ color: colors.body, fontWeight: 500, fontSize: "0.82rem" }}>Treatment performed</strong>
         <div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>
           Tick everything that was done. {selected.length > 0 ? `${selected.length} selected.` : "None selected yet."}
         </div>
@@ -791,10 +791,10 @@ function TreatmentMethods({ appointment, selected, onToggle, treatmentMethods, t
               style={{
                 color: colors.muted,
                 fontSize: "0.65rem",
-                fontWeight: 800,
+                fontWeight: 500,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                borderBottom: "1px solid #e2e8f0",
+                borderBottom: "1px solid #efe9e0",
                 paddingBottom: "0.2rem",
                 marginBottom: "0.35rem",
               }}
@@ -893,8 +893,8 @@ function TechnicianSignature({ appointment, onSubmit, getSignatureUrl, onProblem
       }}
     >
       <div>
-        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 700 }}>Technician signature</h4>
-        <p style={{ margin: "0.2rem 0 0", color: "#047857", fontSize: "0.72rem" }}>
+        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 500 }}>Technician signature</h4>
+        <p style={{ margin: "0.2rem 0 0", color: "#4a6b4a", fontSize: "0.72rem" }}>
           {alreadySigned
             ? "You have signed off on this report."
             : "Sign to attest that the findings and treatment above are your own record of this visit."}
@@ -902,11 +902,11 @@ function TechnicianSignature({ appointment, onSubmit, getSignatureUrl, onProblem
       </div>
 
       {alreadySigned ? (
-        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
+        <div style={{ padding: "0.65rem", borderRadius: "3.75px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
           {signatureUrl
-            ? <img src={signatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "6px" }} />
+            ? <img src={signatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "3.75px" }} />
             : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
-          {appointment.technicianSignedAt && <div style={{ marginTop: "0.35rem", color: "#047857", fontSize: "0.7rem" }}>{formatDateTime(appointment.technicianSignedAt)}</div>}
+          {appointment.technicianSignedAt && <div style={{ marginTop: "0.35rem", color: "#4a6b4a", fontSize: "0.7rem" }}>{formatDateTime(appointment.technicianSignedAt)}</div>}
         </div>
       ) : (
         <>
@@ -916,11 +916,11 @@ function TechnicianSignature({ appointment, onSubmit, getSignatureUrl, onProblem
             onClick={sign}
             disabled={!hasInk || busy}
             className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors"
-            style={{ ...primaryButton, background: "#047857", borderColor: "#047857", justifyContent: "center", opacity: !hasInk || busy ? 0.55 : 1, cursor: !hasInk || busy ? "not-allowed" : "pointer" }}
+            style={{ ...primaryButton, background: "#4a6b4a", borderColor: "#4a6b4a", justifyContent: "center", opacity: !hasInk || busy ? 0.55 : 1, cursor: !hasInk || busy ? "not-allowed" : "pointer" }}
           >
             {busy ? "Saving…" : "Sign report"}
           </button>
-          {!hasInk && <div style={{ color: "#64748b", fontSize: "0.7rem", fontStyle: "italic" }}>Draw your signature above to enable this.</div>}
+          {!hasInk && <div style={{ color: "#96897b", fontSize: "0.7rem", fontStyle: "italic" }}>Draw your signature above to enable this.</div>}
         </>
       )}
     </div>
@@ -997,30 +997,30 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
       }}
     >
       <div>
-        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 700 }}>Customer confirmation</h4>
-        <p style={{ margin: "0.2rem 0 0", color: "#047857", fontSize: "0.72rem" }}>
+        <h4 style={{ margin: 0, color: "#065f46", fontSize: "0.88rem", fontWeight: 500 }}>Customer confirmation</h4>
+        <p style={{ margin: "0.2rem 0 0", color: "#4a6b4a", fontSize: "0.72rem" }}>
           {closed ? "This service is completed." : "The visit is complete when the customer confirms the work."}
         </p>
       </div>
 
       {alreadySigned ? (
-        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
+        <div style={{ padding: "0.65rem", borderRadius: "3.75px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
           {signatureUrl
-            ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "6px" }} />
+            ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "3.75px" }} />
             : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
-          <div style={{ marginTop: "0.35rem", color: "#166534", fontWeight: 700, fontSize: "0.76rem" }}>
+          <div style={{ marginTop: "0.35rem", color: "#4a6b4a", fontWeight: 500, fontSize: "0.76rem" }}>
             Signed by {appointment.customerName || "the customer"}
           </div>
-          {appointment.signedAt && <div style={{ color: "#047857", fontSize: "0.7rem" }}>{formatDateTime(appointment.signedAt)}</div>}
+          {appointment.signedAt && <div style={{ color: "#4a6b4a", fontSize: "0.7rem" }}>{formatDateTime(appointment.signedAt)}</div>}
         </div>
       ) : appointment.completionNote ? (
-        <div style={{ padding: "0.65rem", borderRadius: "8px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
-          <div style={{ color: "#9a3412", fontWeight: 700, fontSize: "0.76rem" }}>Completed without a customer signature</div>
+        <div style={{ padding: "0.65rem", borderRadius: "3.75px", background: "#faf0e2", border: "1px solid #fed7aa" }}>
+          <div style={{ color: "#9a3412", fontWeight: 500, fontSize: "0.76rem" }}>Completed without a customer signature</div>
           <div style={{ marginTop: "0.2rem", color: colors.body, fontSize: "0.74rem", whiteSpace: "pre-wrap" }}>{appointment.completionNote}</div>
         </div>
       ) : (
         <>
-          <label style={{ display: "grid", gap: "0.25rem", color: "#065f46", fontWeight: 700, fontSize: "0.76rem" }}>
+          <label style={{ display: "grid", gap: "0.25rem", color: "#065f46", fontWeight: 500, fontSize: "0.76rem" }}>
             Customer name
             <input
               ref={nameRef}
@@ -1032,7 +1032,7 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
           </label>
           <SignaturePad ref={padRef} onChange={setHasInk} />
           <label style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", color: "#065f46", fontSize: "0.74rem" }}>
-            <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} style={{ marginTop: "0.15rem", accentColor: "#047857" }} />
+            <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} style={{ marginTop: "0.15rem", accentColor: "#4a6b4a" }} />
             <span>The customer confirms the service described above was performed.</span>
           </label>
           <button
@@ -1040,7 +1040,7 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
             onClick={confirmCompletion}
             disabled={!readyToConfirm}
             className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors"
-            style={{ ...primaryButton, background: "#047857", borderColor: "#047857", justifyContent: "center", opacity: readyToConfirm ? 1 : 0.5, cursor: readyToConfirm ? "pointer" : "default" }}
+            style={{ ...primaryButton, background: "#4a6b4a", borderColor: "#4a6b4a", justifyContent: "center", opacity: readyToConfirm ? 1 : 0.5, cursor: readyToConfirm ? "pointer" : "default" }}
           >
             <ShieldCheck size={14} style={{ marginRight: "0.25rem" }} /> Confirm completion
           </button>
@@ -1051,7 +1051,7 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
         <button
           type="button"
           onClick={() => nameRef.current?.focus()}
-          style={{ display: "flex", gap: "0.45rem", alignItems: "center", textAlign: "left", width: "100%", padding: "0.45rem 0.6rem", borderRadius: "8px", background: "#fef2f2", border: "1px solid #fecdd3", color: "#9f1239", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer" }}
+          style={{ display: "flex", gap: "0.45rem", alignItems: "center", textAlign: "left", width: "100%", padding: "0.45rem 0.6rem", borderRadius: "3.75px", background: "#f9ecea", border: "1px solid #fecdd3", color: "#9f1239", fontSize: "0.72rem", fontWeight: 500, cursor: "pointer" }}
         >
           <Lock size={12} style={{ flex: "none" }} />
           <span>Still needed: {missing.join(", ").replace(/, ([^,]*)$/, " and $1")}.</span>
@@ -1060,8 +1060,8 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
 
       {!alreadySigned && !appointment.completionNote && canOverride && (
         overrideOpen ? (
-          <div style={{ display: "grid", gap: "0.4rem", padding: "0.6rem", borderRadius: "8px", background: "#fffbeb", border: "1px solid #fde68a" }}>
-            <strong style={{ color: "#92400e", fontSize: "0.74rem" }}>Why is there no customer signature?</strong>
+          <div style={{ display: "grid", gap: "0.4rem", padding: "0.6rem", borderRadius: "3.75px", background: "#fffbeb", border: "1px solid #fde68a" }}>
+            <strong style={{ color: "#a06a24", fontSize: "0.74rem" }}>Why is there no customer signature?</strong>
             <textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} rows={2} placeholder="e.g. Customer left before treatment finished; confirmed by phone." style={{ ...inputStyle, fontSize: "0.75rem", resize: "vertical" }} />
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
               <button type="button" disabled={!overrideReason.trim() || busy} onClick={(event) => run(document.getElementById("appointment-report-form") || event.currentTarget.form, { completionNote: overrideReason.trim() })} style={{ ...primaryButton, padding: "0.3rem 0.6rem", fontSize: "0.72rem", opacity: overrideReason.trim() && !busy ? 1 : 0.5 }}>
@@ -1071,7 +1071,7 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
             </div>
           </div>
         ) : (
-          <button type="button" onClick={() => setOverrideOpen(true)} style={{ border: 0, background: "none", color: "#64748b", fontSize: "0.7rem", textDecoration: "underline", cursor: "pointer", padding: 0, textAlign: "left" }}>
+          <button type="button" onClick={() => setOverrideOpen(true)} style={{ border: 0, background: "none", color: "#96897b", fontSize: "0.7rem", textDecoration: "underline", cursor: "pointer", padding: 0, textAlign: "left" }}>
             Customer cannot sign? Complete with a written reason
           </button>
         )
@@ -1090,7 +1090,7 @@ const detailCard = {
   background: "#ffffff",
   borderRadius: "1rem",
   boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-  border: "1px solid #e2e8f0",
+  border: "1px solid #efe9e0",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
@@ -1099,7 +1099,7 @@ const detailCard = {
 function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, appointments, canReschedule = true, canFileService = true, assignedName, getSignatureUrl, treatmentMethods, onToggleMethod, dynamicMethods, dynamicGroups, onPrintServiceForm, onProblem, canUpload, canRemove, addDocument, removeDocument, getDocumentUrl, addAttachment, removeAttachment, getAttachmentUrl, onSave, onTimingSave, onReportSubmit, onStockSubmit, onScheduleFollowUp, inventory, stockRows, setStockRows, onClose }) {
   const busyTechnicians = busyTechnicianIds(appointments, appointment);
   const notice = (text) => (
-    <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.7rem 0.8rem", marginBottom: "1rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "0.76rem", fontWeight: 600 }}>
+    <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.7rem 0.8rem", marginBottom: "1rem", borderRadius: "3.75px", background: "#faf0e2", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "0.76rem", fontWeight: 500 }}>
       <Lock size={14} style={{ flex: "none", marginTop: "0.1rem" }} />
       <span>{text}</span>
     </div>
@@ -1116,24 +1116,24 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
         {/* 1. Header Bar */}
         <div
           className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0"
-          style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", flexShrink: 0 }}
+          style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #efe9e0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", flexShrink: 0 }}
         >
           <div>
             <div
               className="text-[11px] font-bold text-red-700 uppercase tracking-wider"
-              style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.05em" }}
+              style={{ fontSize: "0.6875rem", fontWeight: 500, color: "#9a2d24", textTransform: "uppercase", letterSpacing: "0.05em" }}
             >
               Appointment detail
             </div>
             <h2
               className="text-lg font-bold text-slate-900 mt-0.5"
-              style={{ margin: "0.125rem 0 0", fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}
+              style={{ margin: "0.125rem 0 0", fontSize: "1.125rem", fontWeight: 500, color: "#211b15" }}
             >
               {client.name}
             </h2>
             <div
               className="text-xs text-slate-500 mt-0.5"
-              style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.125rem" }}
+              style={{ fontSize: "0.75rem", color: "#96897b", marginTop: "0.125rem" }}
             >
               {formatDateTime(appointment.scheduledAt)}
             </div>
@@ -1144,7 +1144,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                 type="button"
                 onClick={onPrintServiceForm}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-                style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, color: "#334155", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.5rem", cursor: "pointer" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.75rem", fontSize: "0.75rem", fontWeight: 500, color: "#50463c", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.5rem", cursor: "pointer" }}
               >
                 <Printer size={14} /> Generate service form PDF
               </button>
@@ -1154,7 +1154,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
               aria-label="Close appointment detail"
               onClick={onClose}
               className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-              style={{ border: 0, background: "transparent", color: "#64748b", cursor: "pointer", padding: "0.375rem", display: "inline-flex", alignItems: "center", borderRadius: "0.5rem" }}
+              style={{ border: 0, background: "transparent", color: "#96897b", cursor: "pointer", padding: "0.375rem", display: "inline-flex", alignItems: "center", borderRadius: "0.5rem" }}
             >
               <X size={18} />
             </button>
@@ -1164,7 +1164,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
         {/* 2. Tabs */}
         <div
           className="flex border-b border-slate-200 bg-white px-6 shrink-0 overflow-x-auto"
-          style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#ffffff", padding: "0 1.5rem", flexShrink: 0, overflowX: "auto" }}
+          style={{ display: "flex", borderBottom: "1px solid #efe9e0", background: "#ffffff", padding: "0 1.5rem", flexShrink: 0, overflowX: "auto" }}
         >
           {TAB_LABELS.map((label) => {
             const active = tab === label;
@@ -1176,11 +1176,11 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                 className={`px-4 py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer ${active ? "border-red-700 text-red-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}
                 style={{
                   border: 0,
-                  borderBottom: active ? "2px solid #b91c1c" : "2px solid transparent",
+                  borderBottom: active ? "2px solid #9a2d24" : "2px solid transparent",
                   padding: "0.75rem 1rem",
                   background: "transparent",
-                  color: active ? "#b91c1c" : "#64748b",
-                  fontWeight: 700,
+                  color: active ? "#9a2d24" : "#96897b",
+                  fontWeight: 500,
                   fontSize: "0.75rem",
                   cursor: "pointer",
                 }}
@@ -1250,7 +1250,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                       className="p-3 mb-5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-xs text-blue-900 flex items-center gap-2"
                       style={{ padding: "0.75rem", marginBottom: "1.25rem", background: "rgba(239, 246, 255, 0.7)", border: "1px solid rgba(191, 219, 254, 0.6)", borderRadius: "0.75rem", fontSize: "0.75rem", color: "#1e3a8a", display: "flex", alignItems: "center", gap: "0.5rem" }}
                     >
-                      <FileText size={15} className="shrink-0 text-blue-600" style={{ color: "#2563eb", flexShrink: 0 }} />
+                      <FileText size={15} className="shrink-0 text-blue-600" style={{ color: "#50463c", flexShrink: 0 }} />
                       <span>Required fields finalize this service. Recommendations and follow-up scheduling are optional.</span>
                     </div>
 
@@ -1262,8 +1262,8 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                       >
                         {/* Left Column (Notes & Details) */}
                         <div className="space-y-4" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
-                            <span>Inspection findings <span style={{ color: "#dc2626" }}>*</span></span>
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 500, fontSize: "0.82rem" }}>
+                            <span>Inspection findings <span style={{ color: "#9a2d24" }}>*</span></span>
                             <textarea
                               name="findings"
                               defaultValue={appointment.report}
@@ -1274,7 +1274,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                             />
                           </label>
 
-                          <label style={{ display: "grid", gap: "0.3rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                          <label style={{ display: "grid", gap: "0.3rem", color: colors.body, fontWeight: 500, fontSize: "0.82rem" }}>
                             <span>
                               Additional treatment notes{" "}
                               <span style={{ fontWeight: 400, color: colors.muted, fontSize: "0.72rem" }}>
@@ -1290,7 +1290,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                             />
                           </label>
 
-                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 500, fontSize: "0.82rem" }}>
                             Recommendations / follow-up notes
                             <textarea
                               name="recommendations"
@@ -1301,7 +1301,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                             />
                           </label>
 
-                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>
+                          <label style={{ display: "grid", gap: "0.35rem", color: colors.body, fontWeight: 500, fontSize: "0.82rem" }}>
                             Follow-up date
                             <input
                               name="followUpDate"
@@ -1346,8 +1346,8 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                     </form>
 
                     {/* 6. Report Attachments Section */}
-                    <div style={{ marginTop: "1.5rem", paddingTop: "1.25rem", borderTop: "1px solid #e2e8f0" }}>
-                      <h3 style={{ margin: 0, color: colors.body, fontSize: "1rem", fontWeight: 800 }}>Report attachments</h3>
+                    <div style={{ marginTop: "1.5rem", paddingTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
+                      <h3 style={{ margin: 0, color: colors.body, fontSize: "1rem", fontWeight: 500 }}>Report attachments</h3>
                       <p style={{ margin: "0.2rem 0 0.9rem", color: colors.muted, fontSize: "0.74rem" }}>
                         Files for this visit only. JPG, PNG, or PDF up to 5MB each.
                       </p>
@@ -1395,7 +1395,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
         {tab === "Report" && (
           <div
             className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0"
-            style={{ padding: "0.875rem 1.5rem", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}
+            style={{ padding: "0.875rem 1.5rem", background: "#efe9e0", borderTop: "1px solid #efe9e0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}
           >
             <div>
               {appointment.followUpDate ? (
@@ -1403,7 +1403,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                   type="button"
                   onClick={onScheduleFollowUp}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-                  style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.875rem", fontSize: "0.75rem", fontWeight: 500, color: "#334155", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.75rem", cursor: "pointer" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.875rem", fontSize: "0.75rem", fontWeight: 500, color: "#50463c", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0.75rem", cursor: "pointer" }}
                 >
                   Schedule follow-up
                 </button>
@@ -1417,7 +1417,7 @@ function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, ap
                   if (form) onReportSubmit(form, null);
                 }}
                 className="px-5 py-2 text-sm font-semibold rounded-xl bg-red-700 hover:bg-red-800 text-white shadow-sm transition-colors cursor-pointer"
-                style={{ padding: "0.5rem 1.25rem", fontSize: "0.875rem", fontWeight: 600, borderRadius: "0.75rem", background: "#b91c1c", color: "#ffffff", border: 0, cursor: "pointer", boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}
+                style={{ padding: "0.5rem 1.25rem", fontSize: "0.875rem", fontWeight: 500, borderRadius: "0.75rem", background: "#9a2d24", color: "#ffffff", border: 0, cursor: "pointer", boxShadow: "none" }}
               >
                 <Check size={15} style={{ display: "inline-block", verticalAlign: "middle", marginRight: "0.35rem" }} />
                 {appointment.reportSubmitted ? "Update report" : "Save report"}
@@ -1441,26 +1441,26 @@ function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
 
   return (
     <>
-      <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #eadede" }}>
+      <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
-        <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Dispatch</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.1rem" }}>Technician availability</h2></div>
+        <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Dispatch</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.1rem" }}>Technician availability</h2></div>
         <span style={{ color: colors.muted, fontSize: "0.75rem" }}>Select a day to view all booked times.</span>
       </div>
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
-          <div style={{ padding: "0.6rem", background: "#fffafa", color: colors.muted, fontSize: "0.7rem", fontWeight: 800 }}>Account</div>
-          {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fffafa", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", color: colors.ink, fontSize: "0.78rem", fontWeight: 700 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: dayAppointments.length ? "#fff7ed" : "#f0fdf4", color: dayAppointments.length ? "#9a3412" : "#166534", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
+        <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #efe9e0", borderLeft: "1px solid #efe9e0" }}>
+          <div style={{ padding: "0.6rem", background: "#fcfaf1", color: colors.muted, fontSize: "0.7rem", fontWeight: 500 }}>Account</div>
+          {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fcfaf1", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.muted, fontSize: "0.68rem", fontWeight: 500 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
+          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.ink, fontSize: "0.78rem", fontWeight: 500 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", background: dayAppointments.length ? "#faf0e2" : "#eef2ec", color: dayAppointments.length ? "#9a3412" : "#4a6b4a", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
         </div>
       </div>
       </section>
       {selectedDay && <div role="dialog" aria-modal="true" onClick={() => setSelectedDay(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
         <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 500px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-            <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Technician schedule</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{selectedDay.account.name || selectedDay.account.username}</h2><div style={{ color: colors.muted, fontSize: "0.78rem", marginTop: "0.2rem" }}>{selectedDay.day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</div></div>
+            <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>Technician schedule</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{selectedDay.account.name || selectedDay.account.username}</h2><div style={{ color: colors.muted, fontSize: "0.78rem", marginTop: "0.2rem" }}>{selectedDay.day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</div></div>
             <button type="button" aria-label="Close schedule summary" onClick={() => setSelectedDay(null)} style={{ ...secondaryButton, padding: "0.4rem 0.55rem" }}><X size={16} /></button>
           </div>
-          {selectedDay.appointments.length === 0 ? <div style={{ marginTop: "1rem", padding: "0.8rem", borderRadius: "9px", background: "#f0fdf4", color: "#166534", fontSize: "0.8rem", fontWeight: 700 }}>Available all day.</div> : <div style={{ display: "grid", gap: "0.55rem", marginTop: "1rem" }}>{selectedDay.appointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id} style={{ padding: "0.7rem", border: "1px solid #eadede", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "9px", background: "#fff7ed" }}><div style={{ color: colors.ink, fontWeight: 800, fontSize: "0.82rem" }}>{timeRange(appointment)}</div><div style={{ color: colors.body, fontSize: "0.8rem", marginTop: "0.2rem" }}>{client?.name || "Unknown client"}</div><div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>{appointment.pestConcern || appointment.serviceType || "Service"} · {appointment.status}</div></div>; })}</div>}
+          {selectedDay.appointments.length === 0 ? <div style={{ marginTop: "1rem", padding: "0.8rem", borderRadius: "3.75px", background: "#eef2ec", color: "#4a6b4a", fontSize: "0.8rem", fontWeight: 500 }}>Available all day.</div> : <div style={{ display: "grid", gap: "0.55rem", marginTop: "1rem" }}>{selectedDay.appointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id} style={{ padding: "0.7rem", border: "1px solid #efe9e0", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "3.75px", background: "#faf0e2" }}><div style={{ color: colors.ink, fontWeight: 500, fontSize: "0.82rem" }}>{timeRange(appointment)}</div><div style={{ color: colors.body, fontSize: "0.8rem", marginTop: "0.2rem" }}>{client?.name || "Unknown client"}</div><div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>{appointment.pestConcern || appointment.serviceType || "Service"} · {appointment.status}</div></div>; })}</div>}
         </section>
       </div>}
     </>
@@ -1484,14 +1484,14 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
 
   return (
     <form onSubmit={onSubmit} style={{ display: "grid", gap: "1rem" }}>
-      <div style={{ padding: "0.85rem", borderRadius: "10px", background: "#fff7ed", color: "#9a3412", fontSize: "0.78rem" }}>
+      <div style={{ padding: "0.85rem", borderRadius: "3.75px", background: "#faf0e2", color: "#9a3412", fontSize: "0.78rem" }}>
         <PackageCheck size={15} style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> Select every chemical, material, or equipment item used. All rows are submitted together.
       </div>
       {STOCK_CATEGORIES.map((category) => {
         const categoryRows = stockRows.filter((row) => row.category === category);
         const categoryItems = inventory.filter((item) => item.type === category && item.status !== "DISABLED");
         return (
-          <section key={category} style={{ display: "grid", gap: "0.6rem", padding: "0.8rem", border: "1px solid #eadede", borderRadius: "10px", background: "#fffdfd" }}>
+          <section key={category} style={{ display: "grid", gap: "0.6rem", padding: "0.8rem", border: "1px solid #efe9e0", borderRadius: "3.75px", background: "#fcfaf1" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
               <strong style={{ color: colors.ink, fontSize: "0.82rem" }}>{categoryLabel(category)}</strong>
               <button type="button" onClick={() => addRow(category)} style={{ ...secondaryButton, padding: "0.4rem 0.6rem", fontSize: "0.72rem" }}><Plus size={13} /> Add item</button>
@@ -1522,7 +1522,7 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
                   placeholder="Batch / lot no. from the container — e.g. L24-0917"
                   style={{ ...inputStyle, padding: "0.5rem 0.55rem", fontSize: "0.74rem" }}
                 />}
-                {rate && <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", padding: "0.4rem 0.55rem", borderRadius: "8px", background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: "0.7rem" }}>
+                {rate && <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", padding: "0.4rem 0.55rem", borderRadius: "3.75px", background: "#fffbeb", border: "1px solid #fde68a", color: "#a06a24", fontSize: "0.7rem" }}>
                   <PackageCheck size={12} style={{ flex: "none", marginTop: "0.12rem" }} />
                   <span>
                     <strong>Standard rate:</strong> {rate}
@@ -1536,13 +1536,13 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
         );
       })}
       <button type="submit" style={primaryButton}><PackageCheck size={15} /> Record stock out</button>
-      {(appointment.stockUsed || []).length > 0 && <div style={{ display: "grid", gap: "0.45rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Recorded for this service</strong>{appointment.stockUsed.map((entry, index) => <div key={`${entry.itemId}-${index}`} style={{ display: "flex", justifyContent: "space-between", padding: "0.55rem 0.7rem", border: "1px solid #eadede", borderRadius: "8px", fontSize: "0.78rem" }}><span>{entry.name}</span><strong>{entry.amount} {entry.unit}</strong></div>)}</div>}
+      {(appointment.stockUsed || []).length > 0 && <div style={{ display: "grid", gap: "0.45rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Recorded for this service</strong>{appointment.stockUsed.map((entry, index) => <div key={`${entry.itemId}-${index}`} style={{ display: "flex", justifyContent: "space-between", padding: "0.55rem 0.7rem", border: "1px solid #efe9e0", borderRadius: "3.75px", fontSize: "0.78rem" }}><span>{entry.name}</span><strong>{entry.amount} {entry.unit}</strong></div>)}</div>}
     </form>
   );
 }
 
 function InfoRow({ icon, label, value }) {
-  return <div style={{ display: "flex", gap: "0.65rem", alignItems: "flex-start", paddingBottom: "0.85rem", borderBottom: "1px solid #f1e7e7" }}><span style={{ color: colors.brand, marginTop: "0.1rem" }}>{icon}</span><div><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>{label}</div><div style={{ color: colors.ink, fontSize: "0.84rem", marginTop: "0.18rem", lineHeight: 1.45 }}>{value}</div></div></div>;
+  return <div style={{ display: "flex", gap: "0.65rem", alignItems: "flex-start", paddingBottom: "0.85rem", borderBottom: "1px solid #f1e7e7" }}><span style={{ color: colors.brand, marginTop: "0.1rem" }}>{icon}</span><div><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>{label}</div><div style={{ color: colors.ink, fontSize: "0.84rem", marginTop: "0.18rem", lineHeight: 1.45 }}>{value}</div></div></div>;
 }
 
 export default SchedulingPage;

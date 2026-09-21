@@ -47,6 +47,7 @@ function Section({ legend, span = 1, children }) {
         padding: "12px 0 0",
         minWidth: 0,
         display: "grid",
+        alignContent: "start",
         gap: "12px",
       }}
     >
@@ -214,7 +215,7 @@ function NewAppointmentModal({
             </div>
           )}
 
-          <Field label="Service location" hint="Defaults to the client's address">
+          <Field label="Service location">
             <Input
               name="serviceLocation"
               value={serviceLocation}

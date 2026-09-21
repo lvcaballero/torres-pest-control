@@ -84,8 +84,8 @@ function UnitField({ value, onChange }) {
  * history lets each section carry only the columns its rows actually fill.
  */
 const HISTORY_SECTIONS = [
-  { key: "IN", label: "Stock In", accent: "#166534", empty: "No stock has been received yet." },
-  { key: "OUT", label: "Stock Out", accent: "#b91c1c", empty: "No stock has been used yet." },
+  { key: "IN", label: "Stock In", accent: "#4a6b4a", empty: "No stock has been received yet." },
+  { key: "OUT", label: "Stock Out", accent: "#9a2d24", empty: "No stock has been used yet." },
   { key: "CORRECTION", label: "Correction", accent: "#7c3aed", empty: "No corrections have been recorded." },
 ];
 
@@ -93,8 +93,8 @@ const peso = (value) => `₱${(Number(value) || 0).toLocaleString(undefined, { m
 
 const itemCell = (movement) => (
   <div>
-    <div style={{ fontWeight: 700, color: "#111827" }}>{movement.itemName}</div>
-    {movement.itemUnit && <div style={{ fontSize: "0.76rem", color: "#6b7280" }}>Unit: {movement.itemUnit}</div>}
+    <div style={{ fontWeight: 500, color: "#211b15" }}>{movement.itemName}</div>
+    {movement.itemUnit && <div style={{ fontSize: "0.76rem", color: "#96897b" }}>Unit: {movement.itemUnit}</div>}
   </div>
 );
 
@@ -103,53 +103,53 @@ const HISTORY_COLUMNS = {
     template: "110px 1.2fr 110px 110px 130px 1.1fr 1.1fr 1fr",
     minWidth: "1000px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
-      { label: "Qty In", render: (m) => <span style={{ fontWeight: 700, color: "#166534" }}>+{Math.abs(m.quantityDelta)}</span> },
-      { label: "Unit Cost", render: (m) => <span style={{ color: "#475569" }}>{peso(m.unitCost)}</span> },
-      { label: "Total Spent", render: (m) => <span style={{ fontWeight: 700, color: "#047857" }}>{peso(m.totalCost)}</span> },
-      { label: "PO / Reference", render: (m) => <span style={{ color: "#1e293b", fontWeight: 600 }}>{m.reference || "—"}</span> },
-      { label: "Branch / Origin", render: (m) => <span style={{ color: "#475569" }}>{m.intakeBranchOrStation || "—"}</span> },
-      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+      { label: "Qty In", render: (m) => <span style={{ fontWeight: 500, color: "#4a6b4a" }}>+{Math.abs(m.quantityDelta)}</span> },
+      { label: "Unit Cost", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.unitCost)}</span> },
+      { label: "Total Spent", render: (m) => <span style={{ fontWeight: 500, color: "#4a6b4a" }}>{peso(m.totalCost)}</span> },
+      { label: "PO / Reference", render: (m) => <span style={{ color: "#1e293b", fontWeight: 500 }}>{m.reference || "—"}</span> },
+      { label: "Branch / Origin", render: (m) => <span style={{ color: "#50463c" }}>{m.intakeBranchOrStation || "—"}</span> },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#96897b" }}>{m.actor || "—"}</span> },
     ],
   },
   OUT: {
     template: "110px 1.4fr 110px 130px 1.3fr 1fr",
     minWidth: "820px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
-      { label: "Qty Out", render: (m) => <span style={{ fontWeight: 700, color: "#b91c1c" }}>-{Math.abs(m.quantityDelta)}</span> },
+      { label: "Qty Out", render: (m) => <span style={{ fontWeight: 500, color: "#9a2d24" }}>-{Math.abs(m.quantityDelta)}</span> },
       // Derived from the item's current cost, not a figure recorded on the row,
       // so it is labelled as an estimate rather than presented as spend.
-      { label: "Est. Value", render: (m) => <span style={{ color: "#475569" }}>{peso(m.totalCost)}</span> },
+      { label: "Est. Value", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.totalCost)}</span> },
       {
         label: "Used On",
         render: (m) => (
-          <span style={{ color: "#1e293b", fontWeight: 600 }}>
+          <span style={{ color: "#1e293b", fontWeight: 500 }}>
             {m.appointmentId ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}` : (m.reference || "—")}
           </span>
         ),
       },
-      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#96897b" }}>{m.actor || "—"}</span> },
     ],
   },
   CORRECTION: {
     template: "110px 1.4fr 120px 1.6fr 1fr",
     minWidth: "760px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#374151" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
       {
         label: "Adjustment",
         render: (m) => (
-          <span style={{ fontWeight: 700, color: m.quantityDelta < 0 ? "#b91c1c" : "#166534" }}>
+          <span style={{ fontWeight: 500, color: m.quantityDelta < 0 ? "#9a2d24" : "#4a6b4a" }}>
             {m.quantityDelta > 0 ? "+" : ""}{m.quantityDelta}
           </span>
         ),
       },
-      { label: "Reason", render: (m) => <span style={{ color: "#1e293b", fontWeight: 600 }}>{m.reference || "—"}</span> },
-      { label: "Recorded By", render: (m) => <span style={{ color: "#64748b" }}>{m.actor || "—"}</span> },
+      { label: "Reason", render: (m) => <span style={{ color: "#1e293b", fontWeight: 500 }}>{m.reference || "—"}</span> },
+      { label: "Recorded By", render: (m) => <span style={{ color: "#96897b" }}>{m.actor || "—"}</span> },
     ],
   },
 };
@@ -401,10 +401,10 @@ function InventoryPage() {
     <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
       <div style={{ marginBottom: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <p style={{ color: "#7f1d1d", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: "0.72rem", margin: 0 }}>
+          <p style={{ color: "#7f1d1d", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: "0.72rem", margin: 0 }}>
             Inventory
           </p>
-          <h1 style={{ margin: "0.25rem 0 0", fontSize: "2.1rem", color: "#0f172a", lineHeight: 1.15 }}>
+          <h1 style={{ margin: "0.25rem 0 0", fontSize: "2.1rem", color: "#211b15", lineHeight: 1.15 }}>
             Inventory Management
           </h1>
         </div>
@@ -413,15 +413,15 @@ function InventoryPage() {
             type="button"
             onClick={() => setOpenForm((value) => !value)}
             style={{
-              background: "#b91c1c",
+              background: "#9a2d24",
               color: "#ffffff",
               border: "none",
-              borderRadius: "10px",
+              borderRadius: "3.75px",
               padding: "0.78rem 1.15rem",
               fontSize: "0.85rem",
-              fontWeight: 700,
+              fontWeight: 500,
               cursor: "pointer",
-              boxShadow: "0 8px 22px rgba(185, 28, 28, 0.18)",
+              boxShadow: "none",
             }}
           >
             {openForm ? "Close Form" : "Add Inventory Item"}
@@ -429,7 +429,7 @@ function InventoryPage() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #e2e8f0" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #efe9e0" }}>
         <TabButton active={tab === "items"} onClick={() => setTab("items")}>
           Items
         </TabButton>
@@ -443,8 +443,8 @@ function InventoryPage() {
           {openForm && (
             <form onSubmit={handleSubmit} style={{ ...card, marginBottom: "1.5rem" }}>
               <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #f0f0f0", paddingBottom: "1rem" }}>
-                <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Basic Information</h3>
-                <p style={{ margin: "0 0 1rem", color: "#6b7280", fontSize: "0.85rem" }}>
+                <h3 style={{ color: "#211b15", marginBottom: "1rem" }}>Basic Information</h3>
+                <p style={{ margin: "0 0 1rem", color: "#96897b", fontSize: "0.85rem" }}>
                   New items start at 0 stock. Add quantity afterward with Stock In on the item's row.
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
@@ -476,7 +476,7 @@ function InventoryPage() {
 
               {form.type === "CHEMICAL" && (
                 <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #f0f0f0", paddingBottom: "1rem" }}>
-                  <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Chemical Details</h3>
+                  <h3 style={{ color: "#211b15", marginBottom: "1rem" }}>Chemical Details</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
                     <Field label="Chemical Type *">
                       <select name="chemicalType" value={form.chemicalType} onChange={handleChange} style={inputStyle} required>
@@ -511,7 +511,7 @@ function InventoryPage() {
 
               {form.type === "EQUIPMENT" && (
                 <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #f0f0f0", paddingBottom: "1rem" }}>
-                  <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Equipment Details</h3>
+                  <h3 style={{ color: "#211b15", marginBottom: "1rem" }}>Equipment Details</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
                     <Field label="Serial Number">
                       <input name="serialNumber" value={form.serialNumber} onChange={handleChange} style={inputStyle} placeholder="Serial number" />
@@ -542,7 +542,7 @@ function InventoryPage() {
 
               {form.type === "MATERIAL" && (
                 <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #f0f0f0", paddingBottom: "1rem" }}>
-                  <h3 style={{ color: "#111827", marginBottom: "1rem" }}>Material Details</h3>
+                  <h3 style={{ color: "#211b15", marginBottom: "1rem" }}>Material Details</h3>
                   <div style={{ display: "grid", gridTemplateColumns: "minmax(200px, 320px)", gap: "1rem" }}>
                     <Field label="Material Category *">
                       <select name="materialCategory" value={form.materialCategory} onChange={handleChange} style={inputStyle} required>
@@ -565,7 +565,7 @@ function InventoryPage() {
                 <button type="button" onClick={() => setOpenForm(false)} style={secondaryButton}>
                   Cancel
                 </button>
-                <button type="submit" style={{ background: "#8b1e1e", color: "#fff", border: "none", borderRadius: "10px", padding: "0.8rem 1rem", fontWeight: 700, cursor: "pointer" }}>
+                <button type="submit" style={{ background: "#8b1e1e", color: "#fff", border: "none", borderRadius: "3.75px", padding: "0.8rem 1rem", fontWeight: 500, cursor: "pointer" }}>
                   Add Item
                 </button>
               </div>
@@ -573,14 +573,14 @@ function InventoryPage() {
           )}
 
           <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto" }}>
-            <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", padding: "1rem", marginBottom: "1rem" }}>
+            <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", padding: "1rem", marginBottom: "1rem" }}>
               <div style={{ display: "flex", gap: "0.9rem", alignItems: "end", flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 260px", minWidth: "220px" }}>
-                  <label style={{ display: "block", color: "#475569", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.45rem" }}>
+                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
                     Search
                   </label>
                   <div style={{ position: "relative" }}>
-                    <Search size={15} style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                    <Search size={15} style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#96897b" }} />
                     <input
                       value={itemSearch}
                       onChange={(e) => setItemSearch(e.target.value)}
@@ -591,7 +591,7 @@ function InventoryPage() {
                 </div>
 
                 <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#475569", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.45rem" }}>
+                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
                     Type
                   </label>
                   <select value={itemTypeFilter} onChange={(e) => setItemTypeFilter(e.target.value)} style={inputStyle}>
@@ -603,7 +603,7 @@ function InventoryPage() {
                 </div>
 
                 <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#475569", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.45rem" }}>
+                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
                     Status
                   </label>
                   <select value={itemStatusFilter} onChange={(e) => setItemStatusFilter(e.target.value)} style={inputStyle}>
@@ -614,7 +614,7 @@ function InventoryPage() {
                 </div>
 
                 <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#475569", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.45rem" }}>
+                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
                     Stock Level
                   </label>
                   <select value={itemStockFilter} onChange={(e) => setItemStockFilter(e.target.value)} style={inputStyle}>
@@ -643,36 +643,36 @@ function InventoryPage() {
             </div>
           </div>
 
-          <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto", background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", overflow: "visible", position: "relative", zIndex: 1 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.5fr) 1fr 1.2fr 1fr 1.4fr", gap: "0.75rem", padding: "0.9rem 1.5rem", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-              <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Item Details</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Type</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Stock Level</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Status</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Actions</span>
+          <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto", background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", overflow: "visible", position: "relative", zIndex: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.5fr) 1fr 1.2fr 1fr 1.4fr", gap: "0.75rem", padding: "0.9rem 1.5rem", background: "#efe9e0", borderBottom: "1px solid #efe9e0" }}>
+              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Item Details</span>
+              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Type</span>
+              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Stock Level</span>
+              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Status</span>
+              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Actions</span>
             </div>
 
             {error && (
-              <div style={{ padding: "1.25rem", color: "#b91c1c", background: "#fef2f2" }}>
+              <div style={{ padding: "1.25rem", color: "#9a2d24", background: "#f9ecea" }}>
                 Could not load inventory — {error}
               </div>
             )}
 
             {!error && loading && (
-              <div style={{ padding: "1.25rem", color: "#6b7280" }}>Loading inventory…</div>
+              <div style={{ padding: "1.25rem", color: "#96897b" }}>Loading inventory…</div>
             )}
 
             {!error && !loading && inventory.length === 0 && (
-              <div style={{ padding: "1.5rem", color: "#6b7280", display: "grid", gap: "0.75rem", justifyItems: "start" }}>
+              <div style={{ padding: "1.5rem", color: "#96897b", display: "grid", gap: "0.75rem", justifyItems: "start" }}>
                 <span>No inventory items yet. Add your first item to start tracking stock.</span>
-                <button type="button" onClick={() => setOpenForm(true)} style={{ background: "#b91c1c", color: "#ffffff", border: "none", borderRadius: "8px", padding: "0.65rem 0.9rem", fontWeight: 700, cursor: "pointer" }}>
+                <button type="button" onClick={() => setOpenForm(true)} style={{ background: "#9a2d24", color: "#ffffff", border: "none", borderRadius: "3.75px", padding: "0.65rem 0.9rem", fontWeight: 500, cursor: "pointer" }}>
                   Add inventory item
                 </button>
               </div>
             )}
 
             {!error && !loading && inventory.length > 0 && filteredInventory.length === 0 && (
-              <div style={{ padding: "1.25rem", color: "#6b7280" }}>
+              <div style={{ padding: "1.25rem", color: "#96897b" }}>
                 No inventory items match the current filters.
               </div>
             )}
@@ -683,10 +683,10 @@ function InventoryPage() {
               const typeLabel = item.type === "CHEMICAL" ? "Chemical" : item.type === "EQUIPMENT" ? "Equipment" : "Material";
               const stockText = `${Number(item.quantity || 0).toLocaleString()} ${item.unit || ""}`.trim();
               const stockBadgeStyle = isDisabled
-                ? { background: "#f1f5f9", border: "1px solid #e2e8f0", color: "#475569" }
+                ? { background: "#efe9e0", border: "1px solid #efe9e0", color: "#50463c" }
                 : isLowStock
-                  ? { background: "#fff7ed", border: "1px solid #fed7aa", color: "#b45309" }
-                  : { background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#166534" };
+                  ? { background: "#faf0e2", border: "1px solid #fed7aa", color: "#b45309" }
+                  : { background: "#eef2ec", border: "1px solid #a7f3d0", color: "#4a6b4a" };
 
               return (
                 <div
@@ -697,29 +697,29 @@ function InventoryPage() {
                     gridTemplateColumns: "minmax(0, 2.5fr) 1fr 1.2fr 1fr 1.4fr",
                     gap: "0.75rem",
                     padding: "1rem",
-                    borderTop: "1px solid #f1f5f9",
+                    borderTop: "1px solid #efe9e0",
                     alignItems: "center",
                     cursor: "pointer",
                     transition: "background-color 0.2s ease",
-                    background: isDisabled ? "#f8fafc" : "#ffffff",
+                    background: isDisabled ? "#efe9e0" : "#ffffff",
                     position: "relative",
                     zIndex: actionMenuItemId === item.id ? 60 : 1,
                     overflow: "visible",
                     isolation: "isolate",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#efe9e0")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ffffff")}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.96rem" }}>{item.name}</div>
-                    <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontWeight: 500, color: "#211b15", fontSize: "0.96rem" }}>{item.name}</div>
+                    <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", color: "#96897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.supplier || item.storageLocation || "Inventory item"}
                     </div>
                   </div>
 
-                  <div style={{ color: "#475569", fontSize: "0.9rem" }}>{typeLabel}</div>
+                  <div style={{ color: "#50463c", fontSize: "0.9rem" }}>{typeLabel}</div>
 
-                  <div style={{ color: isLowStock ? "#b91c1c" : "#0f172a", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>
+                  <div style={{ color: isLowStock ? "#9a2d24" : "#211b15", fontWeight: 500, textAlign: "right", whiteSpace: "nowrap" }}>
                     {stockText}
                   </div>
 
@@ -731,7 +731,7 @@ function InventoryPage() {
                         borderRadius: "999px",
                         padding: "0.32rem 0.7rem",
                         fontSize: "0.72rem",
-                        fontWeight: 700,
+                        fontWeight: 500,
                         ...stockBadgeStyle,
                       }}
                     >
@@ -749,8 +749,8 @@ function InventoryPage() {
                         fontSize: "0.72rem",
                         border: "1px solid #cbd5e1",
                         background: "#ffffff",
-                        color: "#334155",
-                        borderRadius: "6px",
+                        color: "#50463c",
+                        borderRadius: "3.75px",
                         boxShadow: "none",
                       }}
                     >
@@ -769,13 +769,13 @@ function InventoryPage() {
                         style={{
                           width: "2rem",
                           height: "2rem",
-                          borderRadius: "9px",
-                          border: "1px solid #e2e8f0",
+                          borderRadius: "3.75px",
+                          border: "1px solid #efe9e0",
                           background: "#ffffff",
                           display: "grid",
                           placeItems: "center",
                           cursor: "pointer",
-                          color: "#475569",
+                          color: "#50463c",
                           padding: "0.375rem",
                           position: "relative",
                           zIndex: 500,
@@ -792,18 +792,18 @@ function InventoryPage() {
                             top: actionMenuDirection[item.id] === "up" ? "auto" : "calc(100% + 0.3rem)",
                             bottom: actionMenuDirection[item.id] === "up" ? "calc(100% + 0.3rem)" : "auto",
                             background: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "12px",
-                            boxShadow: "0 18px 34px rgba(15, 23, 42, 0.16)",
+                            border: "1px solid #efe9e0",
+                            borderRadius: "3.75px",
+                            boxShadow: "none",
                             minWidth: "170px",
                             padding: "0.35rem",
                             zIndex: 5000,
                             pointerEvents: "auto",
                           }}
                         >
-                          <button type="button" onClick={() => { setActionMenuItemId(null); setEditItem(item); }} style={{ ...menuActionStyle, color: "#0f172a" }}>Edit</button>
+                          <button type="button" onClick={() => { setActionMenuItemId(null); setEditItem(item); }} style={{ ...menuActionStyle, color: "#211b15" }}>Edit</button>
                           {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setCorrectionItem(item); }} style={{ ...menuActionStyle, color: "#7c3aed" }}>Correct Stock</button>}
-                          <button type="button" onClick={() => { setActionMenuItemId(null); if (isDisabled) setItemStatus(item.id, INVENTORY_STATUS.ACTIVE).then((r) => handleStatusResult(r, showSuccess, showError, item.name, "enabled")); else setDisableTarget(item); }} style={{ ...menuActionStyle, color: isDisabled ? "#166534" : "#b91c1c" }}>
+                          <button type="button" onClick={() => { setActionMenuItemId(null); if (isDisabled) setItemStatus(item.id, INVENTORY_STATUS.ACTIVE).then((r) => handleStatusResult(r, showSuccess, showError, item.name, "enabled")); else setDisableTarget(item); }} style={{ ...menuActionStyle, color: isDisabled ? "#4a6b4a" : "#9a2d24" }}>
                             {isDisabled ? "Enable" : "Disable"}
                           </button>
                           <button type="button" onClick={() => { setActionMenuItemId(null); setDeleteTarget(item); }} style={{ ...menuActionStyle, color: "#7f1d1d" }}>
@@ -817,7 +817,7 @@ function InventoryPage() {
               );
             })}
 
-            <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontSize: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #efe9e0", background: "#efe9e0", color: "#96897b", fontSize: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>Showing {filteredInventory.length} of {inventory.length} items</span>
             </div>
           </div>
@@ -827,7 +827,7 @@ function InventoryPage() {
       {tab === "history" && (
         <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto" }}>
           {/* Filtering and Sorting Toolbar */}
-          <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", padding: "1rem", marginBottom: "1rem" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", padding: "1rem", marginBottom: "1rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.85rem" }}>
               <Field label="Search Logs">
                 <input
@@ -898,10 +898,10 @@ function InventoryPage() {
                     display: "inline-flex", alignItems: "center", gap: "0.5rem",
                     padding: "0.6rem 1rem",
                     borderRadius: "999px",
-                    border: `1px solid ${active ? section.accent : "rgba(148, 163, 184, 0.35)"}`,
+                    border: `1px solid ${active ? section.accent : "#efe9e0"}`,
                     background: active ? section.accent : "#ffffff",
-                    color: active ? "#ffffff" : "#475569",
-                    fontWeight: 700,
+                    color: active ? "#ffffff" : "#50463c",
+                    fontWeight: 500,
                     fontSize: "0.85rem",
                     cursor: "pointer",
                   }}
@@ -909,11 +909,11 @@ function InventoryPage() {
                   {section.label}
                   <span style={{
                     fontSize: "0.72rem",
-                    fontWeight: 800,
+                    fontWeight: 500,
                     borderRadius: "999px",
                     padding: "0.1rem 0.45rem",
-                    background: active ? "rgba(255,255,255,0.22)" : "#f1f5f9",
-                    color: active ? "#ffffff" : "#64748b",
+                    background: active ? "rgba(255,255,255,0.22)" : "#efe9e0",
+                    color: active ? "#ffffff" : "#96897b",
                   }}>{count}</span>
                 </button>
               );
@@ -921,7 +921,7 @@ function InventoryPage() {
           </div>
 
           {/* Records Table */}
-          <div style={{ background: "#ffffff", border: "1px solid rgba(148, 163, 184, 0.2)", borderRadius: "18px", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)", overflow: "hidden" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
               <div
                 style={{
@@ -930,9 +930,9 @@ function InventoryPage() {
                   minWidth: activeHistoryColumns.minWidth,
                   gap: "0.75rem",
                   padding: "1rem 1.25rem",
-                  background: "#f8fafc",
-                  fontWeight: 700,
-                  color: "#64748b",
+                  background: "#efe9e0",
+                  fontWeight: 500,
+                  color: "#96897b",
                   fontSize: "0.72rem",
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
@@ -942,17 +942,17 @@ function InventoryPage() {
               </div>
 
               {movementsError && (
-                <div style={{ padding: "1.25rem", color: "#b91c1c", background: "#fef2f2" }}>
+                <div style={{ padding: "1.25rem", color: "#9a2d24", background: "#f9ecea" }}>
                   Could not load history — {movementsError}
                 </div>
               )}
 
               {!movementsError && movementsLoading && (
-                <div style={{ padding: "1.25rem", color: "#6b7280" }}>Loading history…</div>
+                <div style={{ padding: "1.25rem", color: "#96897b" }}>Loading history…</div>
               )}
 
               {!movementsError && !movementsLoading && filteredAndSortedMovements.length === 0 && (
-                <div style={{ padding: "1.75rem", textAlign: "center", color: "#6b7280" }}>
+                <div style={{ padding: "1.75rem", textAlign: "center", color: "#96897b" }}>
                   {activeHistorySection.empty}
                 </div>
               )}
@@ -966,7 +966,7 @@ function InventoryPage() {
                     minWidth: activeHistoryColumns.minWidth,
                     gap: "0.75rem",
                     padding: "0.95rem 1.25rem",
-                    borderTop: "1px solid #f1f5f9",
+                    borderTop: "1px solid #efe9e0",
                     alignItems: "center",
                     fontSize: "0.9rem",
                   }}
@@ -1101,8 +1101,8 @@ function TabButton({ active, onClick, children }) {
         padding: "0.75rem 0.25rem",
         marginBottom: "-2px",
         borderBottom: active ? `3px solid ${colors.brandLight}` : "3px solid transparent",
-        color: active ? colors.brandInk : "#6b7280",
-        fontWeight: 700,
+        color: active ? colors.brandInk : "#96897b",
+        fontWeight: 500,
         cursor: "pointer",
         fontSize: "0.95rem",
       }}
@@ -1163,10 +1163,10 @@ function EditItemModal({ item, onClose, onSave }) {
   return (
     <ModalShell onClose={onClose} title={`Edit "${item.name}"`} maxWidth="42rem">
       <form onSubmit={handleSubmit}>
-        <p style={{ margin: "0 0 1.25rem", color: "#6b7280", fontSize: "0.85rem" }}>
+        <p style={{ margin: "0 0 1.25rem", color: "#96897b", fontSize: "0.85rem" }}>
           Update this item's details here. Quantity stays protected and can only be changed through Stock In, which records every adjustment in history.
         </p>
-        {validationError && <p style={{ margin: "0 0 1rem", color: "#b91c1c", fontSize: "0.85rem", fontWeight: 700 }}>{validationError}</p>}
+        {validationError && <p style={{ margin: "0 0 1rem", color: "#9a2d24", fontSize: "0.85rem", fontWeight: 500 }}>{validationError}</p>}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
           <Field label="Item Name *">
@@ -1223,7 +1223,7 @@ function EditItemModal({ item, onClose, onSave }) {
         {values.type === "EQUIPMENT" && (
           <section style={editSectionStyle}>
             <h3 style={editSectionHeadingStyle}>Equipment Details</h3>
-            <p style={{ margin: "0 0 1rem", color: "#6b7280", fontSize: "0.85rem" }}>After servicing equipment, set Last Maintenance to the service date and schedule its Next Maintenance date.</p>
+            <p style={{ margin: "0 0 1rem", color: "#96897b", fontSize: "0.85rem" }}>After servicing equipment, set Last Maintenance to the service date and schedule its Next Maintenance date.</p>
             <div style={editGridStyle}>
               <Field label="Serial Number"><input name="serialNumber" value={values.serialNumber} onChange={handleChange} style={inputStyle} /></Field>
               <Field label="Condition *"><select name="condition" value={values.condition} onChange={handleChange} style={inputStyle} required><option value="ACTIVE">Active</option><option value="MAINTENANCE">Maintenance</option><option value="DAMAGED">Damaged</option><option value="INACTIVE">Inactive</option></select></Field>
@@ -1325,9 +1325,9 @@ function StockInModal({ item, onClose, onSubmit }) {
           <div
             style={{
               padding: "0.9rem 1rem",
-              background: "#f8fafc",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
+              background: "#efe9e0",
+              borderRadius: "3.75px",
+              border: "1px solid #efe9e0",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1335,14 +1335,14 @@ function StockInModal({ item, onClose, onSubmit }) {
             }}
           >
             <div>
-              <div style={{ color: "#475569", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ color: "#50463c", fontSize: "0.7rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Total Cost
               </div>
-              <div style={{ color: "#64748b", fontSize: "0.72rem", marginTop: "0.2rem" }}>
+              <div style={{ color: "#96897b", fontSize: "0.72rem", marginTop: "0.2rem" }}>
                 Qty × Cost per unit
               </div>
             </div>
-            <div style={{ color: "#0f172a", fontSize: "1rem", fontWeight: 800, textAlign: "right" }}>
+            <div style={{ color: "#211b15", fontSize: "1rem", fontWeight: 500, textAlign: "right" }}>
               ₱{totalCapitalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
@@ -1358,18 +1358,18 @@ function StockInModal({ item, onClose, onSubmit }) {
           </Field>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.75rem", paddingTop: "1rem", borderTop: "1px solid #f1f5f9" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.75rem", paddingTop: "1rem", borderTop: "1px solid #efe9e0" }}>
           <button
             type="button"
             onClick={onClose}
             style={{
               border: "1px solid #cbd5e1",
               background: "#ffffff",
-              color: "#334155",
-              borderRadius: "10px",
+              color: "#50463c",
+              borderRadius: "3.75px",
               padding: "0.65rem 1rem",
               fontSize: "0.875rem",
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
             }}
           >
@@ -1382,13 +1382,13 @@ function StockInModal({ item, onClose, onSubmit }) {
               border: "none",
               background: "#7f1d1d",
               color: "#ffffff",
-              borderRadius: "10px",
+              borderRadius: "3.75px",
               padding: "0.65rem 1.25rem",
               fontSize: "0.875rem",
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: saving ? "default" : "pointer",
               opacity: saving ? 0.7 : 1,
-              boxShadow: "0 1px 2px rgba(15, 23, 42, 0.08)",
+              boxShadow: "none",
             }}
           >
             {saving ? "Recording…" : "Submit"}
@@ -1452,8 +1452,8 @@ function ModalShell({ title, subtitle, onClose, children, maxWidth = "28rem" }) 
       <div
         style={{
           background: "#ffffff",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
+          borderRadius: "7.5px",
+          border: "1px solid #efe9e0",
           boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)",
           padding: "1.5rem",
           maxWidth,
@@ -1465,22 +1465,22 @@ function ModalShell({ title, subtitle, onClose, children, maxWidth = "28rem" }) 
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", marginBottom: "0.35rem" }}>
           <div>
-            <h2 style={{ margin: 0, color: "#0f172a", fontSize: "1.125rem", fontWeight: 800 }}>{title}</h2>
-            {subtitle && <p style={{ margin: "0.35rem 0 0", color: "#64748b", fontSize: "0.72rem", lineHeight: 1.4 }}>{subtitle}</p>}
+            <h2 style={{ margin: 0, color: "#211b15", fontSize: "1.125rem", fontWeight: 500 }}>{title}</h2>
+            {subtitle && <p style={{ margin: "0.35rem 0 0", color: "#96897b", fontSize: "0.72rem", lineHeight: 1.4 }}>{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
             type="button"
             style={{
               background: "#ffffff",
-              border: "1px solid #e2e8f0",
+              border: "1px solid #efe9e0",
               borderRadius: "999px",
               width: "2rem",
               height: "2rem",
               display: "grid",
               placeItems: "center",
               cursor: "pointer",
-              color: "#475569",
+              color: "#50463c",
             }}
             aria-label="Close stock in modal"
           >
@@ -1500,7 +1500,7 @@ function InventoryDetailModal({ item, onClose }) {
     <ModalShell onClose={onClose} title={item.name}>
       {/* Basic Information */}
       <div style={{ marginBottom: "1.5rem" }}>
-        <h3 style={{ color: "#374151", fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+        <h3 style={{ color: "#50463c", fontSize: "0.875rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
           Basic Information
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -1517,7 +1517,7 @@ function InventoryDetailModal({ item, onClose }) {
       {/* Chemical-Specific Details */}
       {item.type === "CHEMICAL" && (
         <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "#374151", fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+          <h3 style={{ color: "#50463c", fontSize: "0.875rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
             Chemical Details
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -1534,7 +1534,7 @@ function InventoryDetailModal({ item, onClose }) {
       {/* Equipment-Specific Details */}
       {item.type === "EQUIPMENT" && (
         <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "#374151", fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+          <h3 style={{ color: "#50463c", fontSize: "0.875rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
             Equipment Details
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -1551,7 +1551,7 @@ function InventoryDetailModal({ item, onClose }) {
       {/* Material-Specific Details */}
       {item.type === "MATERIAL" && (
         <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "#374151", fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+          <h3 style={{ color: "#50463c", fontSize: "0.875rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
             Material Details
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
@@ -1563,20 +1563,20 @@ function InventoryDetailModal({ item, onClose }) {
 
       {/* Metadata */}
       <div style={{ marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid #f0f0f0" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.85rem", color: "#6b7280" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.85rem", color: "#96897b" }}>
           <div>
-            <div style={{ fontWeight: 700, color: "#374151" }}>Created</div>
+            <div style={{ fontWeight: 500, color: "#50463c" }}>Created</div>
             {new Date(item.createdAt).toLocaleDateString()}
           </div>
           <div>
-            <div style={{ fontWeight: 700, color: "#374151" }}>Last Updated</div>
+            <div style={{ fontWeight: 500, color: "#50463c" }}>Last Updated</div>
             {new Date(item.updatedAt).toLocaleDateString()}
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", gap: "0.5rem" }}>
-        <button onClick={onClose} style={{ background: "#8b1e1e", color: "#fff", border: "none", borderRadius: "10px", padding: "0.8rem 1rem", fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={onClose} style={{ background: "#8b1e1e", color: "#fff", border: "none", borderRadius: "3.75px", padding: "0.8rem 1rem", fontWeight: 500, cursor: "pointer" }}>
           Close
         </button>
       </div>
@@ -1597,10 +1597,10 @@ function formatMaterialCategory(category) {
 function DetailRow({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.25rem" }}>
+      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.25rem" }}>
         {label}
       </div>
-      <div style={{ fontSize: "0.95rem", color: "#111827", fontWeight: 600 }}>
+      <div style={{ fontSize: "0.95rem", color: "#211b15", fontWeight: 500 }}>
         {value || "—"}
       </div>
     </div>
@@ -1609,7 +1609,7 @@ function DetailRow({ label, value }) {
 
 function Field({ label, children }) {
   return (
-    <label style={{ display: "grid", gap: "0.45rem", color: "#374151", fontWeight: 700 }}>
+    <label style={{ display: "grid", gap: "0.45rem", color: "#50463c", fontWeight: 500 }}>
       <span>{label}</span>
       {children}
     </label>
@@ -1626,31 +1626,31 @@ const menuActionStyle = {
   background: "#ffffff",
   textAlign: "left",
   padding: "0.6rem 0.7rem",
-  borderRadius: "8px",
-  fontWeight: 600,
+  borderRadius: "3.75px",
+  fontWeight: 500,
   cursor: "pointer",
   opacity: 1,
 };
 
 const inputStyle = {
   width: "100%",
-  border: "1px solid #d9d9d9",
-  borderRadius: "10px",
+  border: "1px solid #c7bcaf",
+  borderRadius: "3.75px",
   padding: "0.72rem 0.8rem",
   fontSize: "0.96rem",
   background: "#ffffff",
-  color: "#111827",
+  color: "#211b15",
 };
 
 const editSectionStyle = {
   marginTop: "1.5rem",
   paddingTop: "1.25rem",
-  borderTop: "1px solid #e5e7eb",
+  borderTop: "1px solid #efe9e0",
 };
 
 const editSectionHeadingStyle = {
   margin: "0 0 1rem",
-  color: "#374151",
+  color: "#50463c",
   fontSize: "1rem",
 };
 

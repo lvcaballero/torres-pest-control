@@ -32,19 +32,19 @@ function AdminDashboard() {
         <MetricCard
           title="Total Staff Accounts"
           value={totalStaffAccounts}
-          accent={`linear-gradient(135deg, ${colors.brand} 0%, #b43d3d 100%)`}
+          accent={colors.brand}
           Icon={Users}
         />
         <MetricCard
           title="Active Accounts"
           value={activeAccounts}
-          accent="linear-gradient(135deg, #0f766e 0%, #34d399 100%)"
+          accent="#4a6b4a"
           Icon={ShieldCheck}
         />
         <MetricCard
           title="Total Clients"
           value={clients.length}
-          accent="linear-gradient(135deg, #374151 0%, #64748b 100%)"
+          accent="#50463c"
           Icon={BriefcaseBusiness}
         />
       </div>

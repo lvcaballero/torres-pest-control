@@ -54,7 +54,7 @@ function TechnicianDashboard() {
   return (
     <div style={pageShell}>
       <div style={{ marginBottom: "1.25rem" }}>
-        <div style={{ color: colors.brandInk, fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+        <div style={{ color: colors.brandInk, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>
           Today
         </div>
         <h1 style={{ margin: "0.3rem 0 0", color: colors.ink, fontSize: "1.9rem", lineHeight: 1.15 }}>
@@ -64,7 +64,7 @@ function TechnicianDashboard() {
       </div>
 
       {error && (
-        <div role="alert" style={{ marginBottom: "1rem", padding: "0.8rem 1rem", borderRadius: "12px", background: "#fdf0ef", border: "1px solid #eeb0ac", color: colors.danger, fontWeight: 700, fontSize: "0.85rem" }}>
+        <div role="alert" style={{ marginBottom: "1rem", padding: "0.8rem 1rem", borderRadius: "3.75px", background: "#fdf0ef", border: "1px solid #eeb0ac", color: colors.danger, fontWeight: 500, fontSize: "0.85rem" }}>
           Couldn't load your schedule: {error}
         </div>
       )}
@@ -92,9 +92,9 @@ function TechnicianDashboard() {
             <StatTile label="Reports to file" value={loading ? "—" : weeklyJobs.length - weeklyFiled} note="Visits still open" tone={weeklyJobs.length - weeklyFiled > 0 ? "attn" : "done"} />
           </TileRow>
           {nextScheduled ? (
-            <div style={{ padding: "0.8rem", borderRadius: "10px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
-              <div style={{ color: "#9a3412", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Next scheduled visit</div>
-              <div style={{ marginTop: "0.25rem", color: colors.ink, fontSize: "0.92rem", fontWeight: 800 }}>{nameOf(nextScheduled)}</div>
+            <div style={{ padding: "0.8rem", borderRadius: "3.75px", background: "#faf0e2", border: "1px solid #fed7aa" }}>
+              <div style={{ color: "#9a3412", fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>Next scheduled visit</div>
+              <div style={{ marginTop: "0.25rem", color: colors.ink, fontSize: "0.92rem", fontWeight: 500 }}>{nameOf(nextScheduled)}</div>
               <div style={{ marginTop: "0.2rem", color: colors.body, fontSize: "0.78rem" }}>{new Date(nextScheduled.scheduledAt).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {nextScheduled.durationMinutes || 60} minutes</div>
               <div style={{ marginTop: "0.15rem", color: colors.muted, fontSize: "0.75rem" }}>{whereOf(nextScheduled) || "No service address recorded."}</div>
             </div>

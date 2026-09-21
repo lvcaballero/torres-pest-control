@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Sidebar, { groupHeadingId, isNavItemActive } from "../Sidebar";
 import { can } from "../../../utils/permissions";
@@ -141,5 +142,40 @@ describe("Sidebar active state", () => {
     screen.getAllByRole("link").forEach((link) => {
       expect(link).toHaveStyle({ borderLeftWidth: "3px" });
     });
+  });
+});
+
+// Regression: every tab you had visited kept a 3px marker forever.
+//
+// styles.link used the `borderLeft` shorthand while styles.activeLink set the
+// `borderLeftColor` longhand. CSS expands a shorthand into longhands at parse
+// time, so once React had written borderLeftColor for the active item, going
+// inactive made it remove that key by assigning "" — which deletes the
+// declaration rather than restoring the shorthand's transparent, leaving
+// border-left-color at its initial value of currentColor. Measured in
+// Chromium: rgb(80, 70, 60), the link's own text colour, which is exactly
+// what the reported screenshot showed.
+describe("the active marker does not stick to visited items", () => {
+  it("restores a transparent marker when an item stops being active", async () => {
+    renderSidebar("/clients");
+
+    const clients = () => screen.getByRole("link", { name: /Client Profiles/ });
+    expect(clients().style.borderLeftColor).toBe(brand.base);
+
+    // Navigate for real, inside the same router, so React updates the nodes
+    // rather than remounting them. (Re-rendering MemoryRouter with different
+    // initialEntries does NOT navigate — it ignores them after mount.)
+    await userEvent.click(screen.getByRole("link", { name: /Inventory/ }));
+
+    // The value that matters: an empty string here is the bug, because the
+    // browser then falls back to currentColor.
+    expect(clients().style.borderLeftColor).toBe("transparent");
+    expect(clients()).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /Inventory/ }).style.borderLeftColor).toBe(brand.base);
+  });
+
+  it("leaves a never-visited item transparent", () => {
+    renderSidebar("/clients");
+    expect(screen.getByRole("link", { name: /Dashboard/ }).style.borderLeftColor).toBe("transparent");
   });
 });

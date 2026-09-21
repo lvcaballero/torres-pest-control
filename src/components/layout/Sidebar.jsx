@@ -156,7 +156,21 @@ const styles = {
     fontWeight: weight.regular,
     // Every item carries the marker so the active one costs no layout shift.
     // A border, not an inset box-shadow: the no-shadow rule is absolute here.
-    borderLeft: "3px solid transparent",
+    //
+    // Three longhands rather than the `borderLeft` shorthand, and this is
+    // load-bearing. CSS expands a shorthand into longhands at parse time, so
+    // once activeLink below sets borderLeftColor, React owns that longhand.
+    // When the item goes inactive React removes the key it no longer sees by
+    // assigning "", which DELETES the declaration instead of falling back to
+    // the shorthand's transparent — leaving border-left-color at its initial
+    // value, currentColor, i.e. a 3px bar in the link's own text colour. The
+    // symptom is every tab you have ever visited keeping a marker.
+    //
+    // Naming the colour here means React always has a value to write back,
+    // so the property is overwritten rather than removed.
+    borderLeftWidth: "3px",
+    borderLeftStyle: "solid",
+    borderLeftColor: "transparent",
     boxSizing: "border-box",
     transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
   },

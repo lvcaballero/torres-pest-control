@@ -168,10 +168,22 @@ export function AuthProvider({ children }) {
       if (updateError) return updateError;
 
       const nextAccount = savedAccount || { ...target, ...updatedFields, updatedAt };
+      // Dropped from all three collections and re-added to the one its role
+      // names, because a role change moves the row between tables (migration
+      // 045) and the account must not linger in the list it left.
       setAdmins((previous) => previous.filter((account) => account.id !== userId));
       setStaff((previous) => previous.filter((account) => account.id !== userId));
       setTechnicians((previous) => previous.filter((account) => account.id !== userId));
-      setCollectionFor(nextAccount.role)((previous) => [...previous, nextAccount]);
+      // Inserted in created_at order rather than appended: fetchAllAccounts()
+      // orders by created_at, and a moved account keeps its original one, so
+      // appending would park it at the bottom of its new list until the next
+      // reload — the list would be correct but not in the order a refresh
+      // gives, which is the kind of difference that makes people reload.
+      setCollectionFor(nextAccount.role)((previous) =>
+        [...previous, nextAccount].sort((a, b) =>
+          String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+        )
+      );
       addLog(currentUser?.name, `Updated account for ${target.name}.`, LOG_TYPES.ADMIN);
       return true;
     },

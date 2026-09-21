@@ -107,7 +107,14 @@ export async function updateAccount(sessionToken, account, updatedFields) {
   });
 
   if (error) return { error: describeError(error) };
-  const mapped = mapAccountRow(data, account.role);
+  // The server's role wins over the one we sent. update_role_account() can now
+  // move the account to another role table (migration 045) and returns the row
+  // it landed in, tagged with its new role. Passing account.role here instead
+  // pinned the answer to the OLD role, so AuthContext put the account straight
+  // back into the collection it came from and the change only appeared after a
+  // reload. `account.role` remains the fallback for a response that carries no
+  // role of its own.
+  const mapped = mapAccountRow(data, data?.role || account.role);
   return { account: mapped, updatedAt: data.updated_at };
 }
 

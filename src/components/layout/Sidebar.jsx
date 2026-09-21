@@ -88,11 +88,12 @@ const styles = {
     inset: "0 auto 0 0",
     width: layout.sidebarWidth,
     height: "100vh",
-    // Bone: surface level 2, the "section band". Flat, not a gradient — this
-    // design language builds hierarchy from surface colour and hairline
-    // borders, never from depth effects.
-    background: surface.sunken,
-    // Bone and the parchment canvas beside it are deliberately close. THIS
+    // Bone warmed toward maroon: a band distinct from the page that carries a
+    // trace of the brand without spending the accent on 264px of background.
+    // Flat, not a gradient — this design language builds hierarchy from
+    // surface colour and hairline borders, never from depth effects.
+    background: surface.rail,
+    // The rail and the parchment canvas beside it are deliberately close. THIS
     // hairline is what separates them; removing it collapses the two surfaces
     // into one indistinct field.
     borderRight: `1px solid ${neutral.loam}`,

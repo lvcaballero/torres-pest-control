@@ -340,18 +340,6 @@ function SchedulingPage() {
     setMessage(typeof result === "string" ? result : "Appointment details updated.");
   };
 
-  const handleTimingSave = async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const result = await updateAppointment({
-      ...selected,
-      durationMinutes: readDuration(form),
-      pestConcern: form.get("pestConcern"),
-    });
-    if (typeof result === "string") showError(result);
-    setMessage(typeof result === "string" ? result : "Appointment timing updated.");
-  };
-
   /**
    * One handler for both buttons. `confirmation` is null for a plain save —
    * which stores the report and leaves the appointment's status alone — or
@@ -677,7 +665,51 @@ function SchedulingPage() {
           {appointmentSearch && visibleAppointments.length === 0 && <div style={{ padding: "1rem", textAlign: "center", color: colors.muted }}>No appointments match this search.</div>}
         </section>
       </div>
-      {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canReschedule={canReschedule} canFileService={ownsAppointment(selected)} getSignatureUrl={getSignatureUrl} treatmentMethods={treatmentMethods} onToggleMethod={toggleTreatmentMethod} dynamicMethods={dynamicMethods} dynamicGroups={dynamicGroups} onPrintServiceForm={() => printServiceForm(selected)} onProblem={showError} assignedName={activeAccounts.find((account) => account.id === selected.technicianId)?.name || activeAccounts.find((account) => account.id === selected.technicianId)?.username || "another technician"} canUpload={can("clientDocuments", "create") && ownsAppointment(selected)} canRemove={can("clientDocuments", "delete") && ownsAppointment(selected)} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} addAttachment={addAttachment} removeAttachment={removeAttachment} getAttachmentUrl={getAttachmentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} onScheduleFollowUp={scheduleFollowUp} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
+      {selected && selectedClient && (
+        <AppointmentPanel
+          /* Remounting on save is what resets the uncontrolled report form. */
+          key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`}
+          appointment={selected}
+          client={selectedClient}
+          appointments={appointments}
+          activeAccounts={technicians}
+          ui={{ tab, setTab, onClose: () => setSelectedId(null) }}
+          access={{
+            canReschedule,
+            canFileService: ownsAppointment(selected),
+            canUpload: can("clientDocuments", "create") && ownsAppointment(selected),
+            canRemove: can("clientDocuments", "delete") && ownsAppointment(selected),
+            assignedName:
+              activeAccounts.find((account) => account.id === selected.technicianId)?.name
+              || activeAccounts.find((account) => account.id === selected.technicianId)?.username
+              || "another technician",
+          }}
+          report={{
+            treatmentMethods,
+            onToggleMethod: toggleTreatmentMethod,
+            dynamicMethods,
+            dynamicGroups,
+            getSignatureUrl,
+            onReportSubmit: handleReportSubmit,
+            onPrintServiceForm: () => printServiceForm(selected),
+          }}
+          files={{
+            addDocument,
+            removeDocument,
+            getDocumentUrl,
+            addAttachment,
+            removeAttachment,
+            getAttachmentUrl,
+          }}
+          actions={{
+            onSave: handleManualSave,
+            onStockSubmit: handleStockSubmit,
+            onScheduleFollowUp: scheduleFollowUp,
+            onProblem: showError,
+          }}
+          stock={{ inventory, stockRows, setStockRows }}
+        />
+      )}
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={showError} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />
       {createOpen && (
         <NewAppointmentModal
@@ -1096,7 +1128,66 @@ const detailCard = {
   overflow: "hidden",
 };
 
-function AppointmentPanel({ appointment, client, tab, setTab, activeAccounts, appointments, canReschedule = true, canFileService = true, assignedName, getSignatureUrl, treatmentMethods, onToggleMethod, dynamicMethods, dynamicGroups, onPrintServiceForm, onProblem, canUpload, canRemove, addDocument, removeDocument, getDocumentUrl, addAttachment, removeAttachment, getAttachmentUrl, onSave, onTimingSave, onReportSubmit, onStockSubmit, onScheduleFollowUp, inventory, stockRows, setStockRows, onClose }) {
+/**
+ * The appointment detail sheet.
+ *
+ * Thirty individual props became six grouped objects. They are destructured
+ * straight back into the same local names, so the body below is untouched —
+ * this is a call-site readability change, not a refactor of the panel.
+ *
+ * Deliberately NOT behind a context: it renders once, at one call site, and
+ * its props are almost all callbacks, so a provider would add a layer without
+ * removing a single argument.
+ *
+ * Three things in here are load-bearing and must survive any future change:
+ *   - the `key` on the call site, which remounts the panel after a save and
+ *     is what resets the uncontrolled report form;
+ *   - the `fieldset disabled` wrappers, which are the technician permission
+ *     gate — a form moved outside one becomes editable by someone who may
+ *     not edit it;
+ *   - the `appointment-report-form` DOM id, which the signature components
+ *     reach across component boundaries to submit.
+ */
+function AppointmentPanel({
+  appointment,
+  client,
+  appointments,
+  activeAccounts,
+  ui,
+  access,
+  report,
+  files,
+  actions,
+  stock,
+}) {
+  const { tab, setTab, onClose } = ui;
+  const {
+    canReschedule = true,
+    canFileService = true,
+    canUpload,
+    canRemove,
+    assignedName,
+  } = access;
+  const {
+    treatmentMethods,
+    onToggleMethod,
+    dynamicMethods,
+    dynamicGroups,
+    getSignatureUrl,
+    onReportSubmit,
+    onPrintServiceForm,
+  } = report;
+  const {
+    addDocument,
+    removeDocument,
+    getDocumentUrl,
+    addAttachment,
+    removeAttachment,
+    getAttachmentUrl,
+  } = files;
+  const { onSave, onStockSubmit, onScheduleFollowUp, onProblem } = actions;
+  const { inventory, stockRows, setStockRows } = stock;
+
   const busyTechnicians = busyTechnicianIds(appointments, appointment);
   const notice = (text) => (
     <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.7rem 0.8rem", marginBottom: "1rem", borderRadius: "3.75px", background: "#faf0e2", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "0.76rem", fontWeight: 500 }}>

@@ -222,12 +222,41 @@ describe("SchedulingPage", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("opens the detail panel when an appointment is clicked", async () => {
-    render(<SchedulingPage />);
+  describe("the detail panel", () => {
+    it("opens when an appointment is clicked", async () => {
+      render(<SchedulingPage />);
 
-    await userEvent.click(screen.getByText("Rhey Garcia"));
+      await userEvent.click(screen.getByText("Rhey Garcia"));
 
-    expect(screen.getAllByRole("dialog").length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("dialog").length).toBeGreaterThan(0);
+    });
+
+    // The panel takes six grouped prop objects rather than thirty loose
+    // props. A group spelled wrongly at the call site destructures to
+    // undefined and throws on first use, so mounting it is the check.
+    it("receives every prop group it destructures", async () => {
+      render(<SchedulingPage />);
+
+      await userEvent.click(screen.getByText("Rhey Garcia"));
+
+      // The card behind the panel also carries the client name, so assert on
+      // the controls the panel's own prop groups feed instead: the tab strip
+      // comes from `ui`, the save button from `actions`.
+      expect(screen.getByRole("button", { name: /Save appointment/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Documents" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Stock-Out" })).toBeInTheDocument();
+    });
+
+    // The technician permission gate is a `fieldset disabled` wrapper. A form
+    // moved outside one becomes editable by someone who may not edit it.
+    it("keeps the overview form inside its permission fieldset", async () => {
+      render(<SchedulingPage />);
+
+      await userEvent.click(screen.getByText("Rhey Garcia"));
+
+      const save = screen.getByRole("button", { name: /Save appointment/i });
+      expect(save.closest("fieldset")).not.toBeNull();
+    });
   });
 
   // "Schedule follow-up" was unreachable: it set the client id and opened the

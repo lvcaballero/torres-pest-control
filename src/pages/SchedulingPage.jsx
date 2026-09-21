@@ -26,6 +26,24 @@ import { useToast } from "../context/ToastContext";
 import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_TYPES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
 import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, endOf, findTechnicianConflicts, layoutDayAppointments, startOf } from "../utils/scheduling";
+import {
+  addDays,
+  defaultAppointmentDateTime,
+  formatDateTime,
+  formatDuration,
+  formatTime,
+  localDateKey,
+  readDuration,
+  startOfWeek,
+  toDateTimeLocal,
+} from "../utils/calendarDates";
+import {
+  UNASSIGNED_COLOR,
+  badgeStyle,
+  statusAccent,
+  statusShape,
+  technicianColorMap,
+} from "../components/scheduling/appointmentTheme";
 import { validateAttachment } from "../utils/validators";
 import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
 
@@ -37,107 +55,8 @@ const MIN_CARD_HEIGHT = 22;
 const MAX_CARD_COLUMNS = 3;
 const HOURS = Array.from({ length: CALENDAR_END_HOUR - DAY_START_HOUR }, (_, index) => index + DAY_START_HOUR);
 
-// A card is filled with its technician's color. Overlapping cards are always
-// different technicians — the database forbids double-booking one — so color is
-// what tells them apart at a glance, and an overloaded technician shows up
-// across the whole week without reading a word.
-const TECHNICIAN_PALETTE = [
-  { fill: "#d9f0ef", ink: "#0a6b6d", bar: "#0e8f92" },
-  { fill: "#e2e3fb", ink: "#3a44b8", bar: "#4f5bd5" },
-  { fill: "#fbe8d4", ink: "#94540a", bar: "#c07a10" },
-  { fill: "#dcefdc", ink: "#2c6b33", bar: "#3f8b47" },
-  { fill: "#f6e0f4", ink: "#8a2f83", bar: "#a9459f" },
-  { fill: "#dfeaf9", ink: "#1f5c9c", bar: "#2f7cc4" },
-];
-
-// Unassigned is deliberately the odd one out: those appointments skip the
-// double-booking check entirely, so the dispatch backlog should be obvious.
-const UNASSIGNED_COLOR = { fill: "#fadfe5", ink: "#97324a", bar: "#bf4460" };
 const TAB_LABELS = ["Overview", "Documents", "Report", "Stock-Out"];
 const STOCK_CATEGORIES = ["CHEMICAL", "MATERIAL", "EQUIPMENT"];
-function formatDuration(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours ? `${hours} hour${hours === 1 ? "" : "s"}` : ""}${hours && remainingMinutes ? " and " : ""}${remainingMinutes ? `${remainingMinutes} minutes` : ""}`;
-}
-
-function readDuration(values) {
-  const hours = Number(values.get("durationHours")) || 0;
-  const minutes = Number(values.get("durationMinutes")) || 0;
-  return hours * 60 + minutes;
-}
-
-function localDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function startOfWeek(date) {
-  const result = new Date(date);
-  const day = result.getDay();
-  result.setDate(result.getDate() - (day === 0 ? 6 : day - 1));
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function addDays(date, amount) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + amount);
-  return result;
-}
-
-function formatTime(value) {
-  if (!value) return "";
-  return new Date(`2000-01-01T${value}`).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
-function formatDateTime(value) {
-  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
-
-function toDateTimeLocal(value) {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-function defaultAppointmentDateTime() {
-  const date = new Date();
-  date.setHours(7, 0, 0, 0);
-  return toDateTimeLocal(date);
-}
-
-const STATUS_COLORS = {
-  Pending: ["#fff7ed", "#c2410c"],
-  Scheduled: ["#eff6ff", "#1d4ed8"],
-  Confirmed: ["#ecfdf5", "#047857"],
-  Reschedule: ["#fefce8", "#a16207"],
-  Completed: ["#f0fdf4", "#166534"],
-  Cancelled: ["#fef2f2", "#b91c1c"],
-};
-
-function badgeStyle(status) {
-  const [background, color] = STATUS_COLORS[status] || STATUS_COLORS.Pending;
-  return { background, color, borderRadius: 999, padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 800 };
-}
-
-/** Status has to survive a card too small for its pill, so it also colors the edge. */
-function statusAccent(status) {
-  return (STATUS_COLORS[status] || STATUS_COLORS.Pending)[1];
-}
-
-/**
- * Colour says who; outline says what state. Keeping both means a two-line block
- * still carries everything the old five-row card tried to spell out.
- */
-function statusShape(status) {
-  if (status === "Cancelled") return { borderStyle: "solid", opacity: 0.5, strike: true, dim: true };
-  if (status === "Completed") return { borderStyle: "solid", opacity: 0.78, strike: false, dim: true };
-  if (status === "Pending") return { borderStyle: "dashed", opacity: 1, strike: false, dim: false };
-  if (status === "Reschedule") return { borderStyle: "dotted", opacity: 1, strike: false, dim: false };
-  return { borderStyle: "solid", opacity: 1, strike: false, dim: false };
-}
 
 function SchedulingPage() {
   const { can, currentUser } = useAuth();
@@ -187,11 +106,7 @@ function SchedulingPage() {
   );
   // Colour is keyed off the technician list order so it stays stable between
   // renders and across the week.
-  const technicianColors = useMemo(() => {
-    const map = new Map();
-    technicians.forEach((account, index) => map.set(account.id, TECHNICIAN_PALETTE[index % TECHNICIAN_PALETTE.length]));
-    return map;
-  }, [technicians]);
+  const technicianColors = useMemo(() => technicianColorMap(technicians), [technicians]);
   const colorFor = (appointment) => technicianColors.get(appointment.technicianId) || UNASSIGNED_COLOR;
 
   useEffect(() => {

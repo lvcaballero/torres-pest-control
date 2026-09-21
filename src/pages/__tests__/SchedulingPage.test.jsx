@@ -7,9 +7,20 @@
 // cleanly and then renders an empty grid.
 
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import SchedulingPage from "../SchedulingPage";
 import { localDateKey, startOfWeek } from "../../utils/calendarDates";
+
+// SchedulingPage reads ?appointment= via useSearchParams, so it needs a router
+// in scope. Every case renders through this helper rather than bare render().
+function renderPage(entry = "/scheduling") {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <SchedulingPage />
+    </MemoryRouter>
+  );
+}
 
 const MONDAY = startOfWeek(new Date());
 const dayKey = (offset = 0) => {
@@ -113,14 +124,14 @@ beforeEach(() => {
 
 describe("SchedulingPage", () => {
   it("renders the page header", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     expect(screen.getByRole("heading", { name: "Scheduling" })).toBeInTheDocument();
     expect(screen.getByText("Operations")).toBeInTheDocument();
   });
 
   it("renders one toolbar with every view, the period nav and the create action", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     const views = screen.getByRole("radiogroup", { name: "Scheduling view" });
     ["Week", "Month", "List", "Technicians"].forEach((label) => {
@@ -132,7 +143,7 @@ describe("SchedulingPage", () => {
   });
 
   it("opens on the week grid with this week's appointments drawn", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     expect(screen.getByText("Rhey Garcia")).toBeInTheDocument();
     expect(screen.getByText("Clizfel Testaclizfel")).toBeInTheDocument();
@@ -141,7 +152,7 @@ describe("SchedulingPage", () => {
   // The density fix. With appointments at 9 AM and 3-5 PM the grid needs
   // roughly 8 AM to 6 PM — not the full 7 AM to 8 PM it always drew before.
   it("renders only the hours the week actually uses", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     expect(screen.getByText("9:00 AM")).toBeInTheDocument();
     expect(screen.getByText("3:00 PM")).toBeInTheDocument();
@@ -149,13 +160,13 @@ describe("SchedulingPage", () => {
   });
 
   it("starts on today, so the Today button has nothing to do", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     expect(screen.getByRole("button", { name: "Today" })).toBeDisabled();
   });
 
   it("enables Today once the user has navigated away, and returns", async () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: "Next period" }));
     const today = screen.getByRole("button", { name: "Today" });
@@ -167,7 +178,7 @@ describe("SchedulingPage", () => {
 
   describe("switching views", () => {
     it("shows the list with its own filters", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByRole("radio", { name: /List/ }));
 
@@ -178,7 +189,7 @@ describe("SchedulingPage", () => {
     });
 
     it("shows the month grid", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByRole("radio", { name: /Month/ }));
 
@@ -187,7 +198,7 @@ describe("SchedulingPage", () => {
     });
 
     it("shows the technicians view", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByRole("radio", { name: /Technicians/ }));
 
@@ -196,7 +207,7 @@ describe("SchedulingPage", () => {
   });
 
   it("filters the calendar down to one technician", async () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: /All technicians/ }));
     await userEvent.click(screen.getByRole("option", { name: /Karl Hameed/ }));
@@ -209,13 +220,13 @@ describe("SchedulingPage", () => {
   // Pending and a dotted one meant Reschedule. The encoding it described was
   // invisible on a real card; the replacement needs no prose.
   it("no longer needs a legend explaining its status encoding", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     expect(screen.queryByText(/Dashed outline = Pending/)).not.toBeInTheDocument();
   });
 
   it("opens the create form from the toolbar", async () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: /New appointment/ }));
 
@@ -224,7 +235,7 @@ describe("SchedulingPage", () => {
 
   describe("the detail panel", () => {
     it("opens when an appointment is clicked", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByText("Rhey Garcia"));
 
@@ -235,7 +246,7 @@ describe("SchedulingPage", () => {
     // props. A group spelled wrongly at the call site destructures to
     // undefined and throws on first use, so mounting it is the check.
     it("receives every prop group it destructures", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByText("Rhey Garcia"));
 
@@ -250,7 +261,7 @@ describe("SchedulingPage", () => {
     // The technician permission gate is a `fieldset disabled` wrapper. A form
     // moved outside one becomes editable by someone who may not edit it.
     it("keeps the overview form inside its permission fieldset", async () => {
-      render(<SchedulingPage />);
+      renderPage();
 
       await userEvent.click(screen.getByText("Rhey Garcia"));
 
@@ -264,7 +275,7 @@ describe("SchedulingPage", () => {
   // sat at a HIGHER z-index than the modal — so the form opened behind the
   // thing that launched it.
   it("closes the detail panel when scheduling a follow-up, so the form is reachable", async () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     await userEvent.click(screen.getByText("Rhey Garcia"));
     const followUp = screen.queryByRole("button", { name: /follow-up/i });
@@ -278,7 +289,7 @@ describe("SchedulingPage", () => {
   // Dragging used to write status = "Reschedule" to the database before any
   // drop happened, so aborting a drag stranded the appointment in that state.
   it("does not save anything when a drag starts", () => {
-    render(<SchedulingPage />);
+    renderPage();
 
     const card = screen.getByText("Rhey Garcia").closest("button");
     card.dispatchEvent(new MouseEvent("dragstart", { bubbles: true }));

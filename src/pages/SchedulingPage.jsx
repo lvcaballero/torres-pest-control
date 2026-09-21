@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Check,
   FileText,
@@ -75,6 +76,7 @@ function SchedulingPage() {
   const { inventory, stockOutMany } = useInventory();
   const { staff, technicians } = useUsers();
   const { appointments, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl, uploadSignature, getSignatureUrl, loading, error } = useScheduling();
+  const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState(MODES.WEEK);
   const [anchorDate, setAnchorDate] = useState(new Date());
@@ -112,6 +114,13 @@ function SchedulingPage() {
 
   const selected = appointments.find((appointment) => appointment.id === selectedId && ownsAppointment(appointment)) || null;
   const selectedClient = clients.find((client) => client.id === selected?.clientId) || null;
+  useEffect(() => {
+    const requestedId = searchParams.get("appointment");
+    const requestedAppointment = appointments.find((appointment) => appointment.id === requestedId);
+    if (!requestedAppointment || (isTechnician && requestedAppointment.technicianId !== currentUser?.id)) return;
+    setSelectedId(requestedId);
+    if (searchParams.get("tab") === "Report") setTab("Report");
+  }, [appointments, searchParams, isTechnician, currentUser?.id]);
   const activeAccounts = useMemo(
     () => [...staff, ...technicians].filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE),
     [staff, technicians]
@@ -409,6 +418,7 @@ function SchedulingPage() {
       appointment,
       client,
       technician: activeAccounts.find((account) => account.id === appointment.technicianId) || null,
+      inventory,
     });
   };
 

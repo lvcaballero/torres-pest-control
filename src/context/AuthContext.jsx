@@ -230,8 +230,12 @@ export function AuthProvider({ children }) {
       const target = accounts.find((account) => account.id === userId);
       if (!target) return "Account not found.";
 
+      // Anything that is not already INACTIVE gets deactivated. Testing for
+      // ACTIVE instead meant a PENDING account — one created but never signed
+      // into — flipped to ACTIVE, and since check_login() admits PENDING, an
+      // admin had no way to stop that account from being used.
       const nextStatus =
-        target.status === ACCOUNT_STATUS.ACTIVE ? ACCOUNT_STATUS.INACTIVE : ACCOUNT_STATUS.ACTIVE;
+        target.status === ACCOUNT_STATUS.INACTIVE ? ACCOUNT_STATUS.ACTIVE : ACCOUNT_STATUS.INACTIVE;
 
       if (nextStatus === ACCOUNT_STATUS.INACTIVE && userService.isLastActiveAdmin(target, accounts)) {
         return "At least one active admin account is required.";

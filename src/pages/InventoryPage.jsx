@@ -1332,6 +1332,29 @@ function EditItemModal({ item, onClose, onSave }) {
  * figure will be before it is submitted — the arithmetic is the part staff were
  * getting wrong, so hiding it would only move the mistake.
  */
+// Date / PO / Intake Branch sit in one row, and their labels are not the same
+// height: "PO / Supplier Invoice Reference *" wraps to two lines while the
+// other two don't, and only two of the three carry a hint underneath. Left to
+// itself the row put all three inputs at different heights, because each Field
+// is its own grid and a grid container stretched by the row distributes the
+// slack across its own auto rows — so the field with the fewest rows (Date,
+// which has no hint) pushed its input furthest down.
+//
+// `alignItems: start` stops the stretch, and `subgrid` makes the three fields
+// share this row's label/control/hint tracks instead of sizing their own, so
+// the inputs line up whatever the labels do. Browsers without subgrid ignore
+// the second declaration and still get the un-stretched layout.
+const deliveryNoteGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gridTemplateRows: "auto auto auto",
+  columnGap: "1rem",
+  rowGap: "0.45rem",
+  alignItems: "start",
+};
+
+const deliveryNoteField = { gridRow: "span 3", gridTemplateRows: "subgrid" };
+
 function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) {
   const stockableItems = useMemo(
     () => inventory.filter((item) => item.status !== INVENTORY_STATUS.DISABLED),
@@ -1455,14 +1478,14 @@ function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) 
           <p style={{ margin: 0, color: "#9a2d24", fontSize: "0.85rem", fontWeight: 500 }}>{validationError}</p>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
-          <Field label="Date *">
+        <div style={deliveryNoteGrid}>
+          <Field label="Date *" style={deliveryNoteField}>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
           </Field>
-          <Field label="PO / Supplier Invoice Reference *" hint="Enter the Purchase Order (PO) or invoice number">
+          <Field label="PO / Supplier Invoice Reference *" hint="Enter the Purchase Order (PO) or invoice number" style={deliveryNoteField}>
             <input value={reference} onChange={(e) => setReference(e.target.value)} style={inputStyle} placeholder="PO-1001, Invoice #, delivery note" required />
           </Field>
-          <Field label="Intake Branch / Station *" hint="Station or warehouse where items were received">
+          <Field label="Intake Branch / Station *" hint="Station or warehouse where items were received" style={deliveryNoteField}>
             <input value={intakeBranchOrStation} onChange={(e) => setIntakeBranchOrStation(e.target.value)} style={inputStyle} placeholder="e.g. Main Warehouse, Pasig Station" required />
           </Field>
         </div>

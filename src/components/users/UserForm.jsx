@@ -152,7 +152,7 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
       </div>
 
       {formError && (
-        <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 700, fontSize: "0.9rem" }}>
+        <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 500, fontSize: "0.9rem" }}>
           {formError}
         </div>
       )}
@@ -170,7 +170,7 @@ function UserForm({ accounts = [], onSubmit, submitting = false }) {
         <button type="submit" disabled={submitting} style={buttonWhen(submitting)}>
           {submitting ? "Creating…" : "Create Account"}
         </button>
-        <Link to="/users" style={{ color: colors.brandInk, textDecoration: "none", fontWeight: 700 }}>
+        <Link to="/users" style={{ color: colors.brandInk, textDecoration: "none", fontWeight: 500 }}>
           Back to User Accounts
         </Link>
       </div>

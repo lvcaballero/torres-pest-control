@@ -61,9 +61,9 @@ function ClientSearch({
 
 const labelStyle = {
   display: "block",
-  color: "#475569",
+  color: "#50463c",
   fontSize: "0.75rem",
-  fontWeight: 700,
+  fontWeight: 500,
   marginBottom: "0.45rem",
 };
 

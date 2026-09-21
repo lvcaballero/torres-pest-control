@@ -82,9 +82,9 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
 
   const readOnlyStyle = {
     ...inputStyle,
-    background: "#f8fafc",
-    color: "#475569",
-    borderColor: "#e2e8f0",
+    background: "#efe9e0",
+    color: "#50463c",
+    borderColor: "#efe9e0",
     cursor: "not-allowed",
   };
   const styleFor = (field) => (errors[field] ? invalidInputStyle : inputStyle);
@@ -94,9 +94,9 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
       <div
         style={{
           background: "#ffffff",
-          border: "1px solid rgba(148, 163, 184, 0.24)",
+          border: "1px solid #efe9e0",
           borderRadius: "1.5rem",
-          boxShadow: "0 10px 28px rgba(15, 23, 42, 0.04)",
+          boxShadow: "none",
           padding: "2rem",
         }}
       >
@@ -111,7 +111,7 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
                 borderRadius: "999px",
                 objectFit: "cover",
                 border: "4px solid #fff",
-                boxShadow: "0 12px 24px rgba(15, 23, 42, 0.12)",
+                boxShadow: "none",
                 display: userAvatar ? "block" : "none",
               }}
             />
@@ -121,15 +121,15 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
                   width: "100%",
                   height: "100%",
                   borderRadius: "999px",
-                  background: "linear-gradient(135deg, #f1f5f9 0%, #dbeafe 100%)",
+                  background: "#efe9e0",
                   border: "4px solid #fff",
-                  boxShadow: "0 12px 24px rgba(15, 23, 42, 0.12)",
+                  boxShadow: "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: "1.8rem",
-                  fontWeight: 800,
-                  color: "#334155",
+                  fontWeight: 500,
+                  color: "#50463c",
                 }}
               >
                 {profileInitials || "U"}
@@ -153,13 +153,13 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
                 width: "2.2rem",
                 height: "2.2rem",
                 borderRadius: "999px",
-                background: "#b91c1c",
+                background: "#9a2d24",
                 border: "2px solid #fff",
                 color: "#fff",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 8px 16px rgba(185, 28, 28, 0.22)",
+                boxShadow: "none",
                 cursor: "pointer",
               }}
             >
@@ -167,7 +167,7 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
             </button>
           </div>
 
-          <div style={{ marginTop: "0.9rem", fontSize: "1.25rem", fontWeight: 800, color: "#0f172a" }}>
+          <div style={{ marginTop: "0.9rem", fontSize: "1.25rem", fontWeight: 500, color: "#211b15" }}>
             {user?.name || "User"}
           </div>
           <div
@@ -179,9 +179,9 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
               marginTop: "0.5rem",
               padding: "0.3rem 0.8rem",
               fontSize: "0.72rem",
-              fontWeight: 700,
-              color: "#6d28d9",
-              background: "#f5f3ff",
+              fontWeight: 500,
+              color: "#8b1e1e",
+              background: "#efe9e0",
               border: "1px solid rgba(167, 139, 250, 0.55)",
               borderRadius: "999px",
             }}
@@ -194,11 +194,11 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
               marginTop: "0.45rem",
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               fontSize: "0.82rem",
-              fontWeight: 700,
-              color: "#475569",
-              background: "#f1f5f9",
-              border: "1px solid #e2e8f0",
-              borderRadius: "6px",
+              fontWeight: 500,
+              color: "#50463c",
+              background: "#efe9e0",
+              border: "1px solid #efe9e0",
+              borderRadius: "3.75px",
               padding: "0.2rem 0.5rem",
             }}
           >{user.reference}</div>}
@@ -212,8 +212,8 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
             marginTop: "1.75rem",
             padding: "0.35rem",
             borderRadius: "999px",
-            background: "#f8fafc",
-            border: "1px solid rgba(148, 163, 184, 0.18)",
+            background: "#efe9e0",
+            border: "1px solid #efe9e0",
           }}
         >
           <button
@@ -223,8 +223,8 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
               padding: "0.55rem 1.25rem",
               borderRadius: "999px",
               border: "none",
-              background: activeTab === "profile" ? "#fef2f2" : "transparent",
-              color: activeTab === "profile" ? "#7f1d1d" : "#64748b",
+              background: activeTab === "profile" ? "#f9ecea" : "transparent",
+              color: activeTab === "profile" ? "#7f1d1d" : "#96897b",
               fontWeight: activeTab === "profile" ? 700 : 500,
               fontSize: "0.84rem",
               cursor: "pointer",
@@ -239,8 +239,8 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
               padding: "0.55rem 1.25rem",
               borderRadius: "999px",
               border: "none",
-              background: activeTab === "security" ? "#fef2f2" : "transparent",
-              color: activeTab === "security" ? "#7f1d1d" : "#64748b",
+              background: activeTab === "security" ? "#f9ecea" : "transparent",
+              color: activeTab === "security" ? "#7f1d1d" : "#96897b",
               fontWeight: activeTab === "security" ? 700 : 500,
               fontSize: "0.84rem",
               cursor: "pointer",
@@ -299,17 +299,17 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", paddingTop: "1.5rem", marginTop: "1.5rem", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", paddingTop: "1.5rem", marginTop: "1.5rem", borderTop: "1px solid #efe9e0" }}>
                 <button
                   type="submit"
                   disabled={submitting}
                   style={{
                     ...buttonWhen(submitting),
-                    background: "#b91c1c",
+                    background: "#9a2d24",
                     border: "1px solid rgba(185, 28, 28, 0.3)",
                     padding: "0.7rem 1.4rem",
                     borderRadius: "0.9rem",
-                    boxShadow: "0 8px 18px rgba(185, 28, 28, 0.18)",
+                    boxShadow: "none",
                   }}
                 >
                   {submitting ? "Saving Profile..." : "Save Changes"}
@@ -358,26 +358,26 @@ function ProfileForm({ user, onSubmit, onAvatarChange, activeTab, onTabChange })
               </div>
 
               {errors.form && (
-                <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 700, fontSize: "0.9rem" }}>
+                <div role="alert" style={{ marginTop: "1rem", color: colors.danger, fontWeight: 500, fontSize: "0.9rem" }}>
                   {errors.form}
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "1.25rem", marginTop: "1.25rem", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "1.25rem", marginTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
                 <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={submitting}
                   style={{
                     ...buttonWhen(submitting),
-                    background: "#b91c1c",
+                    background: "#9a2d24",
                     border: "1px solid rgba(185, 28, 28, 0.2)",
                     borderRadius: "0.75rem",
                     padding: "0.7rem 1.5rem",
                     fontSize: "0.88rem",
                     fontWeight: 500,
                     color: "#fff",
-                    boxShadow: "0 8px 18px rgba(185, 28, 28, 0.14)",
+                    boxShadow: "none",
                   }}
                 >
                   {submitting ? "Updating…" : "Update Password"}

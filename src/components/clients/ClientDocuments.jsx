@@ -26,15 +26,15 @@ import { colors } from "../../styles/theme";
 // Report files carry a category (migration 029). OTHER is deliberately absent —
 // an untyped file shows no pill, which is also how pre-029 rows render.
 export const CATEGORY_TAGS = {
-  BEFORE: { label: "Before", background: "#fef3c7", color: "#92400e" },
-  AFTER: { label: "After", background: "#dcfce7", color: "#166534" },
+  BEFORE: { label: "Before", background: "#faf0e2", color: "#a06a24" },
+  AFTER: { label: "After", background: "#dcfce7", color: "#4a6b4a" },
   INSPECTION: { label: "Inspection", background: "#e0f2fe", color: "#075985" },
   SIGNED_FORM: { label: "Signed", background: "#e0e7ff", color: "#3730a3" },
   TREATMENT_PROOF: { label: "Proof", background: "#fae8ff", color: "#86198f" },
   CLIENT_ID: { label: "Valid ID", background: "#e0f2fe", color: "#075985" },
   CONTRACT: { label: "Contract", background: "#e0e7ff", color: "#3730a3" },
-  PROPERTY: { label: "Property", background: "#dcfce7", color: "#166534" },
-  PERMIT: { label: "Permit", background: "#fef3c7", color: "#92400e" },
+  PROPERTY: { label: "Property", background: "#dcfce7", color: "#4a6b4a" },
+  PERMIT: { label: "Permit", background: "#faf0e2", color: "#a06a24" },
 };
 
 export function CategoryTag({ category }) {
@@ -46,10 +46,10 @@ export function CategoryTag({ category }) {
       style={{
         background: tag.background,
         color: tag.color,
-        borderRadius: "5px",
+        borderRadius: "3.75px",
         padding: "0.15rem 0.4rem",
         fontSize: "0.63rem",
-        fontWeight: 800,
+        fontWeight: 500,
         letterSpacing: "0.05em",
         textTransform: "uppercase",
         flex: "none",
@@ -95,13 +95,13 @@ export function FileThumbnail({ file, onResolveUrl, onPreview }) {
           width: "2.25rem",
           height: "2.25rem",
           borderRadius: "0.5rem",
-          border: "1px solid #e2e8f0",
-          backgroundColor: "#f8fafc",
+          border: "1px solid #efe9e0",
+          backgroundColor: "#efe9e0",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          color: "#64748b",
+          color: "#96897b",
         }}
       >
         <FileText className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
@@ -119,8 +119,8 @@ export function FileThumbnail({ file, onResolveUrl, onPreview }) {
         height: "2.25rem",
         borderRadius: "0.5rem",
         overflow: "hidden",
-        border: "1px solid #e2e8f0",
-        backgroundColor: "#f1f5f9",
+        border: "1px solid #efe9e0",
+        backgroundColor: "#efe9e0",
         flexShrink: 0,
         position: "relative",
         cursor: "pointer",
@@ -275,10 +275,10 @@ function ClientDocuments({
     background,
     color,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "3.75px",
     padding: compact ? "0.35rem 0.5rem" : "0.5rem 0.7rem",
     fontSize: compact ? "0.7rem" : "inherit",
-    fontWeight: 600,
+    fontWeight: 500,
     cursor: disabled ? "default" : "pointer",
     opacity: disabled ? 0.55 : 1,
   });
@@ -300,7 +300,7 @@ function ClientDocuments({
       style={{
         marginTop: compact ? "0.45rem" : "0.75rem",
         color: message.tone === "success" ? colors.success : colors.danger,
-        fontWeight: 600,
+        fontWeight: 500,
         fontSize: compact ? "0.72rem" : "0.8rem",
       }}
     >
@@ -318,7 +318,7 @@ function ClientDocuments({
           display: "flex",
           justifyContent: "space-between",
           gap: compact ? "0.5rem" : "1rem",
-          border: "1px solid #e2e8f0",
+          border: "1px solid #efe9e0",
           borderRadius: compact ? "9px" : "12px",
           padding: compact ? "0.5rem 0.6rem" : "0.9rem 1rem",
           alignItems: "center",
@@ -333,7 +333,7 @@ function ClientDocuments({
               alignItems: "center",
               gap: "0.4rem",
               flexWrap: "wrap",
-              fontWeight: 700,
+              fontWeight: 500,
               fontSize: compact ? "0.78rem" : "inherit",
               color: colors.body,
             }}
@@ -357,7 +357,7 @@ function ClientDocuments({
             type="button"
             onClick={() => handleOpen(document, false)}
             disabled={busy}
-            style={actionStyle("#f8fafc", colors.body, busy)}
+            style={actionStyle("#efe9e0", colors.body, busy)}
           >
             Preview
           </button>
@@ -375,7 +375,7 @@ function ClientDocuments({
               onClick={() => handleRemove(document)}
               disabled={busy}
               aria-label={`Delete ${document.name}`}
-              style={actionStyle("#fee2e2", "#991b1b", busy)}
+              style={actionStyle("#fee2e2", "#9a2d24", busy)}
             >
               <Trash2 size={compact ? 12 : 14} />
               {!compact && " Delete"}
@@ -424,7 +424,7 @@ function ClientDocuments({
               className="text-xs font-bold text-slate-800 flex items-center gap-1.5 truncate"
               style={{
                 fontSize: "0.75rem",
-                fontWeight: 700,
+                fontWeight: 500,
                 color: "#1e293b",
                 display: "flex",
                 alignItems: "center",
@@ -435,7 +435,7 @@ function ClientDocuments({
               <span className="truncate" title={title}>{title}</span>
               <span
                 className="text-[11px] font-normal text-slate-400 shrink-0"
-                style={{ fontSize: "0.6875rem", fontWeight: 400, color: "#94a3b8" }}
+                style={{ fontSize: "0.6875rem", fontWeight: 400, color: "#96897b" }}
               >
                 ({documents.length})
               </span>
@@ -453,12 +453,12 @@ function ClientDocuments({
                   gap: "0.25rem",
                   padding: "0.25rem 0.5rem",
                   fontSize: "0.6875rem",
-                  fontWeight: 600,
-                  color: "#475569",
+                  fontWeight: 500,
+                  color: "#50463c",
                   backgroundColor: "#ffffff",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #efe9e0",
                   borderRadius: "0.5rem",
-                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+                  boxShadow: "none",
                   cursor: uploading ? "default" : "pointer",
                   opacity: uploading ? 0.6 : 1,
                   flexShrink: 0,
@@ -466,7 +466,7 @@ function ClientDocuments({
               >
                 <UploadCloud
                   className="w-3 h-3 text-slate-400"
-                  style={{ width: "0.75rem", height: "0.75rem", color: "#94a3b8" }}
+                  style={{ width: "0.75rem", height: "0.75rem", color: "#96897b" }}
                 />
                 <span>{uploading ? "..." : "Upload"}</span>
               </button>
@@ -477,7 +477,7 @@ function ClientDocuments({
           {documents.length === 0 ? (
             <div
               className="text-[11px] text-slate-400 italic py-2 text-center"
-              style={{ fontSize: "0.6875rem", color: "#94a3b8", fontStyle: "italic", padding: "0.5rem 0", textAlign: "center" }}
+              style={{ fontSize: "0.6875rem", color: "#96897b", fontStyle: "italic", padding: "0.5rem 0", textAlign: "center" }}
             >
               {emptyMessage}
             </div>
@@ -529,7 +529,7 @@ function ClientDocuments({
                           title={file.name}
                           style={{
                             fontSize: "0.75rem",
-                            fontWeight: 600,
+                            fontWeight: 500,
                             color: "#1e293b",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -540,7 +540,7 @@ function ClientDocuments({
                         </span>
                         <span
                           className="text-[10px] text-slate-400 truncate"
-                          style={{ fontSize: "0.625rem", color: "#94a3b8" }}
+                          style={{ fontSize: "0.625rem", color: "#96897b" }}
                         >
                           {file.size ? `${typeof file.size === "number" ? formatFileSize(file.size) : file.size} • ` : ""}
                           {file.uploadedAt ? formatDate(file.uploadedAt) : "Attached"}
@@ -560,7 +560,7 @@ function ClientDocuments({
                         className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
                         style={{
                           padding: "0.25rem",
-                          color: "#94a3b8",
+                          color: "#96897b",
                           backgroundColor: "transparent",
                           border: "none",
                           borderRadius: "0.375rem",
@@ -580,7 +580,7 @@ function ClientDocuments({
                         className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
                         style={{
                           padding: "0.25rem",
-                          color: "#94a3b8",
+                          color: "#96897b",
                           backgroundColor: "transparent",
                           border: "none",
                           borderRadius: "0.375rem",
@@ -601,7 +601,7 @@ function ClientDocuments({
                           className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                           style={{
                             padding: "0.25rem",
-                            color: "#94a3b8",
+                            color: "#96897b",
                             backgroundColor: "transparent",
                             border: "none",
                             borderRadius: "0.375rem",
@@ -666,13 +666,13 @@ function ClientDocuments({
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "0.75rem 1rem",
-                  borderBottom: "1px solid #e2e8f0",
-                  backgroundColor: "#f8fafc",
+                  borderBottom: "1px solid #efe9e0",
+                  backgroundColor: "#efe9e0",
                 }}
               >
                 <span
                   className="text-xs font-bold text-slate-800 truncate"
-                  style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                 >
                   {modalFile.name}
                 </span>
@@ -684,7 +684,7 @@ function ClientDocuments({
                     className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
                     style={{
                       padding: "0.375rem",
-                      color: "#64748b",
+                      color: "#96897b",
                       backgroundColor: "transparent",
                       border: "none",
                       borderRadius: "0.375rem",
@@ -700,7 +700,7 @@ function ClientDocuments({
                     className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
                     style={{
                       padding: "0.375rem",
-                      color: "#64748b",
+                      color: "#96897b",
                       backgroundColor: "transparent",
                       border: "none",
                       borderRadius: "0.375rem",
@@ -731,7 +731,7 @@ function ClientDocuments({
                     style={{ maxHeight: "75vh", maxWidth: "100%", objectFit: "contain", borderRadius: "0.375rem" }}
                   />
                 ) : (
-                  <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                  <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#96897b" }}>
                     Loading preview...
                   </div>
                 )}
@@ -750,9 +750,9 @@ function ClientDocuments({
         {...dragHandlers}
         style={{
           border: `1px solid ${isDragging ? "#7f1d1d" : "#e7dede"}`,
-          borderRadius: "12px",
+          borderRadius: "3.75px",
           padding: "0.65rem 0.8rem",
-          background: isDragging ? "#fff7f7" : "#ffffff",
+          background: isDragging ? "#fcfaf1" : "#ffffff",
           transition: "border-color 0.2s ease, background-color 0.2s ease",
         }}
       >
@@ -766,9 +766,9 @@ function ClientDocuments({
             marginBottom: documents.length ? "0.55rem" : "0.3rem",
           }}
         >
-          <h3 style={{ margin: 0, color: colors.body, fontSize: "0.82rem", fontWeight: 800 }}>
+          <h3 style={{ margin: 0, color: colors.body, fontSize: "0.82rem", fontWeight: 500 }}>
             {title}{" "}
-            <span style={{ color: colors.muted, fontWeight: 600, fontSize: "0.74rem" }}>
+            <span style={{ color: colors.muted, fontWeight: 500, fontSize: "0.74rem" }}>
               ({documents.length})
             </span>
           </h3>
@@ -782,13 +782,13 @@ function ClientDocuments({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.35rem",
-                background: "#fff5f5",
+                background: "#fcfaf1",
                 color: colors.brandInk,
                 border: "1px solid #f0d7d7",
-                borderRadius: "8px",
+                borderRadius: "3.75px",
                 padding: "0.4rem 0.6rem",
                 fontSize: "0.72rem",
-                fontWeight: 700,
+                fontWeight: 500,
                 cursor: uploading ? "default" : "pointer",
                 opacity: uploading ? 0.6 : 1,
               }}
@@ -826,11 +826,11 @@ function ClientDocuments({
               justifyContent: "center",
               gap: "0.65rem",
               width: "100%",
-              border: `2px dashed ${isDragging ? "#7f1d1d" : "#dfe4ea"}`,
-              borderRadius: "16px",
+              border: `2px dashed ${isDragging ? "#7f1d1d" : "#efe9e0"}`,
+              borderRadius: "7.5px",
               padding: "1.5rem 1rem",
-              background: isDragging ? "#fff7f7" : "#f8fafc",
-              color: "#475569",
+              background: isDragging ? "#fcfaf1" : "#efe9e0",
+              color: "#50463c",
               textAlign: "center",
               cursor: uploading ? "default" : "pointer",
               transition: "border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease",
@@ -838,10 +838,10 @@ function ClientDocuments({
               boxShadow: isDragging ? "0 0 0 3px rgba(127, 17, 17, 0.08)" : "none",
             }}
           >
-            <UploadCloud size={26} color="#64748b" />
+            <UploadCloud size={26} color="#96897b" />
             <div>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>Click to upload or drag and drop</div>
-              <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "#64748b" }}>{hint}</div>
+              <div style={{ fontWeight: 500, color: "#211b15" }}>Click to upload or drag and drop</div>
+              <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "#96897b" }}>{hint}</div>
             </div>
             {fileInput}
           </label>

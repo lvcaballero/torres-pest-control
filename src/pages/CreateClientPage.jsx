@@ -33,7 +33,7 @@ function CreateClientPage() {
           onSubmit={handleSubmit}
           submitLabel="Save Client"
           footer={
-            <Link to="/clients" style={{ color: colors.brandInk, textDecoration: "none", fontWeight: 700 }}>
+            <Link to="/clients" style={{ color: colors.brandInk, textDecoration: "none", fontWeight: 500 }}>
               Back to Client Profiles
             </Link>
           }

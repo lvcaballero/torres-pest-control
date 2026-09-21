@@ -147,8 +147,8 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                       height: "2.25rem",
                       borderRadius: "0.5rem",
                       overflow: "hidden",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#f1f5f9",
+                      border: "1px solid #efe9e0",
+                      backgroundColor: "#efe9e0",
                       flexShrink: 0,
                       cursor: "pointer",
                       position: "relative",
@@ -168,13 +168,13 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                       width: "2.25rem",
                       height: "2.25rem",
                       borderRadius: "0.5rem",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#f8fafc",
+                      border: "1px solid #efe9e0",
+                      backgroundColor: "#efe9e0",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
-                      color: "#64748b",
+                      color: "#96897b",
                     }}
                   >
                     <FileText className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
@@ -196,12 +196,12 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                         style={{
                           padding: "0.125rem 0.375rem",
                           fontSize: "0.625rem",
-                          fontWeight: 700,
+                          fontWeight: 500,
                           borderRadius: "0.25rem",
                           textTransform: "uppercase",
                           letterSpacing: "0.05em",
-                          backgroundColor: "#ecfdf5",
-                          color: "#047857",
+                          backgroundColor: "#eef2ec",
+                          color: "#4a6b4a",
                           border: "1px solid #a7f3d0",
                           flexShrink: 0,
                         }}
@@ -214,7 +214,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                       title={file.name}
                       style={{
                         fontSize: "0.75rem",
-                        fontWeight: 600,
+                        fontWeight: 500,
                         color: "#1e293b",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -226,7 +226,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   </div>
                   <span
                     className="text-[10px] text-slate-400 mt-0.5 truncate"
-                    style={{ fontSize: "0.625rem", color: "#94a3b8", marginTop: "0.125rem" }}
+                    style={{ fontSize: "0.625rem", color: "#96897b", marginTop: "0.125rem" }}
                   >
                     {file.size ? `${typeof file.size === "number" ? formatFileSize(file.size) : file.size} • ` : ""}
                     {file.date || (file.uploadedAt ? formatDateTime(file.uploadedAt) : "Attached")}
@@ -247,7 +247,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                   style={{
                     padding: "0.375rem",
-                    color: "#94a3b8",
+                    color: "#96897b",
                     backgroundColor: "transparent",
                     border: "none",
                     borderRadius: "0.5rem",
@@ -267,7 +267,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                   style={{
                     padding: "0.375rem",
-                    color: "#94a3b8",
+                    color: "#96897b",
                     backgroundColor: "transparent",
                     border: "none",
                     borderRadius: "0.5rem",
@@ -288,7 +288,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                     className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     style={{
                       padding: "0.375rem",
-                      color: "#94a3b8",
+                      color: "#96897b",
                       backgroundColor: "transparent",
                       border: "none",
                       borderRadius: "0.5rem",
@@ -348,13 +348,13 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "0.75rem 1rem",
-                borderBottom: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
+                borderBottom: "1px solid #efe9e0",
+                backgroundColor: "#efe9e0",
               }}
             >
               <span
                 className="text-xs font-bold text-slate-800 truncate"
-                style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
               >
                 {modalFile.name}
               </span>
@@ -366,7 +366,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
                   style={{
                     padding: "0.375rem",
-                    color: "#64748b",
+                    color: "#96897b",
                     backgroundColor: "transparent",
                     border: "none",
                     borderRadius: "0.375rem",
@@ -382,7 +382,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
                   style={{
                     padding: "0.375rem",
-                    color: "#64748b",
+                    color: "#96897b",
                     backgroundColor: "transparent",
                     border: "none",
                     borderRadius: "0.375rem",
@@ -413,7 +413,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
                   style={{ maxHeight: "75vh", maxWidth: "100%", objectFit: "contain", borderRadius: "0.375rem" }}
                 />
               ) : (
-                <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#96897b" }}>
                   Loading preview...
                 </div>
               )}
@@ -427,9 +427,9 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
 
 const neutralCard = {
   background: "#ffffff",
-  border: "1px solid rgba(148, 163, 184, 0.2)",
-  borderRadius: "18px",
-  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)",
+  border: "1px solid #efe9e0",
+  borderRadius: "7.5px",
+  boxShadow: "none",
 };
 
 function ClientDetails({
@@ -563,25 +563,25 @@ function ClientDetails({
       <section style={{ ...neutralCard, marginBottom: "1rem", padding: "1rem 1.25rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
           <div>
-            <p style={{ margin: 0, color: "#64748b", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client record</p>
-            <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem", fontWeight: 800 }}>Profile overview</h2>
+            <p style={{ margin: 0, color: "#96897b", fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client record</p>
+            <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem", fontWeight: 500 }}>Profile overview</h2>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
           {overviewFields.map((field) => (
             <div key={field.label} style={{ gridColumn: field.fullWidth ? "1 / -1" : "span 1" }}>
-              <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b" }}>
+              <div style={{ fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "#96897b" }}>
                 {field.label}
               </div>
-              <div style={{ marginTop: "0.35rem", fontSize: "0.95rem", color: "#0f172a", fontWeight: 600, lineHeight: 1.5 }}>
+              <div style={{ marginTop: "0.35rem", fontSize: "0.95rem", color: "#211b15", fontWeight: 500, lineHeight: 1.5 }}>
                 {field.value}
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0", fontSize: "0.74rem", color: "#64748b" }}>
+        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #efe9e0", fontSize: "0.74rem", color: "#96897b" }}>
           Created {formatDateTime(client.createdAt)} • Last updated {formatDateTime(client.updatedAt)}
         </div>
       </section>
@@ -590,28 +590,28 @@ function ClientDetails({
         <section style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
             <div>
-              <p style={{ margin: 0, color: "#64748b", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client history</p>
+              <p style={{ margin: 0, color: "#96897b", fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client history</p>
               <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem" }}>Service history</h2>
             </div>
             <span style={{ color: colors.muted, fontSize: "0.8rem" }}>{serviceHistory.length} appointment{serviceHistory.length === 1 ? "" : "s"}</span>
           </div>
           {serviceHistory.length === 0 ? (
-            <div style={{ marginTop: "1rem", padding: "1rem", borderRadius: "10px", background: "#f8fafc", color: colors.muted, fontSize: "0.85rem" }}>No service history recorded yet.</div>
+            <div style={{ marginTop: "1rem", padding: "1rem", borderRadius: "3.75px", background: "#efe9e0", color: colors.muted, fontSize: "0.85rem" }}>No service history recorded yet.</div>
           ) : (
             <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
               {serviceHistory.map((appointment) => (
-                <button type="button" key={appointment.id} onClick={() => setSelectedHistory(appointment)} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem", background: "#fff", textAlign: "left", cursor: "pointer" }}>
+                <button type="button" key={appointment.id} onClick={() => setSelectedHistory(appointment)} style={{ border: "1px solid #efe9e0", borderRadius: "3.75px", padding: "0.9rem", background: "#fff", textAlign: "left", cursor: "pointer" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                     <strong style={{ color: colors.ink }}>{formatDateTime(appointment.scheduledAt)}</strong>
                     {appointment.status === "Completed" ? (
                       <span
                         className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-medium px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1"
                         style={{
-                          background: "#ecfdf5",
-                          color: "#047857",
+                          background: "#eef2ec",
+                          color: "#4a6b4a",
                           border: "1px solid rgba(167, 243, 208, 0.8)",
                           fontSize: "0.72rem",
-                          fontWeight: 600,
+                          fontWeight: 500,
                           padding: "0.15rem 0.55rem",
                           borderRadius: "9999px",
                           display: "inline-flex",
@@ -623,18 +623,18 @@ function ClientDetails({
                         {appointment.status}
                       </span>
                     ) : (
-                      <span style={{ color: colors.brandInk, background: "#fef2f2", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 800 }}>{appointment.status}</span>
+                      <span style={{ color: colors.brandInk, background: "#f9ecea", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 500 }}>{appointment.status}</span>
                     )}
                   </div>
                   {(appointment.serviceType || appointment.serviceLocation) && <p style={{ margin: "0.4rem 0 0", color: colors.muted, fontSize: "0.76rem" }}>{[appointment.serviceType, appointment.serviceLocation].filter(Boolean).join(" • ")}</p>}
                   {appointment.notes && <p style={{ margin: "0.55rem 0 0", color: colors.body, fontSize: "0.84rem" }}>{appointment.notes}</p>}
-                  {(appointment.report || appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}>
-                    {appointment.report && <><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Inspection findings</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div></>}
-                    {(appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: appointment.report ? "0.6rem" : 0 }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Treatment performed</div>{(appointment.treatmentMethods || []).length > 0 && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.8rem" }}>{appointment.treatmentMethods.map(treatmentMethodLabel).join(" · ")}</div>}{appointment.treatmentPerformed && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.treatmentPerformed}</div>}</div>}
+                  {(appointment.report || appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}>
+                    {appointment.report && <><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Inspection findings</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div></>}
+                    {(appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: appointment.report ? "0.6rem" : 0 }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Treatment performed</div>{(appointment.treatmentMethods || []).length > 0 && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.8rem" }}>{appointment.treatmentMethods.map(treatmentMethodLabel).join(" · ")}</div>}{appointment.treatmentPerformed && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.treatmentPerformed}</div>}</div>}
                     {appointment.reportSubmittedAt && <div style={{ marginTop: "0.35rem", color: colors.muted, fontSize: "0.7rem" }}>Submitted {formatDateTime(appointment.reportSubmittedAt)}</div>}
                   </div>}
-                  {(appointment.attachments || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Report attachments</div><div style={{ marginTop: "0.35rem", color: colors.body, fontSize: "0.78rem" }}>{appointment.attachments.length} file{appointment.attachments.length === 1 ? "" : "s"} — click this visit to view or download them.</div></div>}
-                  {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #f1f5f9" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
+                  {(appointment.attachments || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Report attachments</div><div style={{ marginTop: "0.35rem", color: colors.body, fontSize: "0.78rem" }}>{appointment.attachments.length} file{appointment.attachments.length === 1 ? "" : "s"} — click this visit to view or download them.</div></div>}
+                  {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
                 </button>
               ))}
             </div>
@@ -680,10 +680,10 @@ function ClientDetails({
               onClick={(e) => e.stopPropagation()}
             >
               {/* ── Fixed Header ── */}
-              <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexShrink: 0 }}>
+              <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #efe9e0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexShrink: 0 }}>
                 <div>
-                  <div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>Service Record</div>
-                  <h2 style={{ margin: "0.25rem 0 0", fontSize: "1.45rem", fontWeight: 700, color: colors.ink, lineHeight: 1.2 }}>{client.name}</h2>
+                  <div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.1em" }}>Service Record</div>
+                  <h2 style={{ margin: "0.25rem 0 0", fontSize: "1.45rem", fontWeight: 500, color: colors.ink, lineHeight: 1.2 }}>{client.name}</h2>
                   <div style={{ marginTop: "0.4rem", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.35rem", fontSize: "0.78rem", color: colors.muted }}>
                     <span>{formatDateTime(selectedHistory.scheduledAt)}</span>
                     <span>·</span>
@@ -691,8 +691,8 @@ function ClientDetails({
                       <span
                         className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-medium px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1"
                         style={{
-                          background: "#ecfdf5",
-                          color: "#047857",
+                          background: "#eef2ec",
+                          color: "#4a6b4a",
                           border: "1px solid rgba(167, 243, 208, 0.8)",
                           fontSize: "0.75rem",
                           fontWeight: 500,
@@ -707,7 +707,7 @@ function ClientDetails({
                         {selectedHistory.status}
                       </span>
                     ) : (
-                      <span style={{ display: "inline-flex", alignItems: "center", padding: "0.1rem 0.55rem", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700, background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0" }}>{selectedHistory.status}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", padding: "0.1rem 0.55rem", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 500, background: "#efe9e0", color: "#50463c", border: "1px solid #efe9e0" }}>{selectedHistory.status}</span>
                     )}
                     <span>·</span>
                     <span>{selectedHistory.serviceType || selectedHistory.pestConcern || client.pestConcern || "General Service"}</span>
@@ -738,39 +738,39 @@ function ClientDetails({
                 {/* ── 1. Quick Metadata Top Row (4 micro-cards) ── */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.625rem", alignItems: "stretch" }}>
                   {/* Technician */}
-                  <div style={{ padding: "0.625rem", background: "#f8fafc", border: "1px solid rgba(148,163,184,0.5)", borderRadius: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Technician</span>
-                    <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#0f172a", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={technicianName}>
+                  <div style={{ padding: "0.625rem", background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Technician</span>
+                    <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={technicianName}>
                       {technicianName}
                     </span>
                   </div>
                   {/* Pest Concern */}
-                  <div style={{ padding: "0.625rem", background: "#f8fafc", border: "1px solid rgba(148,163,184,0.5)", borderRadius: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Pest Concern</span>
+                  <div style={{ padding: "0.625rem", background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Pest Concern</span>
                     {(selectedHistory.pestConcern || client.pestConcern) ? (
-                      <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#0f172a", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={selectedHistory.pestConcern || client.pestConcern}>
+                      <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={selectedHistory.pestConcern || client.pestConcern}>
                         {selectedHistory.pestConcern || client.pestConcern}
                       </span>
                     ) : (
-                      <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8", fontStyle: "italic", marginTop: "0.25rem" }}>
+                      <span style={{ display: "block", fontSize: "0.72rem", color: "#96897b", fontStyle: "italic", marginTop: "0.25rem" }}>
                         Not recorded
                       </span>
                     )}
                   </div>
                   {/* Follow-Up Date */}
-                  <div style={{ padding: "0.625rem", background: "#f8fafc", border: "1px solid rgba(148,163,184,0.5)", borderRadius: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Follow-Up Date</span>
+                  <div style={{ padding: "0.625rem", background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <span style={{ display: "block", fontSize: "0.6rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Follow-Up Date</span>
                     {selectedHistory.followUpDate
-                      ? <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#0f172a", marginTop: "0.25rem" }}>{selectedHistory.followUpDate}</span>
-                      : <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8", fontStyle: "italic", marginTop: "0.25rem" }}>No follow-up scheduled</span>
+                      ? <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem" }}>{selectedHistory.followUpDate}</span>
+                      : <span style={{ display: "block", fontSize: "0.72rem", color: "#96897b", fontStyle: "italic", marginTop: "0.25rem" }}>No follow-up scheduled</span>
                     }
                   </div>
                   {/* Report Submitted */}
-                  <div style={{ padding: "0.625rem", background: "#f8fafc", border: "1px solid rgba(148,163,184,0.5)", borderRadius: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <span style={{ display: "block", fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", whiteSpace: "nowrap" }}>Report Submitted</span>
+                  <div style={{ padding: "0.625rem", background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <span style={{ display: "block", fontSize: "0.58rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", color: "#96897b", whiteSpace: "nowrap" }}>Report Submitted</span>
                     {selectedHistory.reportSubmittedAt ? (
                       <div style={{ marginTop: "0.25rem", lineHeight: 1.35 }}>
-                        <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
+                        <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#211b15", whiteSpace: "nowrap" }}>
                           {formatDate(selectedHistory.reportSubmittedAt)}
                         </span>
                         <span style={{ display: "block", fontSize: "0.72rem", fontWeight: 500, color: colors.muted, whiteSpace: "nowrap" }}>
@@ -778,7 +778,7 @@ function ClientDetails({
                         </span>
                       </div>
                     ) : (
-                      <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8", fontStyle: "italic", marginTop: "0.25rem" }}>
+                      <span style={{ display: "block", fontSize: "0.72rem", color: "#96897b", fontStyle: "italic", marginTop: "0.25rem" }}>
                         Not submitted
                       </span>
                     )}
@@ -792,16 +792,16 @@ function ClientDetails({
                   <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
 
                     {/* Service Location */}
-                    <div style={{ paddingBottom: "0.9rem", borderBottom: "1px solid #f1f5f9" }}>
-                      <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Service Location</div>
+                    <div style={{ paddingBottom: "0.9rem", borderBottom: "1px solid #efe9e0" }}>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Service Location</div>
                       <div style={{ marginTop: "0.35rem", fontSize: "0.88rem", color: colors.body, lineHeight: 1.5 }}>
                         {selectedHistory.serviceLocation || client.address || <span style={{ color: colors.muted, fontStyle: "italic" }}>No address recorded.</span>}
                       </div>
                     </div>
 
                     {/* Appointment Notes */}
-                    <div style={{ paddingTop: "0.9rem", paddingBottom: "0.9rem", borderBottom: "1px solid #f1f5f9" }}>
-                      <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Appointment Notes</div>
+                    <div style={{ paddingTop: "0.9rem", paddingBottom: "0.9rem", borderBottom: "1px solid #efe9e0" }}>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Appointment Notes</div>
                       <div style={{ marginTop: "0.3rem", fontSize: "0.84rem", color: colors.body, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
                         {selectedHistory.notes || <span style={{ color: colors.muted, fontStyle: "italic" }}>No notes recorded.</span>}
                       </div>
@@ -809,7 +809,7 @@ function ClientDetails({
 
                     {/* Inspection Findings */}
                     <div style={{ paddingTop: "0.9rem" }}>
-                      <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Inspection Findings</div>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Inspection Findings</div>
                       <div style={{ marginTop: "0.3rem", fontSize: "0.84rem", color: colors.body, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
                         {selectedHistory.report || <span style={{ color: colors.muted, fontStyle: "italic" }}>No findings recorded.</span>}
                       </div>
@@ -818,14 +818,14 @@ function ClientDetails({
                   </div>
 
                   {/* RIGHT: Treatment + Materials + Recommendations */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0", borderLeft: "1px solid #f1f5f9", paddingLeft: "1rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0", borderLeft: "1px solid #efe9e0", paddingLeft: "1rem" }}>
 
                     {/* Treatment Performed */}
-                    <div style={{ paddingBottom: "0.9rem", borderBottom: "1px solid #f1f5f9" }}>
-                      <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Treatment Performed</div>
+                    <div style={{ paddingBottom: "0.9rem", borderBottom: "1px solid #efe9e0" }}>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Treatment Performed</div>
                       <div style={{ marginTop: "0.4rem", display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
                         {treatmentMethods.length > 0 ? treatmentMethods.map((method, idx) => (
-                          <span key={idx} style={{ display: "inline-flex", padding: "0.2rem 0.55rem", fontSize: "0.72rem", fontWeight: 600, background: idx === 0 ? "#fef2f2" : "#f8fafc", color: idx === 0 ? "#991b1b" : "#475569", border: `1px solid ${idx === 0 ? "#fecaca" : "#e2e8f0"}`, borderRadius: "6px" }}>
+                          <span key={idx} style={{ display: "inline-flex", padding: "0.2rem 0.55rem", fontSize: "0.72rem", fontWeight: 500, background: idx === 0 ? "#f9ecea" : "#efe9e0", color: idx === 0 ? "#9a2d24" : "#50463c", border: `1px solid ${idx === 0 ? "#fecaca" : "#efe9e0"}`, borderRadius: "3.75px" }}>
                             {method}
                           </span>
                         )) : selectedHistory.treatmentPerformed ? (
@@ -838,12 +838,12 @@ function ClientDetails({
 
                     {/* Materials Used */}
                     {(selectedHistory.stockUsed || []).length > 0 && (
-                      <div style={{ paddingTop: "0.9rem", paddingBottom: "0.9rem", borderBottom: "1px solid #f1f5f9" }}>
-                        <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Materials Used</div>
+                      <div style={{ paddingTop: "0.9rem", paddingBottom: "0.9rem", borderBottom: "1px solid #efe9e0" }}>
+                        <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Materials Used</div>
                         <div style={{ marginTop: "0.4rem", display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
                           {selectedHistory.stockUsed.map((item, idx) => (
-                            <span key={idx} style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", fontSize: "0.72rem", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "6px", color: "#334155" }}>
-                              {item.name}:<strong style={{ marginLeft: "0.25rem", fontWeight: 700, color: "#0f172a" }}>{item.amount} {item.unit}</strong>
+                            <span key={idx} style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.55rem", fontSize: "0.72rem", background: "#fff", border: "1px solid #efe9e0", borderRadius: "3.75px", color: "#50463c" }}>
+                              {item.name}:<strong style={{ marginLeft: "0.25rem", fontWeight: 500, color: "#211b15" }}>{item.amount} {item.unit}</strong>
                             </span>
                           ))}
                         </div>
@@ -852,7 +852,7 @@ function ClientDetails({
 
                     {/* Recommendations */}
                     <div style={{ paddingTop: "0.9rem" }}>
-                      <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Recommendations</div>
+                      <div style={{ fontSize: "0.65rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Recommendations</div>
                       <div style={{ marginTop: "0.3rem", fontSize: "0.84rem", lineHeight: 1.5 }}>
                         {selectedHistory.recommendations
                           ? <span style={{ color: colors.body }}>{selectedHistory.recommendations}</span>
@@ -866,21 +866,21 @@ function ClientDetails({
 
                 {/* Completion Confirmation */}
                 {(selectedHistory.signaturePath || selectedHistory.completionNote) && (
-                  <div style={{ paddingTop: "1.1rem", paddingBottom: "1.1rem", borderBottom: "1px solid #f1f5f9", background: selectedHistory.signaturePath ? "#f0fdf4" : "#fff7ed", borderRadius: "8px", padding: "1rem", margin: "0.5rem 0" }}>
-                    <div style={{ fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>Completion Confirmation</div>
+                  <div style={{ paddingTop: "1.1rem", paddingBottom: "1.1rem", borderBottom: "1px solid #efe9e0", background: selectedHistory.signaturePath ? "#eef2ec" : "#faf0e2", borderRadius: "3.75px", padding: "1rem", margin: "0.5rem 0" }}>
+                    <div style={{ fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>Completion Confirmation</div>
                     {selectedHistory.signaturePath ? (
                       <>
-                        <div style={{ marginTop: "0.5rem", background: "#fff", borderRadius: "6px", padding: "0.4rem", display: "inline-block" }}>
+                        <div style={{ marginTop: "0.5rem", background: "#fff", borderRadius: "3.75px", padding: "0.4rem", display: "inline-block" }}>
                           {signatureUrl
                             ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px" }} />
                             : <span style={{ color: colors.muted, fontSize: "0.76rem" }}>Loading signature…</span>}
                         </div>
-                        <div style={{ marginTop: "0.4rem", color: "#166534", fontWeight: 700, fontSize: "0.82rem" }}>Signed by {selectedHistory.customerName || "the customer"}</div>
+                        <div style={{ marginTop: "0.4rem", color: "#4a6b4a", fontWeight: 500, fontSize: "0.82rem" }}>Signed by {selectedHistory.customerName || "the customer"}</div>
                         {selectedHistory.signedAt && <div style={{ color: colors.muted, fontSize: "0.72rem" }}>{formatDateTime(selectedHistory.signedAt)}</div>}
                       </>
                     ) : (
                       <>
-                        <div style={{ marginTop: "0.3rem", color: "#9a3412", fontWeight: 700, fontSize: "0.82rem" }}>Completed without a customer signature</div>
+                        <div style={{ marginTop: "0.3rem", color: "#9a3412", fontWeight: 500, fontSize: "0.82rem" }}>Completed without a customer signature</div>
                         <div style={{ marginTop: "0.2rem", color: colors.body, fontSize: "0.84rem", whiteSpace: "pre-wrap" }}>{selectedHistory.completionNote}</div>
                       </>
                     )}
@@ -888,8 +888,8 @@ function ClientDetails({
                 )}
 
                 {/* This visit's photos and documents */}
-                <div style={{ paddingTop: "1.1rem", paddingBottom: "1.1rem", borderBottom: "1px solid #f1f5f9" }}>
-                  <div style={{ fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>
+                <div style={{ paddingTop: "1.1rem", paddingBottom: "1.1rem", borderBottom: "1px solid #efe9e0" }}>
+                  <div style={{ fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>
                     This visit&apos;s photos and documents{(selectedHistory.attachments || []).length > 0 && ` (${selectedHistory.attachments.length})`}
                   </div>
                   <HistoryFileList
@@ -903,7 +903,7 @@ function ClientDetails({
 
                 {/* General client documents */}
                 <div style={{ paddingTop: "1.1rem" }}>
-                  <div style={{ fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#64748b" }}>
+                  <div style={{ fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "#96897b" }}>
                     General client documents{(client.documents || []).length > 0 && ` (${client.documents.length})`}
                   </div>
                   <div style={{ marginTop: "0.2rem", color: colors.muted, fontSize: "0.72rem" }}>Client ID, contracts, and permits — not tied to this visit.</div>
@@ -943,8 +943,8 @@ function ClientDetails({
             onClick={(event) => event.stopPropagation()}
             style={{
               background: "#ffffff",
-              borderRadius: "20px",
-              border: "1px solid rgba(148, 163, 184, 0.22)",
+              borderRadius: "7.5px",
+              border: "1px solid #efe9e0",
               boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)",
               width: "100%",
               maxWidth: "720px",
@@ -953,8 +953,8 @@ function ClientDetails({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
               <div>
-                <div style={{ fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b" }}>Client Details</div>
-                <h3 style={{ margin: "0.25rem 0 0", color: "#0f172a", fontSize: "1.4rem" }}>Edit Profile</h3>
+                <div style={{ fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "#96897b" }}>Client Details</div>
+                <h3 style={{ margin: "0.25rem 0 0", color: "#211b15", fontSize: "1.4rem" }}>Edit Profile</h3>
               </div>
               <button
                 type="button"
@@ -963,9 +963,9 @@ function ClientDetails({
                   width: "2rem",
                   height: "2rem",
                   borderRadius: "999px",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #efe9e0",
                   background: "#ffffff",
-                  color: "#475569",
+                  color: "#50463c",
                   display: "grid",
                   placeItems: "center",
                   cursor: "pointer",

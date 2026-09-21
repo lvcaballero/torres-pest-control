@@ -56,7 +56,7 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "#fff",
-          borderRadius: "20px",
+          borderRadius: "7.5px",
           padding: "1.75rem",
           maxWidth: "480px",
           width: "100%",
@@ -69,7 +69,7 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
 
         <div style={{ display: "grid", gap: "1rem" }}>
           {/* Group */}
-          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 700, color: colors.body }}>
+          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 500, color: colors.body }}>
             Group
             <select
               value={groupName}
@@ -81,7 +81,7 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
           </label>
 
           {/* Label */}
-          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 700, color: colors.body }}>
+          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 500, color: colors.body }}>
             Display Label
             <input
               type="text"
@@ -93,7 +93,7 @@ function MethodModal({ open, initial, onSave, onCancel, busy }) {
           </label>
 
           {/* Value (key) */}
-          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 700, color: colors.body }}>
+          <label style={{ display: "grid", gap: "0.3rem", fontSize: "0.85rem", fontWeight: 500, color: colors.body }}>
             Internal Value
             <span style={{ fontWeight: 400, color: colors.muted, fontSize: "0.72rem" }}>
               Stored in the database. Auto-generated from the label.
@@ -233,7 +233,7 @@ export default function TreatmentMethodsAdmin() {
       {!loading && grouped.map(({ name, items }) => (
         <div key={name} style={{ marginBottom: "1.25rem" }}>
           {/* group heading */}
-          <div style={{ color: colors.muted, fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${colors.softLine}`, paddingBottom: "0.35rem", marginBottom: "0.45rem" }}>
+          <div style={{ color: colors.muted, fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${colors.softLine}`, paddingBottom: "0.35rem", marginBottom: "0.45rem" }}>
             {name}
           </div>
 
@@ -251,25 +251,25 @@ export default function TreatmentMethodsAdmin() {
                 alignItems: "center",
                 gap: "0.75rem",
                 padding: "0.6rem 0.75rem",
-                borderRadius: "10px",
+                borderRadius: "3.75px",
                 marginBottom: "0.3rem",
-                background: method.is_active ? "transparent" : "#fafafa",
+                background: method.is_active ? "transparent" : "#efe9e0",
                 border: "1px solid transparent",
                 transition: "background 0.15s",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#fef2f2"; e.currentTarget.style.border = "1px solid rgba(127,17,17,0.08)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = method.is_active ? "transparent" : "#fafafa"; e.currentTarget.style.border = "1px solid transparent"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#f9ecea"; e.currentTarget.style.border = "1px solid rgba(127,17,17,0.08)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = method.is_active ? "transparent" : "#efe9e0"; e.currentTarget.style.border = "1px solid transparent"; }}
             >
               {/* label */}
               <div style={{ flex: 1 }}>
-                <span style={{ fontSize: "0.9rem", fontWeight: 600, color: method.is_active ? colors.body : colors.muted }}>
+                <span style={{ fontSize: "0.9rem", fontWeight: 500, color: method.is_active ? colors.body : colors.muted }}>
                   {method.label}
                 </span>
                 <span style={{ marginLeft: "0.6rem", fontFamily: "monospace", fontSize: "0.72rem", color: colors.muted }}>
                   {method.value}
                 </span>
                 {!method.is_active && (
-                  <span style={{ marginLeft: "0.5rem", fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", borderRadius: "999px", padding: "0.15rem 0.5rem" }}>
+                  <span style={{ marginLeft: "0.5rem", fontSize: "0.68rem", fontWeight: 500, color: "#96897b", background: "#efe9e0", borderRadius: "999px", padding: "0.15rem 0.5rem" }}>
                     Inactive
                   </span>
                 )}
@@ -280,7 +280,7 @@ export default function TreatmentMethodsAdmin() {
                 type="button"
                 onClick={() => openEdit(method)}
                 title="Edit"
-                style={{ background: "none", border: "none", cursor: "pointer", color: colors.brandInk, padding: "0.3rem", borderRadius: "6px" }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: colors.brandInk, padding: "0.3rem", borderRadius: "3.75px" }}
               >
                 <Pencil size={15} />
               </button>
@@ -289,7 +289,7 @@ export default function TreatmentMethodsAdmin() {
                 onClick={() => handleToggleActive(method)}
                 disabled={busy}
                 title={method.is_active ? "Retire (hide from the report form)" : "Restore"}
-                style={{ background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer", color: colors.muted, padding: "0.3rem", borderRadius: "6px" }}
+                style={{ background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer", color: colors.muted, padding: "0.3rem", borderRadius: "3.75px" }}
               >
                 {method.is_active ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -297,7 +297,7 @@ export default function TreatmentMethodsAdmin() {
                 type="button"
                 onClick={() => setDeleteTarget(method)}
                 title="Delete"
-                style={{ background: "none", border: "none", cursor: "pointer", color: colors.danger, padding: "0.3rem", borderRadius: "6px" }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: colors.danger, padding: "0.3rem", borderRadius: "3.75px" }}
               >
                 <Trash2 size={15} />
               </button>

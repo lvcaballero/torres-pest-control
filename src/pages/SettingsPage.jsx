@@ -12,7 +12,7 @@ import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
 import useAuth from "../hooks/useAuth";
 import { ROLES } from "../utils/constants";
-import { card, colors, pageShell, primaryButton } from "../styles/theme";
+import { card, colors, fieldGrid, pageShell, primaryButton } from "../styles/theme";
 import { Globe, Lock, ShieldCheck, UserCheck } from "lucide-react";
 
 function SettingsPage() {
@@ -31,11 +31,17 @@ function SettingsPage() {
 
   return (
     <div style={pageShell}>
-      <PageHeader eyebrow="Account" title="Settings" />
-      <ChangePassword onSubmit={handleChangePassword} />
-      <PageHeader eyebrow="System & Preferences" title="Settings" />
+      {/* One page, one <h1>. This rendered two PageHeaders both titled
+          "Settings", which read as two pages spliced together and gave the
+          document two competing top-level headings. */}
+      <PageHeader
+        eyebrow="Account"
+        title="Settings"
+        description="Your sign-in details, and the formatting standards the whole app uses."
+      />
 
       <div style={{ display: "grid", gap: "1.5rem", maxWidth: "800px" }}>
+        <ChangePassword onSubmit={handleChangePassword} />
         {/* Account Security Card */}
         <section style={{ ...card, padding: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem" }}>
@@ -43,9 +49,9 @@ function SettingsPage() {
               style={{
                 width: "44px",
                 height: "44px",
-                borderRadius: "12px",
+                borderRadius: "3.75px",
                 background: "#fee2e2",
-                color: "#b91c1c",
+                color: "#9a2d24",
                 display: "grid",
                 placeItems: "center",
                 flexShrink: 0,
@@ -91,30 +97,30 @@ function SettingsPage() {
             System-wide standards configured for Torres Pest Control operations:
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-            <div style={{ padding: "0.85rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+          <div style={{ ...fieldGrid }}>
+            <div style={{ padding: "0.85rem", background: "#efe9e0", borderRadius: "3.75px", border: "1px solid #efe9e0" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase" }}>
                 Currency Metric
               </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", marginTop: "0.25rem" }}>
+              <div style={{ fontSize: "1.05rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem" }}>
                 ₱ (PHP - Philippine Peso)
               </div>
             </div>
 
-            <div style={{ padding: "0.85rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+            <div style={{ padding: "0.85rem", background: "#efe9e0", borderRadius: "3.75px", border: "1px solid #efe9e0" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase" }}>
                 Mobile Number Format
               </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", marginTop: "0.25rem" }}>
+              <div style={{ fontSize: "1.05rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem" }}>
                 09XXXXXXXXX (11 digits)
               </div>
             </div>
 
-            <div style={{ padding: "0.85rem", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+            <div style={{ padding: "0.85rem", background: "#efe9e0", borderRadius: "3.75px", border: "1px solid #efe9e0" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase" }}>
                 Standard Time Zone
               </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", marginTop: "0.25rem" }}>
+              <div style={{ fontSize: "1.05rem", fontWeight: 500, color: "#211b15", marginTop: "0.25rem" }}>
                 Asia/Manila (UTC+08:00)
               </div>
             </div>
@@ -136,7 +142,7 @@ function SettingsPage() {
           </div>
           <div style={{ color: colors.body, fontSize: "0.92rem", lineHeight: 1.6 }}>
             Signed in as <strong>{currentUser?.name || currentUser?.username || currentUser?.email}</strong> with role{" "}
-            <span style={{ fontWeight: 800, color: colors.brandInk }}>{currentUser?.role}</span>.
+            <span style={{ fontWeight: 500, color: colors.brandInk }}>{currentUser?.role}</span>.
           </div>
         </section>
       </div>

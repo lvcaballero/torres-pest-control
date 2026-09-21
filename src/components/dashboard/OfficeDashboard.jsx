@@ -120,7 +120,7 @@ function OfficeDashboard() {
   return (
     <div style={pageShell}>
       <div style={{ marginBottom: "1.25rem" }}>
-        <div style={{ color: colors.brandInk, fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+        <div style={{ color: colors.brandInk, fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>
           Overview
         </div>
         <h1 style={{ margin: "0.3rem 0 0", color: colors.ink, fontSize: "1.9rem", lineHeight: 1.15 }}>
@@ -130,7 +130,7 @@ function OfficeDashboard() {
       </div>
 
       {error && (
-        <div role="alert" style={{ marginBottom: "1rem", padding: "0.8rem 1rem", borderRadius: "12px", background: "#fdf0ef", border: "1px solid #eeb0ac", color: colors.danger, fontWeight: 700, fontSize: "0.85rem" }}>
+        <div role="alert" style={{ marginBottom: "1rem", padding: "0.8rem 1rem", borderRadius: "3.75px", background: "#fdf0ef", border: "1px solid #eeb0ac", color: colors.danger, fontWeight: 500, fontSize: "0.85rem" }}>
           Couldn't load appointments: {error}
         </div>
       )}
@@ -165,15 +165,15 @@ function OfficeDashboard() {
         <Panel title="Scheduling overview" action={<Link to="/scheduling?view=week" style={{ color: colors.brand, textDecoration: "none" }}>This week</Link>}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", paddingBottom: "0.35rem" }}>
               <div>
-                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{scheduleTotal}</div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 500, lineHeight: 1.1 }}>{scheduleTotal}</div>
                 <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Appointments</div>
               </div>
               <div>
-                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{busiestDay.value}</div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 500, lineHeight: 1.1 }}>{busiestDay.value}</div>
                 <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Peak day</div>
               </div>
               <div>
-                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 800, lineHeight: 1.1 }}>{today.length}</div>
+                <div style={{ color: colors.ink, fontSize: "1.35rem", fontWeight: 500, lineHeight: 1.1 }}>{today.length}</div>
                 <div style={{ color: colors.muted, fontSize: "0.68rem" }}>Today</div>
               </div>
             </div>
@@ -181,9 +181,9 @@ function OfficeDashboard() {
               {schedule.map((day) => (
                 <div key={`${day.label}-${day.date}`} title={`${day.value} ${day.value === 1 ? "appointment" : "appointments"} on ${day.label} ${day.date}`} style={{ display: "grid", gridTemplateRows: "1fr auto", alignItems: "end", gap: "0.35rem", height: "100%", minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "end", justifyContent: "center", height: "100%" }}>
-                    <div style={{ width: "min(28px, 70%)", height: `${Math.max(8, busiestDay.value ? (day.value / busiestDay.value) * 100 : 8)}%`, minHeight: day.value ? "12px" : "5px", borderRadius: "4px 4px 2px 2px", background: day.value ? colors.brandLight : "#eadede" }} />
+                    <div style={{ width: "min(28px, 70%)", height: `${Math.max(8, busiestDay.value ? (day.value / busiestDay.value) * 100 : 8)}%`, minHeight: day.value ? "12px" : "5px", borderRadius: "4px 4px 2px 2px", background: day.value ? colors.brandLight : "#efe9e0" }} />
                   </div>
-                  <div style={{ textAlign: "center", color: colors.muted, fontSize: "0.64rem", fontWeight: 700, whiteSpace: "nowrap" }}>{day.label}</div>
+                  <div style={{ textAlign: "center", color: colors.muted, fontSize: "0.64rem", fontWeight: 500, whiteSpace: "nowrap" }}>{day.label}</div>
                 </div>
               ))}
             </div>
@@ -223,7 +223,7 @@ function OfficeDashboard() {
 
           {isAdmin && (
             <div style={{ marginTop: "0.5rem", paddingTop: "0.85rem", borderTop: "1px solid #f3eaea" }}>
-              <h3 style={{ margin: "0 0 0.6rem", fontSize: "0.8rem", fontWeight: 800, color: colors.body }}>
+              <h3 style={{ margin: "0 0 0.6rem", fontSize: "0.8rem", fontWeight: 500, color: colors.body }}>
                 Spend by supplier
               </h3>
               <RankedBars

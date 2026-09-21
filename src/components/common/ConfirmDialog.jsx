@@ -1,7 +1,15 @@
 // Replaces window.alert / window.confirm, which App.js used for the
 // "at least one active admin" guard.
+//
+// Now a thin wrapper over ui/Modal, so it inherits the focus trap, Escape
+// handling, scroll lock and focus restoration it never had of its own — which
+// matters here more than anywhere else, since this dialog guards destructive
+// actions and was previously dismissible only by clicking exactly the right
+// pixels.
 
-import { primaryButton, secondaryButton } from "../../styles/theme";
+import { neutral, text } from "../../styles/tokens";
+import Button from "../ui/Button";
+import Modal from "../ui/Modal";
 
 function ConfirmDialog({
   open,
@@ -15,50 +23,22 @@ function ConfirmDialog({
 }) {
   if (!open) return null;
 
-  const confirmStyle =
-    tone === "danger"
-      ? { ...primaryButton, background: "linear-gradient(135deg, #991b1b 0%, #dc2626 100%)" }
-      : primaryButton;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.45)",
-        display: "grid",
-        placeItems: "center",
-        padding: "1.5rem",
-        zIndex: 1100,
-      }}
-    >
-      <div
-        onClick={(event) => event.stopPropagation()}
-        style={{
-          background: "#fff",
-          borderRadius: "20px",
-          padding: "1.75rem",
-          maxWidth: "440px",
-          width: "100%",
-          boxShadow: "0 30px 60px rgba(15, 23, 42, 0.25)",
-        }}
-      >
-        <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.25rem", color: "#0f172a" }}>{title}</h2>
-        <p style={{ margin: 0, color: "#4b5563", lineHeight: 1.6 }}>{message}</p>
-
-        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", flexWrap: "wrap" }}>
-          <button type="button" onClick={onConfirm} style={confirmStyle}>
+    <Modal
+      title={title}
+      onClose={onCancel}
+      size="sm"
+      footer={
+        <>
+          <Button onClick={onCancel}>{cancelLabel}</Button>
+          <Button variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm}>
             {confirmLabel}
-          </button>
-          <button type="button" onClick={onCancel} style={secondaryButton}>
-            {cancelLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      <p style={{ margin: 0, color: neutral.saddle, ...text.body }}>{message}</p>
+    </Modal>
   );
 }
 

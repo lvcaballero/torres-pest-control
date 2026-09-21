@@ -15,7 +15,7 @@
 import { useState } from "react";
 import Field from "../common/Field";
 import { validatePasswordChange } from "../../utils/validators";
-import { buttonWhen, card, colors, inputStyle, invalidInputStyle } from "../../styles/theme";
+import { buttonWhen, colors, inputStyle, invalidInputStyle } from "../../styles/theme";
 
 const EMPTY_FORM = { currentPassword: "", newPassword: "", confirmPassword: "" };
 

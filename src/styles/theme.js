@@ -5,106 +5,215 @@
 // times, with three slightly different paddings). Centralising them keeps the
 // look consistent and gives a single place to change when/if the app moves to
 // real CSS classes in globals.css.
+//
+// Every value here is derived from styles/tokens.js — this module composes,
+// it does not invent. A restyle should be a tokens.js edit; if it isn't, a
+// hardcoded value has leaked in here.
+//
+// The export names and shapes are load-bearing: forty modules spread these
+// objects onto elements. Values change freely, signatures do not.
+
+import {
+  accent,
+  border,
+  brand,
+  focusRing,
+  font,
+  layout,
+  neutral,
+  radius,
+  shadow,
+  space,
+  status,
+  surface,
+  text,
+  weight,
+} from "./tokens";
+
+export { focusRing };
 
 export const colors = {
-  brand: "#7f1111",
-  brandLight: "#bf3e3e",
-  brandInk: "#8b1e1e",
-  ink: "#0f172a",
-  body: "#111827",
-  muted: "#6b7280",
-  line: "#dfe4ea",
-  softLine: "rgba(148, 163, 184, 0.18)",
-  success: "#1f7a5f",
-  danger: "#b91c1c",
+  // Brand — fixed, and the system's only chromatic accent.
+  brand: brand.base,
+  brandLight: brand.light,
+  brandInk: brand.ink,
+  brandWash: brand.wash,
+
+  // Text, strongest to faintest.
+  ink: neutral.ink,
+  body: neutral.saddle,
+  muted: neutral.bark,
+
+  // Surfaces.
+  canvas: surface.canvas,
+  panel: surface.panel,
+  sunken: surface.sunken,
+  inverted: surface.inverted,
+
+  // Strokes. `line` is the workhorse hairline; `softLine` separates rows
+  // inside an already-bordered container without drawing a second edge.
+  line: surface.sunken,
+  softLine: "rgba(199, 188, 175, 0.45)",
+  strongLine: neutral.ink,
+  loam: neutral.loam,
+
+  // Semantic.
+  success: status.success,
+  danger: status.danger,
+  warning: status.warning,
+
+  // Non-brand accents, for highlights only — never a primary action.
+  accentSoft: accent.soft,
+  sage: accent.sage,
 };
 
 export const pageShell = {
-  maxWidth: "1200px",
+  maxWidth: layout.pageMaxWidth,
   margin: "0 auto",
 };
 
+/**
+ * The standard content surface: white lifted off the parchment canvas by a
+ * hairline border and nothing else. No gradient, no coloured top rule, no
+ * shadow — separation comes from surface temperature, which is the whole
+ * premise of this design language.
+ */
 export const card = {
-  background: "linear-gradient(180deg, #ffffff 0%, #fff8f8 100%)",
-  border: `1px solid rgba(127, 17, 17, 0.14)`,
-  borderTop: `3px solid ${colors.brandLight}`,
-  borderRadius: "20px",
-  padding: "1.5rem",
-  boxShadow: "0 18px 32px rgba(127, 17, 17, 0.08)",
+  background: surface.panel,
+  border: border.hairline,
+  borderRadius: radius.card,
+  padding: space.lg,
+  boxShadow: shadow.none,
+};
+
+/** A quieter surface for wells and grouped filters, one step warmer. */
+export const sunkenPanel = {
+  background: surface.sunken,
+  border: `1px solid ${neutral.loam}`,
+  borderRadius: radius.card,
+  padding: space.md,
 };
 
 export const inputStyle = {
   width: "100%",
-  border: `1px solid ${colors.line}`,
-  borderRadius: "12px",
-  padding: "0.8rem 0.9rem",
-  fontSize: "0.96rem",
-  background: "#ffffff",
-  color: colors.body,
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+  border: `1px solid ${neutral.loam}`,
+  borderRadius: radius.control,
+  padding: "9px 12px",
+  fontSize: text.body.fontSize,
+  fontFamily: font.sans,
+  background: surface.panel,
+  color: neutral.ink,
+  boxShadow: shadow.none,
 };
 
 export const invalidInputStyle = {
   ...inputStyle,
-  borderColor: colors.danger,
-  background: "#fffafa",
+  borderColor: status.danger,
+  background: status.dangerSurface,
 };
 
+/**
+ * The single filled action. Ambrook's button is flat: a solid fill, ink-dark
+ * or parchment text, 3.75px corners, no shadow and no gradient.
+ */
 export const primaryButton = {
-  border: "1px solid rgba(255,255,255,0.18)",
-  borderRadius: "12px",
-  background: `linear-gradient(135deg, ${colors.brand} 0%, ${colors.brandLight} 100%)`,
-  color: "#fff",
-  padding: "0.9rem 1.2rem",
-  fontWeight: 700,
+  border: `1px solid ${brand.base}`,
+  borderRadius: radius.control,
+  background: brand.base,
+  color: surface.canvas,
+  padding: "9px 20px",
+  fontSize: text.body.fontSize,
+  fontWeight: weight.medium,
   cursor: "pointer",
-  boxShadow: "0 12px 24px rgba(127, 17, 17, 0.22)",
+  boxShadow: shadow.none,
 };
 
+/** The quiet counterpoint: a thin outlined rectangle, no fill. */
 export const secondaryButton = {
-  border: `1px solid rgba(127, 17, 17, 0.22)`,
-  background: "#fff8f8",
-  color: colors.body,
-  borderRadius: "12px",
-  padding: "0.75rem 1rem",
-  fontWeight: 700,
+  border: `1px solid ${neutral.ink}`,
+  background: "transparent",
+  color: neutral.ink,
+  borderRadius: radius.control,
+  padding: "9px 15px",
+  fontSize: text.body.fontSize,
+  fontWeight: weight.medium,
   cursor: "pointer",
+  boxShadow: shadow.none,
 };
 
-export const dangerButton = {
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "linear-gradient(135deg, #475569 0%, #64748b 100%)",
-  color: "#fff",
-  borderRadius: "12px",
-  padding: "0.7rem 0.9rem",
-  fontWeight: 700,
-  cursor: "pointer",
-  boxShadow: "0 10px 18px rgba(15, 23, 42, 0.12)",
+/**
+ * Genuinely destructive actions — deleting a record, deactivating an account.
+ *
+ * `dangerButton` has never been red: it was slate grey, and every call site
+ * that wanted real danger overrode it inline. Both names are exported so the
+ * existing call sites keep working, but new code should say what it means.
+ */
+export const destructiveButton = {
+  ...secondaryButton,
+  border: `1px solid ${status.danger}`,
+  background: status.dangerSurface,
+  color: status.danger,
 };
+
+/** @deprecated Use `destructiveButton` for destructive actions. */
+export const dangerButton = destructiveButton;
 
 export const successButton = {
-  ...dangerButton,
-  background: "linear-gradient(135deg, #0f766e 0%, #34d399 100%)",
+  ...secondaryButton,
+  border: `1px solid ${status.success}`,
+  background: status.successSurface,
+  color: status.success,
 };
 
+/** A stamp, not a button — the one place the pill radius is allowed. */
 export const badge = {
-  background: "#fef2f2",
-  color: colors.brandInk,
-  borderRadius: "999px",
-  padding: "0.35rem 0.7rem",
-  fontWeight: 700,
-  fontSize: "0.8rem",
+  background: surface.sunken,
+  color: neutral.ink,
+  borderRadius: radius.pill,
+  padding: "2px 10px",
+  fontWeight: weight.medium,
+  fontSize: text.caption.fontSize,
+  letterSpacing: text.caption.letterSpacing,
 };
 
-export const appBackground =
-  "radial-gradient(circle at top left, #ffe6e6 0%, #fff7f7 32%, #f4f5f7 78%, #f1f5f9 100%)";
+/**
+ * The uppercase tag above a page or section heading. Wide tracking gives it
+ * the cadence of a newspaper dateline — a rhythm device this design language
+ * leans on heavily.
+ */
+export const eyebrow = {
+  ...text.eyebrow,
+  margin: 0,
+  color: neutral.saddle,
+  fontFamily: font.sans,
+};
+
+/** Headings use the display face at weight 500. Never 700 — that is the point. */
+export const heading = {
+  ...text.heading,
+  margin: 0,
+  fontFamily: font.display,
+  fontWeight: weight.medium,
+  color: neutral.ink,
+};
+
+export const subheading = {
+  ...text.subheading,
+  margin: 0,
+  fontFamily: font.display,
+  fontWeight: weight.medium,
+  color: neutral.ink,
+};
+
+/** The page canvas. Flat parchment — the previous red radial gradient is gone. */
+export const appBackground = surface.canvas;
 
 export const fieldGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "1rem",
+  gap: space.md,
 };
 
 export function buttonWhen(disabled, base = primaryButton) {
-  return { ...base, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.7 : 1 };
+  return { ...base, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 };
 }

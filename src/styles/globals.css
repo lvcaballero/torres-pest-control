@@ -1,23 +1,59 @@
-/* Minimal reset and design tokens.
+/* Reset, design tokens, and the handful of app-wide rules.
  *
  * The app styles components with inline `style={{...}}` props (see
- * src/styles/theme.js for the shared objects). This file deliberately stays
- * small: page-level resets, focus visibility, and the tokens a future CSS
- * migration would build on. It is not a component stylesheet.
+ * src/styles/tokens.js for the raw values and src/styles/theme.js for the
+ * objects built from them). This file deliberately stays small: font loading,
+ * page-level resets, focus visibility, and a CSS mirror of the tokens for the
+ * few rules that cannot be expressed inline.
+ *
+ * The :root block below MIRRORS tokens.js. tokens.js is authoritative — if
+ * the two disagree, tokens.js is right and this needs updating.
  */
 
+/* Inter substitutes for Lateral, Source Serif for Lateral Display. Both are
+   named in the style reference as the intended fallbacks. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap");
+
 :root {
+  /* Brand — fixed. */
   --brand: #7f1111;
   --brand-light: #bf3e3e;
   --brand-ink: #8b1e1e;
-  --ink: #0f172a;
-  --body: #111827;
-  --muted: #6b7280;
-  --line: #dfe4ea;
-  --success: #1f7a5f;
-  --danger: #b91c1c;
-  --radius: 12px;
-  --radius-lg: 20px;
+
+  /* Surfaces, warmest to darkest. */
+  --canvas: #fcfaf1;
+  --panel: #ffffff;
+  --sunken: #efe9e0;
+  --inverted: #252a23;
+
+  /* Warm neutrals. */
+  --loam: #c7bcaf;
+  --bark: #96897b;
+  --saddle: #50463c;
+  --ink: #211b15;
+
+  /* Text roles. */
+  --body: var(--saddle);
+  --muted: var(--bark);
+  --line: var(--sunken);
+
+  /* Semantic. */
+  --success: #4a6b4a;
+  --warning: #a06a24;
+  --danger: #9a2d24;
+
+  /* Shape. */
+  --radius: 3.75px;
+  --radius-lg: 7.5px;
+  --radius-pill: 9999px;
+
+  /* Type. */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+
+  /* A visible keyboard focus ring. */
+  --focus-ring: 0 0 0 3px rgba(127, 17, 17, 0.22);
 }
 
 * {
@@ -33,12 +69,24 @@ body,
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial,
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.71;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--body);
-  background: #f7f7f8;
+  background: var(--canvas);
+}
+
+/* Headings use the display face at weight 500. Not 700 — the restraint is
+   the point, and a bolder heading reads as a different product. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
 /* Inputs don't inherit the body font by default. */
@@ -55,66 +103,61 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Every interactive control has a consistent, responsive hover treatment. */
+/* Hover is opt-in, via the class Button emits.
+ *
+ * This used to be a bare `button:not(:disabled):hover` that lifted EVERY
+ * button and link in the app by 2px with a brightness bump and an
+ * `!important` shadow. That included each appointment card in the calendar,
+ * which visibly jumped out of its grid slot on mouseover, and every option in
+ * a combobox listbox. It also contradicted the flat, no-shadow surface
+ * system. Anything that wants a hover now asks for one. */
+.ui-interactive:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+.ui-interactive:not(:disabled):active {
+  filter: brightness(0.92);
+}
+
 button:not(:disabled),
 a[href] {
   cursor: pointer;
-  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    filter 0.15s ease;
 }
 
-button:not(:disabled):hover,
-a[href]:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.06);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
+/* Keyboard focus must be visible.
+ *
+ * The previous rules set `outline: none !important` on every button and link
+ * and then `:focus-visible { outline: 0 !important }` globally, which left
+ * keyboard users with no indication of where they were. `:focus-visible` only
+ * matches keyboard focus, so restoring it costs nothing on click. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
 }
 
-button:not(:disabled):active,
-a[href]:active {
-  transform: translateY(0);
-}
-
-/* Focus must not add a second, brighter outline to buttons or dashboard links. */
-button:focus,
-button:active,
-a:focus,
-a:active,
-nav a:focus,
-nav a:focus-visible,
-nav a:active,
-nav button:focus,
-nav button:focus-visible,
-nav button:active {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Sidebar links must never retain a browser "pressed" or visited outline. */
 .sidebar-nav-link,
 .sidebar-nav-link:link,
-.sidebar-nav-link:visited,
-.sidebar-nav-link:hover,
-.sidebar-nav-link:focus,
-.sidebar-nav-link:focus-visible,
-.sidebar-nav-link:active {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+.sidebar-nav-link:visited {
+  border: none;
+  outline: none;
 }
 
 .sidebar-nav-link:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16) !important;
+  background: rgba(252, 250, 241, 0.1);
 }
 
-:focus-visible {
-  outline: 0 !important;
+.sidebar-nav-link:focus-visible {
+  box-shadow: 0 0 0 2px rgba(252, 250, 241, 0.55);
 }
 
 .app-shell {
   min-height: 100vh;
 }
 
+/* Must stay in sync with Sidebar's inline width. */
 .app-content {
   min-height: 100vh;
   margin-left: 264px;

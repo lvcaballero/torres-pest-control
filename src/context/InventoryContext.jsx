@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import * as inventoryService from "../services/inventoryService";
 import * as appointmentService from "../services/appointmentService";
 import { addLog, LOG_TYPES } from "../services/logService";
+import { STOCK_OUT_REASON_LABELS } from "../utils/constants";
 import { useAuthContext } from "./AuthContext";
 
 const InventoryContext = createContext(null);
@@ -107,40 +108,80 @@ export function InventoryProvider({ children }) {
   );
 
   /**
-   * The only path that changes quantity. Runs as one server-side
-   * transaction (stock_in()), so the movement row and the quantity bump
-   * can't drift apart even under concurrent Stock Ins.
+   * A whole delivery at once. One RPC, one transaction — partial success is
+   * impossible, so local state is only touched after the server has committed
+   * every line.
    */
-  const stockIn = useCallback(
-    async (itemId, { amount, date, reference, intakeBranchOrStation, idempotencyKey, unitCost }) => {
-      const target = inventory.find((entry) => entry.id === itemId);
-      const result = await inventoryService.stockIn(itemId, {
-        amount,
+  const stockInMany = useCallback(
+    async (entries, { date, reference, intakeBranchOrStation, idempotencyKey }) => {
+      const result = await inventoryService.stockInBatch(entries, {
         date,
         reference,
-        actor,
-        actorId: currentUser?.id,
         intakeBranchOrStation,
         idempotencyKey,
-        unitCost,
       });
       if (result.error) return result.error;
 
-      setInventory((previous) =>
-        previous.map((entry) =>
-          entry.id === itemId
-            ? { ...entry, quantity: result.newQuantity, cost: unitCost !== undefined ? Number(unitCost) : entry.cost }
-            : entry
-        )
-      );
+      setInventory((previous) => previous.map((entry) => {
+        const movement = result.movements.find((row) => row.itemId === entry.id);
+        if (!movement) return entry;
+        const requested = entries.find((row) => row.itemId === entry.id);
+        return {
+          ...entry,
+          quantity: movement.newQuantity,
+          cost: requested?.unitCost === "" || requested?.unitCost === undefined || requested?.unitCost === null
+            ? entry.cost
+            : Number(requested.unitCost),
+        };
+      }));
+
       setMovements((previous) => [
-        { ...result.movement, itemName: target?.name || "Unknown item", itemUnit: target?.unit || "" },
+        ...result.movements.map((movement) => {
+          const target = inventory.find((entry) => entry.id === movement.itemId);
+          return { ...movement, itemName: target?.name || "Unknown item", itemUnit: target?.unit || "" };
+        }),
         ...previous,
       ]);
-      addLog(actor, `Stocked in ${result.movement.amount} ${target?.unit || ""} of "${target?.name || "an item"}".`, LOG_TYPES.INVENTORY);
+
+      addLog(
+        actor,
+        `Stocked in ${result.movements.length} item${result.movements.length === 1 ? "" : "s"} against ${reference}.`,
+        LOG_TYPES.INVENTORY
+      );
       return true;
     },
-    [actor, currentUser?.id, inventory]
+    [actor, inventory]
+  );
+
+  /** Stock leaving for a reason other than an appointment. */
+  const stockOutManual = useCallback(
+    async (itemId, { amount, date, reason, technicianId, note }) => {
+      const target = inventory.find((entry) => entry.id === itemId);
+      if (!target) return "Inventory item not found.";
+      if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) return "Enter a quantity greater than zero.";
+      if (Number(amount) > Number(target.quantity)) return "Requested quantity exceeds available stock.";
+      if (reason === "TECHNICIAN_CHECKOUT" && !technicianId) return "Select the technician the stock was checked out to.";
+
+      const result = await inventoryService.stockOutManual(itemId, { amount, date, reason, technicianId, note });
+      if (result.error) return result.error;
+
+      setInventory((previous) => previous.map((entry) =>
+        entry.id === itemId ? { ...entry, quantity: result.newQuantity } : entry));
+      setMovements((previous) => [
+        {
+          ...result.movement,
+          // The server writes a fuller label ("Checked out by Ana Cruz"); this is
+          // the same sentence without a second round trip to fetch the name.
+          reference: STOCK_OUT_REASON_LABELS[reason] || "",
+          itemName: target.name,
+          itemUnit: target.unit,
+        },
+        ...previous,
+      ]);
+      addLog(actor, `Stocked out ${amount} ${target.unit} of "${target.name}".`, LOG_TYPES.INVENTORY);
+      return true;
+    },
+    [actor, inventory]
   );
 
   const stockOut = useCallback(
@@ -262,8 +303,9 @@ export function InventoryProvider({ children }) {
       updateItemBasics,
       removeItem,
       setItemStatus,
-      stockIn,
+      stockInMany,
       stockOut,
+      stockOutManual,
       stockOutMany,
       stockCorrection,
       movements,
@@ -281,8 +323,9 @@ export function InventoryProvider({ children }) {
       updateItemBasics,
       removeItem,
       setItemStatus,
-      stockIn,
+      stockInMany,
       stockOut,
+      stockOutManual,
       stockOutMany,
       stockCorrection,
       movements,

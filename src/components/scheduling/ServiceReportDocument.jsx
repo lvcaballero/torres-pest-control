@@ -29,7 +29,7 @@ function Block({ title, children }) {
   );
 }
 
-function ServiceReportDocument({ appointment, client, technician, inventory = [], photos = [], signatureUrl = "", technicianSignatureUrl = "", treatmentMethodsLookup = [] }) {
+function ServiceReportDocument({ appointment, client, technician, technicians = [], inventory = [], photos = [], signatureUrl = "", technicianSignatureUrl = "", treatmentMethodsLookup = [] }) {
   if (!appointment || !client) return null;
 
   const materials = appointment.stockUsed || [];
@@ -43,6 +43,12 @@ function ServiceReportDocument({ appointment, client, technician, inventory = []
   // The report identifies the technician by name only; the internal reference
   // id is deliberately left off the printed form.
   const technicianName = technician?.name || technician?.username || "Unassigned";
+  // The whole crew on the header row; the signature block below stays the lead
+  // alone, because that signature is one person's attestation, not the team's.
+  const crewNames = (technicians.length > 0 ? technicians : [technician])
+    .filter(Boolean)
+    .map((account) => account.name || account.username)
+    .filter(Boolean);
 
   return (
     <div className="service-form" id="service-form-print">
@@ -68,7 +74,7 @@ function ServiceReportDocument({ appointment, client, technician, inventory = []
           <Row label="Date of service" value={formatDateTime(appointment.scheduledAt)} />
           <Row label="Service type" value={appointment.serviceType} />
           <Row label="Pest concern" value={appointment.pestConcern || client.pestConcern} />
-          <Row label="Technician" value={technicianName} />
+          <Row label={crewNames.length > 1 ? "Technicians" : "Technician"} value={crewNames.join(", ") || technicianName} />
         </tbody>
       </table>
 

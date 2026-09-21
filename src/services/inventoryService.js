@@ -22,13 +22,13 @@ const COLUMNS = `
   purchase_unit, usage_unit, conversion_multiplier, created_by, intake_branch_or_station,
   created_at, updated_at,
   chemical_type, expiration_date, safety_level, hazard_rating, date_received,
-  standard_rate, rate_unit, rate_note,
   serial_number, condition, last_maintenance_date, next_maintenance_date, manufacturer, model,
   material_category, description
 `;
 
 const MOVEMENT_COLUMNS = `
   id, item_id, amount, quantity_delta, movement_date, reference, actor, intake_branch_or_station, movement_type, appointment_id, unit_cost, total_cost, created_at,
+  entered_amount, entered_unit, conversion_factor, stock_out_reason, technician_id, note,
   inventory ( name, unit, cost )
 `;
 
@@ -66,9 +66,6 @@ export function mapInventoryRow(row) {
     updatedAt: row.updated_at,
 
     chemicalType: row.chemical_type,
-    standardRate: row.standard_rate === null || row.standard_rate === undefined ? "" : Number(row.standard_rate),
-    rateUnit: row.rate_unit || "",
-    rateNote: row.rate_note || "",
     expirationDate: row.expiration_date,
     safetyLevel: row.safety_level,
     hazardRating: row.hazard_rating,
@@ -136,12 +133,6 @@ function buildPayload(item) {
     payload.safety_level = nullIfBlank(item.safetyLevel);
     payload.hazard_rating = nullIfBlank(item.hazardRating);
     payload.date_received = nullIfBlank(item.dateReceived);
-    // Advisory dosage shown to the technician at stock-out; never enforced.
-    payload.standard_rate = item.standardRate === null || item.standardRate === "" || item.standardRate === undefined
-      ? null
-      : Number(item.standardRate);
-    payload.rate_unit = nullIfBlank(item.rateUnit);
-    payload.rate_note = nullIfBlank(item.rateNote);
   } else if (item.type === "EQUIPMENT") {
     payload.serial_number = nullIfBlank(item.serialNumber);
     payload.condition = nullIfBlank(item.condition);
@@ -255,54 +246,90 @@ export async function setItemStatus(itemId, status) {
 }
 
 /**
- * The only way quantity can change post-creation. Runs server-side as one
- * transaction (see stock_in() in 005-inventory-stock-movements.sql) so the
- * movement row and the quantity bump can't get out of sync, and so a
- * disabled item is rejected even if the UI's guard is somehow bypassed.
+ * A whole delivery in one server-side transaction (stock_in_batch(), migration
+ * 040). Either every line lands or none does, so a delivery note and the stock
+ * levels can never end up half-agreeing.
+ *
+ * `entries` carry `amount` already converted into the item's own unit — see
+ * utils/units.js. The pre-conversion figures ride along so the movement log can
+ * show what was actually written on the note.
  */
-export async function stockIn(
-  itemId,
-  { amount, date, reference, actor, actorId, intakeBranchOrStation, idempotencyKey, unitCost }
-) {
-  const numericCost = unitCost !== undefined && unitCost !== null && unitCost !== "" ? Number(unitCost) : null;
+export async function stockInBatch(entries, { date, reference, intakeBranchOrStation, idempotencyKey }) {
+  const { data, error } = await supabase.rpc("stock_in_batch", {
+    p_items: entries.map((entry) => ({
+      item_id: entry.itemId,
+      amount: Number(entry.amount),
+      unit_cost: entry.unitCost === "" || entry.unitCost === undefined || entry.unitCost === null
+        ? null
+        : Number(entry.unitCost),
+      entered_amount: entry.enteredAmount === "" || entry.enteredAmount === undefined || entry.enteredAmount === null
+        ? null
+        : Number(entry.enteredAmount),
+      entered_unit: entry.enteredUnit || null,
+      conversion_factor: entry.conversionFactor === undefined || entry.conversionFactor === null
+        ? 1
+        : Number(entry.conversionFactor),
+    })),
+    p_movement_date: date,
+    p_reference: nullIfBlank(reference),
+    p_intake_branch_or_station: nullIfBlank(intakeBranchOrStation),
+    p_idempotency_key: idempotencyKey || null,
+  });
 
-  const { data, error } = await supabase.rpc("stock_in", {
+  if (error) return { error: describeError(error) };
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  if (rows.length === 0) return { error: "Stock In did not return a saved movement." };
+
+  return {
+    movements: rows.map((row) => ({
+      id: row.movement_id,
+      itemId: row.item_id,
+      amount: Number(row.amount),
+      quantityDelta: Number(row.amount),
+      movementDate: row.movement_date,
+      reference: row.reference || reference || "",
+      actor: row.actor || "",
+      movementType: "IN",
+      intakeBranchOrStation: intakeBranchOrStation || "",
+      unitCost: Number(row.unit_cost) || 0,
+      totalCost: Number(row.total_cost) || 0,
+      createdAt: row.created_at,
+      newQuantity: Number(row.new_quantity),
+    })),
+  };
+}
+
+/**
+ * Stock leaving for a reason that is not an appointment: checked out to a
+ * technician, missing at count, or damaged. The date is the caller's, not the
+ * server's — a shortfall found today is often a shortfall from last week.
+ */
+export async function stockOutManual(itemId, { amount, date, reason, technicianId, note }) {
+  const { data, error } = await supabase.rpc("stock_out_manual", {
     p_item_id: itemId,
     p_amount: Number(amount),
     p_movement_date: date,
-    p_reference: nullIfBlank(reference),
-    p_actor: actor || null,
-    p_idempotency_key: idempotencyKey || null,
-    p_actor_id: actorId || null,
-    p_intake_branch_or_station: nullIfBlank(intakeBranchOrStation),
+    p_reason: reason,
+    p_technician_id: reason === "TECHNICIAN_CHECKOUT" ? technicianId || null : null,
+    p_note: nullIfBlank(note),
   });
 
   if (error) return { error: describeError(error) };
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return { error: "Stock In did not return a result." };
-  const calculatedTotal = numericCost !== null ? Number(amount) * numericCost : 0;
-
-  // Update item catalog cost if a unitCost was explicitly entered
-  if (numericCost !== null && !isNaN(numericCost) && numericCost >= 0) {
-    await supabase.from("inventory").update({ cost: numericCost }).eq("id", itemId);
-    await supabase.from("inventory_movements").update({
-      unit_cost: numericCost,
-      total_cost: calculatedTotal,
-    }).eq("id", row.movement_id);
-  }
+  if (!row) return { error: "Stock Out did not return a saved movement." };
 
   return {
     movement: {
       id: row.movement_id,
       itemId: row.item_id,
       amount: Number(row.amount),
+      quantityDelta: -Number(row.amount),
       movementDate: row.movement_date,
-      reference: row.reference || reference || "",
-      actor: row.actor || actor || "",
-      intakeBranchOrStation: intakeBranchOrStation || "",
-      unitCost: numericCost || 0,
-      totalCost: calculatedTotal,
-      createdAt: row.created_at,
+      stockOutReason: row.reason,
+      technicianId: row.technician_id || "",
+      note: row.note || "",
+      actor: row.actor || "",
+      movementType: "OUT",
     },
     newQuantity: Number(row.new_quantity),
   };
@@ -333,6 +360,12 @@ function mapMovementRow(row) {
     reference: row.reference || row.purchase_reference || "—",
     intakeBranchOrStation: row.intake_branch_or_station || "—",
     movementType: row.movement_type || "IN",
+    enteredAmount: row.entered_amount === null || row.entered_amount === undefined ? null : Number(row.entered_amount),
+    enteredUnit: row.entered_unit || "",
+    conversionFactor: row.conversion_factor === null || row.conversion_factor === undefined ? 1 : Number(row.conversion_factor),
+    stockOutReason: row.stock_out_reason || "",
+    technicianId: row.technician_id || "",
+    note: row.note || "",
     quantityDelta: row.quantity_delta === null || row.quantity_delta === undefined ? (row.movement_type === "OUT" ? -Number(row.amount) : Number(row.amount)) : Number(row.quantity_delta),
     appointmentId: row.appointment_id || null,
     actor: row.actor || "—",

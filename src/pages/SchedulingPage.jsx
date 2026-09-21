@@ -22,9 +22,9 @@ import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
 import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
-import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_TYPES } from "../utils/constants";
+import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_FREQUENCIES, SERVICE_TYPES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, findTechnicianConflicts, layoutDayAppointments } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -46,6 +46,7 @@ import WeekGrid from "../components/scheduling/WeekGrid";
 import MonthGrid from "../components/scheduling/MonthGrid";
 import OverflowDialog from "../components/scheduling/OverflowDialog";
 import NewAppointmentModal from "../components/scheduling/NewAppointmentModal";
+import TechnicianPicker from "../components/scheduling/TechnicianPicker";
 import SchedulingToolbar, { MODES } from "../components/scheduling/SchedulingToolbar";
 import {
   fullDayWindow,
@@ -110,14 +111,16 @@ function SchedulingPage() {
   //                writes the report and records materials, so that stays.
   const isTechnician = currentUser?.role === ROLES.TECHNICIAN;
   const canReschedule = !isTechnician;
-  const ownsAppointment = (appointment) => !isTechnician || appointment?.technicianId === currentUser?.id;
+  // A technician "owns" a visit they are on, lead or not — an appointment can
+  // carry a crew since migration 041.
+  const ownsAppointment = (appointment) => !isTechnician || isAssignedTo(appointment, currentUser?.id);
 
   const selected = appointments.find((appointment) => appointment.id === selectedId && ownsAppointment(appointment)) || null;
   const selectedClient = clients.find((client) => client.id === selected?.clientId) || null;
   useEffect(() => {
     const requestedId = searchParams.get("appointment");
     const requestedAppointment = appointments.find((appointment) => appointment.id === requestedId);
-    if (!requestedAppointment || (isTechnician && requestedAppointment.technicianId !== currentUser?.id)) return;
+    if (!requestedAppointment || (isTechnician && !isAssignedTo(requestedAppointment, currentUser?.id))) return;
     setSelectedId(requestedId);
     if (searchParams.get("tab") === "Report") setTab("Report");
   }, [appointments, searchParams, isTechnician, currentUser?.id]);
@@ -156,12 +159,15 @@ function SchedulingPage() {
     return appointments.filter((appointment) => {
       // Technicians see only what is assigned to them. Not a default, not a
       // filter they can widen — nothing else in this list can reach past it.
-      if (isTechnician && appointment.technicianId !== currentUser?.id) return false;
+      if (isTechnician && !isAssignedTo(appointment, currentUser?.id)) return false;
       const client = clients.find((entry) => entry.id === appointment.clientId);
-      const technician = activeAccounts.find((account) => account.id === appointment.technicianId);
-      const text = `${appointment.id} ${client?.name || ""} ${client?.address || ""} ${appointment.pestConcern || ""} ${appointment.status} ${technician?.name || technician?.username || ""}`.toLowerCase();
+      const crewNames = crewOf(appointment)
+        .map((id) => activeAccounts.find((account) => account.id === id))
+        .map((account) => account?.name || account?.username || "")
+        .join(" ");
+      const text = `${appointment.id} ${client?.name || ""} ${client?.address || ""} ${appointment.pestConcern || ""} ${appointment.status} ${crewNames}`.toLowerCase();
       return (!term || text.includes(term))
-        && (technicianFilter === "ALL" || appointment.technicianId === technicianFilter)
+        && (technicianFilter === "ALL" || isAssignedTo(appointment, technicianFilter))
         && (statusFilter === "ALL" || appointment.status === statusFilter)
         && (clientFilter === "ALL" || appointment.clientId === clientFilter)
         && (pestConcernFilter === "ALL" || appointment.pestConcern === pestConcernFilter)
@@ -290,7 +296,7 @@ function SchedulingPage() {
     setAnchorDate(next);
   };
 
-  const handleManualSave = async (event) => {
+  const handleManualSave = async (event, technicianIds) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const nextValue = form.get("scheduledAt");
@@ -303,7 +309,7 @@ function SchedulingPage() {
       ...selected,
       scheduledAt: nextScheduledAt,
       durationMinutes: nextDuration,
-      technicianId: form.get("technicianId"),
+      technicianIds,
     };
     // Cancelling a visit should not be blocked by the slot it used to hold.
     if (form.get("status") !== "Cancelled") {
@@ -325,7 +331,7 @@ function SchedulingPage() {
         setMessage(refusal);
         return;
       }
-      const prepareResult = await updateAppointment({ ...selected, status: "Reschedule" });
+      const prepareResult = await updateAppointment({ ...selected, technicianIds, status: "Reschedule" });
       if (typeof prepareResult === "string") {
         showError(prepareResult);
         setMessage(prepareResult);
@@ -340,7 +346,9 @@ function SchedulingPage() {
       pestConcern: form.get("pestConcern"),
       serviceType: form.get("serviceType") || "",
       serviceLocation: form.get("serviceLocation") || "",
-      technicianId: form.get("technicianId"),
+      technicianIds,
+      serviceFrequency: form.get("serviceFrequency") || "",
+      price: form.get("price") || "",
       status: nextStatus,
       notes: form.get("notes"),
       cancellationReason: form.get("cancellationReason") || "",
@@ -418,6 +426,9 @@ function SchedulingPage() {
       appointment,
       client,
       technician: activeAccounts.find((account) => account.id === appointment.technicianId) || null,
+      technicians: crewOf(appointment)
+        .map((id) => activeAccounts.find((account) => account.id === id))
+        .filter(Boolean),
       inventory,
     });
   };
@@ -532,7 +543,7 @@ function SchedulingPage() {
 
   const jobsThisWeek = (technicianId) =>
     visibleAppointments.filter((appointment) =>
-      technicianId === null ? !appointment.technicianId : appointment.technicianId === technicianId
+      technicianId === null ? crewOf(appointment).length === 0 : isAssignedTo(appointment, technicianId)
     ).length;
 
   const rangeLabel =
@@ -689,10 +700,11 @@ function SchedulingPage() {
             canFileService: ownsAppointment(selected),
             canUpload: can("clientDocuments", "create") && ownsAppointment(selected),
             canRemove: can("clientDocuments", "delete") && ownsAppointment(selected),
-            assignedName:
-              activeAccounts.find((account) => account.id === selected.technicianId)?.name
-              || activeAccounts.find((account) => account.id === selected.technicianId)?.username
-              || "another technician",
+            assignedName: crewOf(selected)
+              .map((id) => activeAccounts.find((account) => account.id === id))
+              .map((account) => account?.name || account?.username)
+              .filter(Boolean)
+              .join(", ") || "another technician",
           }}
           report={{
             treatmentMethods,
@@ -748,24 +760,34 @@ function SchedulingPage() {
 function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, onSave }) {
   const hours = Math.floor((appointment.durationMinutes || 60) / 60);
   const minutes = (appointment.durationMinutes || 60) % 60;
-  const [technicianId, setTechnicianId] = useState(appointment.technicianId || "");
+  const [technicianIds, setTechnicianIds] = useState(() => crewOf(appointment));
   const [status, setStatus] = useState(appointment.status);
-  const conflicts = findTechnicianConflicts(appointments, { ...appointment, technicianId });
+  const conflicts = findTechnicianConflicts(appointments, { ...appointment, technicianIds });
   const statusOptions = allowedNextStatuses(appointment.status);
   const labelStyle = { fontSize: "0.76rem", color: colors.muted };
   const hintStyle = { color: colors.muted, fontSize: "0.7rem" };
-  const isBusy = (accountId) => busyTechnicians.has(accountId) && accountId !== appointment.technicianId;
+  // The crew is React state, not a form field, so it is handed to the save
+  // handler directly rather than read back out of FormData.
+  const handleSubmit = (event) => onSave(event, technicianIds);
 
-  return <form onSubmit={onSave} style={{ display: "grid", gap: "1rem" }}>
+  return <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
     <InfoRow icon={<UserRound size={15} />} label="Client contact" value={`${client.phone || "No phone"} ${client.email ? `• ${client.email}` : ""}`} />
     <InfoRow icon={<MapPin size={15} />} label="Service address" value={appointment.serviceLocation || client.address || "No address"} />
     <InfoRow icon={<UserRound size={15} />} label="Classification" value={client.classificationOther || client.classification || "Not classified"} />
+    {/* Standing instructions for the account. Repeated on every visit on
+        purpose: the point of recording them once is that nobody has to go
+        looking for them before each job. */}
+    {client.serviceNotes && <InfoRow icon={<FileText size={15} />} label="Service notes" value={client.serviceNotes} />}
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Date and time</strong><input name="scheduledAt" type="datetime-local" defaultValue={toDateTimeLocal(appointment.scheduledAt)} style={inputStyle} />{appointment.status !== "Reschedule" && <span style={hintStyle}>Set the status to Reschedule before changing the date, time, or duration.</span>}</div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue={hours} style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue={minutes} style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Technician</strong><select name="technicianId" value={technicianId} onChange={(event) => setTechnicianId(event.target.value)} style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id} disabled={isBusy(account.id)}>{account.reference ? `${account.reference} — ` : ""}{account.name || account.username}{isBusy(account.id) ? " - busy at this time" : ""}</option>)}</select>{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 500 }}>Conflict: this technician overlaps another appointment.</span>}</div>
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Technicians</strong><TechnicianPicker accounts={activeAccounts} value={technicianIds} busyIds={busyTechnicians} onChange={setTechnicianIds} />{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 500 }}>Conflict: someone on this crew overlaps another appointment.</span>}</div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service type</strong><select name="serviceType" defaultValue={appointment.serviceType || ""} style={inputStyle}><option value="">Select a service type</option>{SERVICE_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service location</strong><input name="serviceLocation" defaultValue={appointment.serviceLocation || ""} placeholder={client.address || "Client address"} style={inputStyle} /><span style={hintStyle}>Leave blank to use the client's address.</span></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Pest concern</strong><select name="pestConcern" defaultValue={appointment.pestConcern || ""} style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
+      <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Frequency</strong><select name="serviceFrequency" defaultValue={appointment.serviceFrequency || ""} style={inputStyle}><option value="">Not set</option>{SERVICE_FREQUENCIES.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
+      <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Price (₱)</strong><input name="price" type="number" min="0" step="0.01" defaultValue={appointment.price === "" || appointment.price === null || appointment.price === undefined ? "" : appointment.price} placeholder="0.00" style={inputStyle} /></div>
+    </div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Status</strong><select name="status" value={status} onChange={(event) => setStatus(event.target.value)} style={inputStyle}>{statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>{statusOptions.length === 1 && <span style={hintStyle}>A {appointment.status.toLowerCase()} appointment cannot change status.</span>}</div>
     {status === "Cancelled" && <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Cancellation reason (optional)</strong><textarea name="cancellationReason" defaultValue={appointment.cancellationReason || ""} rows={2} placeholder="Why is this appointment being cancelled?" style={{ ...inputStyle, resize: "vertical" }} /></div>}
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Visit notes</strong><textarea name="notes" defaultValue={appointment.notes} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></div>
@@ -779,11 +801,14 @@ function AppointmentListView({ appointments, clients, accounts, onSelect }) {
       <thead><tr style={{ background: "#fcfaf1" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #efe9e0" }}>{label}</th>)}</tr></thead>
       <tbody>{appointments.map((appointment) => {
         const client = clients.find((entry) => entry.id === appointment.clientId);
-        const technician = accounts.find((entry) => entry.id === appointment.technicianId);
+        const crewNames = crewOf(appointment)
+          .map((id) => accounts.find((entry) => entry.id === id))
+          .map((entry) => entry?.name || entry?.username)
+          .filter(Boolean);
         return <tr key={appointment.id} onClick={() => onSelect(appointment.id)} style={{ cursor: "pointer" }}>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{client?.name || "Unknown client"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{technician?.name || technician?.username || "Unassigned"}</td>
+          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{crewNames.join(", ") || "Unassigned"}</td>
           <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{appointment.pestConcern || "Inspection"}</td>
           <td style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #f1e7e7" }}><span style={badgeStyle(appointment.status)}>{appointment.status}</span></td>
         </tr>;
@@ -1551,7 +1576,7 @@ function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
         <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #efe9e0", borderLeft: "1px solid #efe9e0" }}>
           <div style={{ padding: "0.6rem", background: "#fcfaf1", color: colors.muted, fontSize: "0.7rem", fontWeight: 500 }}>Account</div>
           {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fcfaf1", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.muted, fontSize: "0.68rem", fontWeight: 500 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.ink, fontSize: "0.78rem", fontWeight: 500 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => appointment.technicianId === account.id && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", background: dayAppointments.length ? "#faf0e2" : "#eef2ec", color: dayAppointments.length ? "#9a3412" : "#4a6b4a", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
+          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.ink, fontSize: "0.78rem", fontWeight: 500 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => isAssignedTo(appointment, account.id) && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", background: dayAppointments.length ? "#faf0e2" : "#eef2ec", color: dayAppointments.length ? "#9a3412" : "#4a6b4a", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
         </div>
       </div>
       </section>
@@ -1599,10 +1624,6 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
             </div>
             {categoryRows.map((row) => {
               const selectedItemIds = new Set(categoryRows.filter((candidate) => candidate.id !== row.id).map((candidate) => candidate.itemId).filter(Boolean));
-              const chosen = inventory.find((item) => item.id === row.itemId);
-              const rate = chosen && (chosen.standardRate !== "" && chosen.standardRate !== null && chosen.standardRate !== undefined)
-                ? `${chosen.standardRate} ${chosen.rateUnit || chosen.usageUnit || chosen.unit || ""}`.trim()
-                : "";
               return (
                 <div key={row.id} style={{ display: "grid", gap: "0.3rem" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 82px auto", gap: "0.45rem", alignItems: "center" }}>
@@ -1613,9 +1634,6 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
                   <input aria-label={`${categoryLabel(category)} quantity`} type="number" min="0" step="any" value={row.amount} onChange={(event) => updateRow(row.id, "amount", event.target.value)} placeholder="Qty" style={{ ...inputStyle, padding: "0.62rem 0.55rem", fontSize: "0.78rem" }} />
                   {categoryRows.length > 1 && <button type="button" aria-label={`Remove ${categoryLabel(category)} row`} onClick={() => removeRow(row.id)} style={{ border: 0, background: "transparent", color: colors.danger, cursor: "pointer", padding: "0.4rem" }}><X size={15} /></button>}
                 </div>
-                {/* Guidance only — a technician can still record what actually
-                    happened on a bad infestation. It just makes an outlier,
-                    or a decimal-point slip, obvious at the moment of entry. */}
                 {category === "CHEMICAL" && row.itemId && <input
                   aria-label="Batch or lot number"
                   value={row.batchNumber || ""}
@@ -1623,12 +1641,6 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
                   placeholder="Batch / lot no. from the container — e.g. L24-0917"
                   style={{ ...inputStyle, padding: "0.5rem 0.55rem", fontSize: "0.74rem" }}
                 />}
-                {rate && <div style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", padding: "0.4rem 0.55rem", borderRadius: "3.75px", background: "#fffbeb", border: "1px solid #fde68a", color: "#a06a24", fontSize: "0.7rem" }}>
-                  <PackageCheck size={12} style={{ flex: "none", marginTop: "0.12rem" }} />
-                  <span>
-                    <strong>Standard rate:</strong> {rate}
-                  </span>
-                </div>}
                 </div>
               );
             })}

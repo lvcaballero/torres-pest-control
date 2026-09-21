@@ -20,7 +20,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, MapPin, Phone } from "lucide-react";
 import { neutral, radius, status, surface, text, weight } from "../../styles/tokens";
-import { PEST_CONCERN_SUGGESTIONS, SERVICE_TYPES } from "../../utils/constants";
+import { PEST_CONCERN_SUGGESTIONS, SERVICE_FREQUENCIES, SERVICE_TYPES } from "../../utils/constants";
 import { defaultAppointmentDateTime } from "../../utils/calendarDates";
 import { busyTechnicianIds, describeSlotConflict } from "../../utils/scheduling";
 import Button from "../ui/Button";
@@ -30,6 +30,7 @@ import Modal from "../ui/Modal";
 import Select from "../ui/Select";
 import Textarea from "../ui/Textarea";
 import ClientCombobox from "./ClientCombobox";
+import TechnicianPicker from "./TechnicianPicker";
 
 /** The durations the office actually books. Custom reveals the raw fields. */
 const DURATION_PRESETS = [30, 60, 90, 120];
@@ -90,7 +91,7 @@ function NewAppointmentModal({
   const [durationChoice, setDurationChoice] = useState(60);
   const [customHours, setCustomHours] = useState(1);
   const [customMinutes, setCustomMinutes] = useState(0);
-  const [technicianId, setTechnicianId] = useState("");
+  const [technicianIds, setTechnicianIds] = useState([]);
 
   const selectedClient = clients.find((client) => client.id === clientId) || null;
 
@@ -112,9 +113,9 @@ function NewAppointmentModal({
       id: null,
       scheduledAt,
       durationMinutes,
-      technicianId: technicianId || null,
+      technicianIds,
     });
-  }, [appointments, scheduledAt, durationMinutes, technicianId]);
+  }, [appointments, scheduledAt, durationMinutes, technicianIds]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -134,7 +135,9 @@ function NewAppointmentModal({
       pestConcern: values.get("pestConcern"),
       serviceType: values.get("serviceType") || "",
       serviceLocation: values.get("serviceLocation") || "",
-      technicianId: values.get("technicianId"),
+      technicianIds,
+      serviceFrequency: values.get("serviceFrequency") || "",
+      price: values.get("price") || "",
       notes: values.get("notes"),
     });
 
@@ -301,24 +304,20 @@ function NewAppointmentModal({
         </Section>
 
         <Section legend="Assignment">
-          <Field
-            label="Technician"
-            hint={busyIds.size > 0 ? "Technicians already booked in this window are marked." : undefined}
-          >
-            <Select
-              name="technicianId"
-              value={technicianId}
-              onChange={(event) => setTechnicianId(event.target.value)}
-            >
-              <option value="">Unassigned</option>
-              {activeAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name || account.username}
-                  {busyIds.has(account.id) ? " — already booked" : ""}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {/* Not a Field: the picker is a checkbox group, and a <label> around
+              it would name only its first checkbox. TechnicianPicker labels
+              itself through role="group". */}
+          <div style={{ display: "grid", gap: "6px" }}>
+            <span style={{ color: neutral.ink, fontWeight: weight.medium, fontSize: text.small.fontSize }}>
+              Technicians
+            </span>
+            <TechnicianPicker
+              accounts={activeAccounts}
+              value={technicianIds}
+              busyIds={busyIds}
+              onChange={setTechnicianIds}
+            />
+          </div>
         </Section>
 
         <Section legend="Work" span={2}>
@@ -339,6 +338,22 @@ function NewAppointmentModal({
                   <option key={option} value={option}>{option}</option>
                 ))}
               </Select>
+            </Field>
+
+            {/* Both belong to the visit, not to the client: the same client can
+                hold a quarterly contract and a one-off fumigation, and the
+                price has to stay whatever was agreed on the day. */}
+            <Field label="Frequency">
+              <Select name="serviceFrequency" defaultValue="">
+                <option value="">Not set</option>
+                {SERVICE_FREQUENCIES.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Price (₱)">
+              <Input name="price" type="number" min="0" step="0.01" placeholder="0.00" />
             </Field>
           </div>
 

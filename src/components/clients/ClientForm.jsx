@@ -24,7 +24,33 @@ const EMPTY_FORM = {
   source: "Walk-in",
   classification: "RESIDENTIAL",
   classificationOther: "",
+  serviceNotes: "",
 };
+
+/**
+ * Classifications that mean "a company, not a household".
+ *
+ * Standing service instructions — which gate, who signs, what hours the site
+ * can be treated in — are a company-account problem: a household is one door
+ * and one person. So the field is offered for these, and stays visible for
+ * anyone who already has notes, because a classification correction must never
+ * hide text somebody wrote on purpose.
+ */
+const COMPANY_CLASSIFICATIONS = new Set([
+  "COMMERCIAL",
+  "HOSPITALITY",
+  "WAREHOUSE_STORAGE",
+  "INDUSTRIAL",
+  "AGRICULTURAL",
+  "EDUCATIONAL",
+  "MEDICAL_FACILITY",
+  "GOVERNMENT_OFFICE",
+  "RELIGIOUS_INSTITUTION",
+  "MILITARY_FACILITY",
+  "SCIENCE_LABORATORY",
+  "DOCK_PORT_FACILITY",
+  "BOAT_SHIP_VESSEL",
+]);
 
 function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", footer }) {
   const [form, setForm] = useState(initialValues ? { ...EMPTY_FORM, ...initialValues } : EMPTY_FORM);
@@ -36,6 +62,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
   }, [initialValues]);
 
   const requiresOtherClassification = form.classification === "OTHER";
+  const showsServiceNotes = COMPANY_CLASSIFICATIONS.has(form.classification) || Boolean(form.serviceNotes);
 
   const handleFieldChange = (event) => {
     const { name, value } = event.target;
@@ -153,6 +180,23 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
               onChange={handleFieldChange}
               style={styleFor("classificationOther")}
               placeholder="Please specify"
+            />
+          </Field>
+        )}
+
+        {showsServiceNotes && (
+          <Field
+            label="Service Notes"
+            hint="Standing instructions for this account — access, contacts, restricted areas, treatment hours. Shown on every booking."
+          >
+            <textarea
+              aria-label="Service Notes"
+              name="serviceNotes"
+              value={form.serviceNotes}
+              onChange={handleFieldChange}
+              rows={4}
+              style={{ ...inputStyle, resize: "vertical" }}
+              placeholder="e.g. Deliveries via the rear gate. Ask for the duty manager. No spraying in the cold store."
             />
           </Field>
         )}

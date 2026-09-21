@@ -69,6 +69,39 @@ export const SERVICE_TYPES = [
 //
 // The "Devices" group has been removed from the system.
 
+// Why stock left the shelf outside an appointment. Values mirror the
+// inventory_movements_stock_out_reason_check constraint in migration 040;
+// APPOINTMENT is written by stock_out_batch() and is never chosen by hand,
+// so it is not offered here.
+export const STOCK_OUT_REASONS = [
+  {
+    value: "TECHNICIAN_CHECKOUT",
+    label: "Checked out by a technician",
+    requiresTechnician: true,
+  },
+  { value: "MISSING", label: "Missing stock", requiresTechnician: false },
+  { value: "DAMAGED", label: "Damaged stock", requiresTechnician: false },
+];
+
+export const STOCK_OUT_REASON_LABELS = {
+  APPOINTMENT: "Used on an appointment",
+  TECHNICIAN_CHECKOUT: "Checked out by a technician",
+  MISSING: "Missing stock",
+  DAMAGED: "Damaged stock",
+};
+
+// How often a service recurs. Mirrors the appointments_service_frequency_check
+// constraint in migration 041 — changing one side needs a migration on the other.
+export const SERVICE_FREQUENCIES = [
+  "One-time",
+  "Weekly",
+  "Every 2 weeks",
+  "Monthly",
+  "Quarterly",
+  "Semi-annual",
+  "Annual",
+];
+
 export const APPOINTMENT_STATUSES = [
   "Pending",
   "Confirmed",

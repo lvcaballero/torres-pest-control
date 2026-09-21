@@ -150,31 +150,53 @@ export function describeSlotConflict(appointments, candidate) {
   if (clashes.length > 0) {
     const when = new Date(clashes[0].scheduledAt)
       .toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    return `That technician is already booked at ${when}. Choose another technician or a free time.`;
+    return `One of the assigned technicians is already booked at ${when}. Change the crew, or pick a free time.`;
   }
 
   return null;
 }
 
-/** Appointments that would clash with `appointment` for its assigned technician. */
+/**
+ * Every technician on an appointment, lead first.
+ *
+ * An appointment can carry a crew (`technicianIds`, migration 041) or, on
+ * anything not yet re-read from the server, only the lead. Both shapes are
+ * accepted so nothing here has to care which one it was handed.
+ */
+export function crewOf(appointment) {
+  if (Array.isArray(appointment?.technicianIds) && appointment.technicianIds.length > 0) {
+    return appointment.technicianIds.filter(Boolean);
+  }
+  return appointment?.technicianId ? [appointment.technicianId] : [];
+}
+
+/** True when `accountId` is on this appointment, whether leading it or not. */
+export function isAssignedTo(appointment, accountId) {
+  if (!accountId) return false;
+  return crewOf(appointment).includes(accountId);
+}
+
+/** Appointments that would clash with `appointment` for any of its crew. */
 export function findTechnicianConflicts(appointments, appointment) {
-  if (!appointment.technicianId) return [];
+  const crew = crewOf(appointment);
+  if (crew.length === 0) return [];
   return appointments.filter((entry) =>
     entry.id !== appointment.id
     && entry.status !== "Cancelled"
-    && entry.technicianId === appointment.technicianId
+    && crewOf(entry).some((id) => crew.includes(id))
     && appointmentsOverlap(entry, appointment));
 }
 
 /** Technician ids already booked during `appointment`'s time window. */
 export function busyTechnicianIds(appointments, appointment) {
-  return new Set(appointments
+  const busy = new Set();
+  appointments
     .filter((entry) =>
       entry.id !== appointment.id
-      && entry.technicianId
       && entry.status !== "Cancelled"
       && appointmentsOverlap(entry, appointment))
-    .map((entry) => entry.technicianId));
+    .forEach((entry) => crewOf(entry).forEach((id) => busy.add(id)));
+  return busy;
 }
 
 export function canTransition(from, to) {

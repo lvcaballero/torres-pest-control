@@ -18,8 +18,11 @@ import useUsers from "../../hooks/useUsers";
 import useInventory from "../../hooks/useInventory";
 import { formatDate, formatDateTime, formatFileSize, formatTime, humanizeEnum } from "../../utils/formatters";
 import { DOCUMENT_CATEGORIES } from "../../utils/constants";
+import { crewOf } from "../../utils/scheduling";
 import { colors, dangerButton, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
 
+
+const peso = (value) => `₱${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function treatmentMethodLabel(value) {
   if (!value) return "";
@@ -588,6 +591,17 @@ function ClientDetails({
           ))}
         </div>
 
+        {client.serviceNotes && (
+          <div style={{ marginTop: "1.25rem", padding: "0.85rem 1rem", background: "#fcfaf1", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
+            <div style={{ fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "#96897b" }}>
+              Service notes
+            </div>
+            <div style={{ marginTop: "0.35rem", fontSize: "0.88rem", color: "#211b15", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+              {client.serviceNotes}
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #efe9e0", fontSize: "0.74rem", color: "#96897b" }}>
           Created {formatDateTime(client.createdAt)} • Last updated {formatDateTime(client.updatedAt)}
         </div>
@@ -605,45 +619,66 @@ function ClientDetails({
           {serviceHistory.length === 0 ? (
             <div style={{ marginTop: "1rem", padding: "1rem", borderRadius: "3.75px", background: "#efe9e0", color: colors.muted, fontSize: "0.85rem" }}>No service history recorded yet.</div>
           ) : (
-            <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
-              {serviceHistory.map((appointment) => (
-                <button type="button" key={appointment.id} onClick={() => setSelectedHistory(appointment)} style={{ border: "1px solid #efe9e0", borderRadius: "3.75px", padding: "0.9rem", background: "#fff", textAlign: "left", cursor: "pointer" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <strong style={{ color: colors.ink }}>{formatDateTime(appointment.scheduledAt)}</strong>
-                    {appointment.status === "Completed" ? (
-                      <span
-                        className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-medium px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1"
-                        style={{
-                          background: "#eef2ec",
-                          color: "#4a6b4a",
-                          border: "1px solid rgba(167, 243, 208, 0.8)",
-                          fontSize: "0.72rem",
-                          fontWeight: 500,
-                          padding: "0.15rem 0.55rem",
-                          borderRadius: "9999px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
+            /* A table, not a stack of cards.
+               The cards reprinted the whole report — findings, treatment,
+               attachments, materials — for every visit, so reading a client's
+               history meant scrolling past four paragraphs to reach the next
+               date. The four fields the office actually scans across are the
+               date, the terms it was done on, what it cost, and when the visit
+               before it was. Everything else is one click away: the row still
+               opens the full report. */
+            <div style={{ marginTop: "1rem", overflowX: "auto", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
+                <thead>
+                  <tr style={{ background: "#fcfaf1" }}>
+                    {["Date", "Frequency", "Price", "Last appointment"].map((label) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        style={{ padding: "0.7rem 0.75rem", color: colors.muted, fontSize: "0.68rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #efe9e0", fontWeight: 500 }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {serviceHistory.map((appointment, index) => {
+                    // serviceHistory is newest first, so the visit before this
+                    // one is the next row down.
+                    const previous = serviceHistory[index + 1];
+                    return (
+                      <tr
+                        key={appointment.id}
+                        onClick={() => setSelectedHistory(appointment)}
+                        style={{ cursor: "pointer" }}
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedHistory(appointment);
+                          }
                         }}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ width: "0.375rem", height: "0.375rem", borderRadius: "9999px", background: "#10b981", display: "inline-block" }}></span>
-                        {appointment.status}
-                      </span>
-                    ) : (
-                      <span style={{ color: colors.brandInk, background: "#f9ecea", borderRadius: "999px", padding: "0.25rem 0.55rem", fontSize: "0.7rem", fontWeight: 500 }}>{appointment.status}</span>
-                    )}
-                  </div>
-                  {(appointment.serviceType || appointment.serviceLocation) && <p style={{ margin: "0.4rem 0 0", color: colors.muted, fontSize: "0.76rem" }}>{[appointment.serviceType, appointment.serviceLocation].filter(Boolean).join(" • ")}</p>}
-                  {appointment.notes && <p style={{ margin: "0.55rem 0 0", color: colors.body, fontSize: "0.84rem" }}>{appointment.notes}</p>}
-                  {(appointment.report || appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}>
-                    {appointment.report && <><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Inspection findings</div><div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.report}</div></>}
-                    {(appointment.treatmentPerformed || (appointment.treatmentMethods || []).length > 0) && <div style={{ marginTop: appointment.report ? "0.6rem" : 0 }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Treatment performed</div>{(appointment.treatmentMethods || []).length > 0 && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.8rem" }}>{appointment.treatmentMethods.map(treatmentMethodLabel).join(" · ")}</div>}{appointment.treatmentPerformed && <div style={{ marginTop: "0.25rem", color: colors.body, fontSize: "0.84rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{appointment.treatmentPerformed}</div>}</div>}
-                    {appointment.reportSubmittedAt && <div style={{ marginTop: "0.35rem", color: colors.muted, fontSize: "0.7rem" }}>Submitted {formatDateTime(appointment.reportSubmittedAt)}</div>}
-                  </div>}
-                  {(appointment.attachments || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Report attachments</div><div style={{ marginTop: "0.35rem", color: colors.body, fontSize: "0.78rem" }}>{appointment.attachments.length} file{appointment.attachments.length === 1 ? "" : "s"} — click this visit to view or download them.</div></div>}
-                  {(appointment.stockUsed || []).length > 0 && <div style={{ marginTop: "0.65rem", paddingTop: "0.65rem", borderTop: "1px solid #efe9e0" }}><div style={{ color: colors.muted, fontSize: "0.68rem", fontWeight: 500, textTransform: "uppercase" }}>Materials used</div><div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>{appointment.stockUsed.map((entry, index) => <span key={`${entry.itemId}-${index}`} style={{ background: "#efe9e0", border: "1px solid #efe9e0", borderRadius: "3.75px", padding: "0.3rem 0.45rem", color: colors.body, fontSize: "0.75rem" }}>{entry.name}: {entry.amount} {entry.unit}</span>)}</div></div>}
-                </button>
-              ))}
+                        <td style={{ padding: "0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>
+                          {formatDateTime(appointment.scheduledAt)}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>
+                          {appointment.serviceFrequency || "—"}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>
+                          {appointment.price === "" || appointment.price === null || appointment.price === undefined
+                            ? "—"
+                            : peso(appointment.price)}
+                        </td>
+                        <td style={{ padding: "0.75rem", color: colors.muted, borderBottom: "1px solid #f1e7e7" }}>
+                          {previous ? formatDate(previous.scheduledAt) : "First visit"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
@@ -672,7 +707,11 @@ function ClientDetails({
 
       {selectedHistory && (() => {
         const technician = accounts.find((a) => a.id === selectedHistory.technicianId);
-        const technicianName = technician?.name || technician?.username || "Unassigned";
+        const crew = crewOf(selectedHistory)
+          .map((id) => accounts.find((account) => account.id === id))
+          .map((account) => account?.name || account?.username)
+          .filter(Boolean);
+        const technicianName = crew.join(", ") || technician?.name || technician?.username || "Unassigned";
         const treatmentMethods = (selectedHistory.treatmentMethods || []).map(treatmentMethodLabel);
 
         return (
@@ -723,7 +762,13 @@ function ClientDetails({
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
                   <button
                     type="button"
-                    onClick={() => setPrintRequest({ appointment: selectedHistory, client, technician: technician || null, inventory })}
+                    onClick={() => setPrintRequest({
+                      appointment: selectedHistory,
+                      client,
+                      technician: technician || null,
+                      technicians: crewOf(selectedHistory).map((id) => accounts.find((account) => account.id === id)).filter(Boolean),
+                      inventory,
+                    })}
                     style={{ ...secondaryButton, display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.45rem 0.75rem", fontSize: "0.74rem" }}
                   >
                     <Printer size={14} /> Service form PDF

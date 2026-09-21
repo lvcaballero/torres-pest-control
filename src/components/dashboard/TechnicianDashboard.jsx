@@ -13,6 +13,7 @@ import useClients from "../../hooks/useClients";
 import useInventory from "../../hooks/useInventory";
 import { useScheduling } from "../../context/SchedulingContext";
 import { colors, pageShell, primaryButton } from "../../styles/theme";
+import { isAssignedTo } from "../../utils/scheduling";
 import {
   appointmentsThisWeek,
   completedToday,
@@ -38,22 +39,22 @@ function TechnicianDashboard() {
     return appointment.serviceLocation || client?.address || "";
   };
 
-  const mineToday = appointmentsToday(appointments).filter((entry) => entry.technicianId === me);
+  const mineToday = appointmentsToday(appointments).filter((entry) => isAssignedTo(entry, me));
   const remaining = remainingToday(appointments, me);
   const done = completedToday(appointments, me);
   const nextUp = remaining[0];
-  const weeklyJobs = appointmentsThisWeek(appointments).filter((entry) => entry.technicianId === me);
+  const weeklyJobs = appointmentsThisWeek(appointments).filter((entry) => isAssignedTo(entry, me));
   const weeklyFiled = weeklyJobs.filter((entry) => entry.reportSubmitted).length;
   const tomorrowJobs = tomorrowsJobs(appointments, me, 4);
   const reportsToFile = weeklyJobs.filter((entry) => !entry.reportSubmitted).sort((first, second) => new Date(first.scheduledAt) - new Date(second.scheduledAt));
   const signaturesToAdd = weeklyJobs.filter((entry) => entry.reportSubmitted && !entry.technicianSignaturePath).sort((first, second) => new Date(second.scheduledAt) - new Date(first.scheduledAt));
   const recentCompleted = appointments
-    .filter((entry) => entry.technicianId === me && entry.reportSubmitted)
+    .filter((entry) => isAssignedTo(entry, me) && entry.reportSubmitted)
     .sort((first, second) => new Date(second.reportSubmittedAt || second.scheduledAt) - new Date(first.reportSubmittedAt || first.scheduledAt))
     .slice(0, 4);
   const lowStock = lowStockItems(inventory).slice(0, 4);
   const nextScheduled = appointments
-    .filter((entry) => entry.technicianId === me && entry.status !== "Cancelled" && new Date(entry.scheduledAt) >= new Date())
+    .filter((entry) => isAssignedTo(entry, me) && entry.status !== "Cancelled" && new Date(entry.scheduledAt) >= new Date())
     .sort((first, second) => new Date(first.scheduledAt) - new Date(second.scheduledAt))[0];
 
   const note = useMemo(() => {

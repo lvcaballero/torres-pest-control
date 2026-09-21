@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   GripVertical,
   Lock,
@@ -25,14 +23,14 @@ import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
 import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_TYPES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, endOf, findTechnicianConflicts, layoutDayAppointments, startOf } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, describeSlotConflict, findTechnicianConflicts, layoutDayAppointments } from "../utils/scheduling";
 import {
   addDays,
   defaultAppointmentDateTime,
   formatDateTime,
-  formatDuration,
-  formatTime,
   localDateKey,
+  minutesOfDay,
+  minutesToTimeValue,
   readDuration,
   startOfWeek,
   toDateTimeLocal,
@@ -41,19 +39,31 @@ import {
   UNASSIGNED_COLOR,
   badgeStyle,
   statusAccent,
-  statusShape,
   technicianColorMap,
 } from "../components/scheduling/appointmentTheme";
+import { CalendarProvider } from "../components/scheduling/CalendarContext";
+import WeekGrid from "../components/scheduling/WeekGrid";
+import MonthGrid from "../components/scheduling/MonthGrid";
+import OverflowDialog from "../components/scheduling/OverflowDialog";
+import SchedulingToolbar, { MODES } from "../components/scheduling/SchedulingToolbar";
+import {
+  fullDayWindow,
+  hoursIn,
+  rowHeightForWindow,
+  visibleHourWindow,
+} from "../utils/calendarGeometry";
+import PageHeader from "../components/common/PageHeader";
 import { validateAttachment } from "../utils/validators";
-import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
+import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton, sunkenPanel } from "../styles/theme";
+import Button from "../components/ui/Button";
+import Field from "../components/ui/Field";
+import Input from "../components/ui/Input";
+import Select from "../components/ui/Select";
 
-// Week grid geometry. ROW_HEIGHT is the pixel height of one hour and is the
-// single basis for every position in the grid — card tops, card heights, and
-// the drop-target time math all derive from it.
-const ROW_HEIGHT = 56;
-const MIN_CARD_HEIGHT = 22;
+// Past three side-by-side cards none of them is readable, so the rest go
+// behind a "+N more" tile. Grid geometry now lives in utils/calendarGeometry
+// and is computed per render from the hours the week actually uses.
 const MAX_CARD_COLUMNS = 3;
-const HOURS = Array.from({ length: CALENDAR_END_HOUR - DAY_START_HOUR }, (_, index) => index + DAY_START_HOUR);
 
 const TAB_LABELS = ["Overview", "Documents", "Report", "Stock-Out"];
 const STOCK_CATEGORIES = ["CHEMICAL", "MATERIAL", "EQUIPMENT"];
@@ -66,7 +76,7 @@ function SchedulingPage() {
   const { staff, technicians } = useUsers();
   const { appointments, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl, uploadSignature, getSignatureUrl, loading, error } = useScheduling();
   const [selectedId, setSelectedId] = useState(null);
-  const [view, setView] = useState("week");
+  const [mode, setMode] = useState(MODES.WEEK);
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [tab, setTab] = useState("Overview");
   const [draggedId, setDraggedId] = useState(null);
@@ -80,7 +90,9 @@ function SchedulingPage() {
   const { methods: dynamicMethods, groups: dynamicGroups } = useTreatmentMethods();
   const [treatmentMethods, setTreatmentMethods] = useState([]);
   const [appointmentSearch, setAppointmentSearch] = useState("");
-  const [scheduleTab, setScheduleTab] = useState("calendar");
+  // Widens the grid back to the whole working day when something falls
+  // outside the window the week would otherwise show.
+  const [showAllHours, setShowAllHours] = useState(false);
   const [technicianFilter, setTechnicianFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [clientFilter, setClientFilter] = useState("ALL");
@@ -182,24 +194,38 @@ function SchedulingPage() {
     return result;
   }, [weekDays, visibleAppointments]);
 
-  /** Minutes from the top of the rendered day, clamped to the grid. */
-  const minutesFromGridStart = (value) => {
-    const date = new Date(value);
-    return date.getHours() * 60 + date.getMinutes() - DAY_START_HOUR * 60;
-  };
 
-  const columnPlacement = (column, columns) => ({
-    left: `calc(${(column / columns) * 100}% + 0.25rem)`,
-    width: `calc(${100 / columns}% - 0.5rem)`,
-  });
+  // The hours the grid actually draws. A week with four appointments used to
+  // render all thirteen business hours at a fixed 56px — 728px of mostly
+  // empty ruled paper, which is the loudest thing wrong with the old screen.
+  const hourWindow = useMemo(
+    () =>
+      showAllHours
+        ? fullDayWindow(DAY_START_HOUR, CALENDAR_END_HOUR)
+        : visibleHourWindow(
+            visibleAppointments.filter((appointment) =>
+              weekDays.some((date) => localDateKey(date) === localDateKey(new Date(appointment.scheduledAt)))
+            ),
+            { businessStart: DAY_START_HOUR, businessEnd: CALENDAR_END_HOUR }
+          ),
+    [visibleAppointments, weekDays, showAllHours]
+  );
 
-  const spanGeometry = (startValue, endValue) => {
-    const top = (minutesFromGridStart(startValue) / 60) * ROW_HEIGHT;
-    const rawHeight = ((endValue - startValue) / 60000 / 60) * ROW_HEIGHT;
-    return { top, height: Math.max(MIN_CARD_HEIGHT, rawHeight - 2) };
-  };
+  // Fewer hours on screen means each can afford more height, which is what
+  // makes a readable card possible at all.
+  const rowHeight = useMemo(() => rowHeightForWindow(hoursIn(hourWindow).length), [hourWindow]);
 
-  const moveAppointment = async (dateKey, time = "09:00") => {
+  /**
+   * Move the dragged appointment to `dateKey`.
+   *
+   * `time` is optional because a month cell has no vertical position to read
+   * one from. It used to default to "09:00", which meant dropping a 3 PM
+   * visit anywhere in a month cell silently rebooked it to 9 AM — no warning,
+   * no undo, and nothing in the UI to suggest the time had changed at all.
+   * Leaving it undefined now keeps the appointment's own time of day, so a
+   * month drag changes the date and nothing else.
+   */
+  const moveAppointment = async (dateKey, time = null) => {
     if (!draggedId) return;
     const current = appointments.find((appointment) => appointment.id === draggedId);
     if (!canReschedule) {
@@ -213,7 +239,8 @@ function SchedulingPage() {
       setDraggedId(null);
       return;
     }
-    const nextScheduledAt = `${dateKey}T${time}:00`;
+    const keptTime = minutesToTimeValue(minutesOfDay(current.scheduledAt));
+    const nextScheduledAt = `${dateKey}T${time || keptTime}:00`;
     const movedAppointment = { ...current, scheduledAt: nextScheduledAt, status: "Confirmed" };
     // Moving requires the Reschedule status first, so an appointment that cannot
     // reach Reschedule cannot be dragged at all.
@@ -248,8 +275,9 @@ function SchedulingPage() {
 
   const navigateCalendar = (amount) => {
     const next = new Date(anchorDate);
-    if (view === "week") next.setDate(next.getDate() + amount * 7);
-    else next.setMonth(next.getMonth() + amount);
+    // The technicians view is a week grid too, so only month mode steps by month.
+    if (mode === MODES.MONTH) next.setMonth(next.getMonth() + amount);
+    else next.setDate(next.getDate() + amount * 7);
     setAnchorDate(next);
   };
 
@@ -436,7 +464,7 @@ function SchedulingPage() {
     setCreateOpen(false);
     setSelectedId(result.id);
     setCreateScheduledAt("");
-    setView("week");
+    setMode(MODES.WEEK);
     setAnchorDate(startOfWeek(new Date(result.scheduledAt)));
     setMessage("Appointment created.");
     return true;
@@ -450,199 +478,181 @@ function SchedulingPage() {
   // `height` is the card's real pixel height in the week grid. Content is
   // chosen to fit it, because the card clips — a 15-minute visit that tried to
   // render four stacked rows showed only the first one and lost its status.
-  const renderAppointmentCard = (appointment, compact = false, placement = {}, height = null) => {
-    const client = clients.find((entry) => entry.id === appointment.clientId);
-    if (!client) return null;
-    const selectedCard = appointment.id === selectedId;
-    // Detail lives in the side panel now, so a block only needs two lines.
-    const roomy = height === null || height >= 80;
-    const tight = height !== null && height < 34;
-    const tone = colorFor(appointment);
-    const shape = statusShape(appointment.status);
-    const technician = activeAccounts.find((account) => account.id === appointment.technicianId);
-    const startLabel = new Date(appointment.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    const endLabel = new Date(endOf(appointment)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    return (
-      <button
-        key={appointment.id}
-        type="button"
-        draggable={canReschedule}
-        onDragStart={async () => {
-          if (!canReschedule) return;
+  // Everything the calendar's cards need, in one value rather than threaded
+  // through WeekGrid and its day layers as nine separate props.
+  const calendarValue = useMemo(
+    () => ({
+      clients,
+      accounts: activeAccounts,
+      colorFor,
+      selectedId,
+      draggedId,
+      canReschedule,
+      onSelect: (appointment) => {
+        // A finished drag also fires a click; the ref is what tells them apart.
+        if (draggedCardRef.current) {
           draggedCardRef.current = false;
-          setDraggedId(appointment.id);
-          if (appointment.status !== "Reschedule") {
-            const result = await updateAppointment({ ...appointment, status: "Reschedule" });
-            if (typeof result === "string") setMessage(result);
-          }
-        }}
-        onDragEnd={() => { draggedCardRef.current = true; setDraggedId(null); }}
-        onClick={() => { if (draggedCardRef.current) { draggedCardRef.current = false; return; } setSelectedId(appointment.id); setTab("Overview"); }}
-        title={`${client.name}
-${startLabel} – ${endLabel} · ${formatDuration(appointment.durationMinutes || 60)}
-${technician?.name || technician?.username || "Unassigned"} · ${appointment.status}${appointment.pestConcern ? ` · ${appointment.pestConcern}` : ""}`}
-        style={{
-          width: "100%", textAlign: "left", cursor: canReschedule ? "grab" : "pointer",
-          border: `1px ${shape.borderStyle} ${selectedCard ? colors.brandLight : tone.bar}`,
-          borderLeftWidth: "3px", borderLeftStyle: "solid", borderLeftColor: tone.bar,
-          borderRadius: "6px",
-          padding: tight ? "0.1rem 0.35rem" : "0.2rem 0.4rem",
-          background: tone.fill,
-          filter: shape.dim ? "saturate(0.55)" : "none",
-          outline: selectedCard ? `2px solid ${colors.brandLight}` : "none",
-          outlineOffset: "1px",
-          boxShadow: selectedCard ? "0 4px 12px rgba(127,17,17,0.18)" : "none",
-          position: "relative", zIndex: selectedCard ? 3 : 1,
-          opacity: draggedId === appointment.id ? 0.45 : shape.opacity,
-          ...placement,
-        }}
-      >
-        {tight ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem", overflow: "hidden", whiteSpace: "nowrap", color: tone.ink }}>
-            <span style={{ fontWeight: 700, fontSize: "0.66rem", overflow: "hidden", textOverflow: "ellipsis", textDecoration: shape.strike ? "line-through" : "none" }}>{client.name}</span>
-            <span style={{ fontSize: "0.6rem", opacity: 0.8, flex: "none" }}>{startLabel}</span>
-          </div>
-        ) : (
-          <div style={{ color: tone.ink, overflow: "hidden" }}>
-            <div style={{ fontWeight: 700, fontSize: compact ? "0.7rem" : "0.72rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: shape.strike ? "line-through" : "none" }}>{client.name}</div>
-            <div style={{ fontSize: "0.62rem", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{startLabel} – {endLabel}</div>
-            {roomy && <div style={{ fontSize: "0.62rem", opacity: 0.7, marginTop: "0.1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{technician?.name || technician?.username || "Unassigned"}{appointment.pestConcern ? ` · ${appointment.pestConcern}` : ""}</div>}
-          </div>
-        )}
-      </button>
+          return;
+        }
+        setSelectedId(appointment.id);
+        setTab("Overview");
+      },
+      onDragStart: (appointment) => {
+        draggedCardRef.current = false;
+        setDraggedId(appointment.id);
+      },
+      onDragEnd: () => {
+        draggedCardRef.current = true;
+        setDraggedId(null);
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clients, activeAccounts, technicianColors, selectedId, draggedId, canReschedule]
+  );
+
+  const appointmentsOnDay = (dateKey) =>
+    visibleAppointments.filter(
+      (appointment) => localDateKey(new Date(appointment.scheduledAt)) === dateKey
     );
-  };
+
+  const jobsThisWeek = (technicianId) =>
+    visibleAppointments.filter((appointment) =>
+      technicianId === null ? !appointment.technicianId : appointment.technicianId === technicianId
+    ).length;
+
+  const rangeLabel =
+    mode === MODES.MONTH
+      ? anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })
+      : `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`;
+
+  const isOnToday =
+    mode === MODES.MONTH
+      ? anchorDate.getMonth() === new Date().getMonth() &&
+        anchorDate.getFullYear() === new Date().getFullYear()
+      : localDateKey(weekStart) === localDateKey(startOfWeek(new Date()));
 
   return (
     <div style={pageShell}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-        <div>
-          <div style={{ color: colors.brand, fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>Operations</div>
-          <h1 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "2rem" }}>Scheduling</h1>
-        </div>
-        <button type="button" style={primaryButton} onClick={() => { setCreateScheduledAt(""); setCreateOpen(true); }}><Plus size={16} /> New appointment</button>
-      </div>
+      <PageHeader eyebrow="Operations" title="Scheduling" />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.25rem", alignItems: "start" }}>
-        <section style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div style={{ display: "flex", gap: "0.35rem", background: "#f8fafc", padding: "0.25rem", borderRadius: "10px" }}>{(isTechnician ? ["calendar", "list"] : ["calendar", "list", "technicians"]).map((option) => <button key={option} type="button" onClick={() => setScheduleTab(option)} style={{ ...secondaryButton, border: "none", background: scheduleTab === option ? colors.brand : "transparent", color: scheduleTab === option ? "#fff" : colors.body, padding: "0.5rem 0.8rem" }}>{option === "calendar" ? "Calendar" : option === "list" ? "List" : "Technicians"}</button>)}</div><div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>{scheduleTab === "calendar" && !isTechnician && <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Technician
-            <select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)} style={{ ...inputStyle, width: "auto", minWidth: "190px", padding: "0.5rem 0.6rem", fontSize: "0.8rem", fontWeight: 600, textTransform: "none", letterSpacing: 0, color: colors.ink }}>
-              <option value="ALL">All technicians</option>
-              {technicians.map((account) => <option key={account.id} value={account.id}>{account.reference ? `${account.reference} — ` : ""}{account.name || account.username}</option>)}
-              <option value="">Unassigned only</option>
-            </select>
-          </label>}{scheduleTab === "calendar" && <div style={{ display: "flex", gap: "0.4rem", background: "#f8fafc", padding: "0.25rem", borderRadius: "10px" }}>{['week', 'month'].map((option) => <button key={option} type="button" onClick={() => setView(option)} style={{ ...secondaryButton, border: "none", background: view === option ? colors.brand : "transparent", color: view === option ? "#fff" : colors.body, padding: "0.55rem 0.8rem" }}>{option === "week" ? "Week" : "Month"}</button>)}</div>}</div></div>
-          {scheduleTab === "list" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem", alignItems: "end", marginBottom: "1rem", padding: "0.85rem", background: "#fffafa", border: "1px solid #eadede", borderRadius: "10px" }}><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800, gridColumn: "span 2" }}>Search appointments<input value={appointmentSearch} onChange={(event) => setAppointmentSearch(event.target.value)} placeholder="Client, address, technician, pest concern, ID" style={inputStyle} /></label>{!isTechnician && <label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Technician<select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)} style={inputStyle}><option value="ALL">All technicians</option>{technicians.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label>}<label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}><option value="ALL">All statuses</option>{APPOINTMENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Client<select value={clientFilter} onChange={(event) => setClientFilter(event.target.value)} style={inputStyle}><option value="ALL">All clients</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Pest concern<select value={pestConcernFilter} onChange={(event) => setPestConcernFilter(event.target.value)} style={inputStyle}><option value="ALL">All pest concerns</option>{pestConcernOptions.map((concern) => <option key={concern} value={concern}>{concern}</option>)}</select></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Date from<input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} style={inputStyle} /></label><label style={{ display: "grid", gap: "0.3rem", color: colors.muted, fontSize: "0.68rem", fontWeight: 800 }}>Date to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} style={inputStyle} /></label>{(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ ...secondaryButton, alignSelf: "end" }}>Clear dates</button>}</div>}
-          {scheduleTab !== "list" && <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-              <button type="button" aria-label="Previous period" onClick={() => navigateCalendar(-1)} style={secondaryButton}><ChevronLeft size={16} /></button>
-              <button type="button" aria-label="Next period" onClick={() => navigateCalendar(1)} style={secondaryButton}><ChevronRight size={16} /></button>
-              <strong style={{ color: colors.ink }}>{scheduleTab === "technicians" || view === "week" ? `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}` : anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })}</strong>
+      <div style={{ display: "grid", gap: "15px" }}>
+        <SchedulingToolbar
+          mode={mode}
+          onModeChange={setMode}
+          rangeLabel={rangeLabel}
+          onNavigate={navigateCalendar}
+          onToday={() => setAnchorDate(new Date())}
+          isOnToday={isOnToday}
+          technicians={technicians}
+          technicianFilter={technicianFilter}
+          onTechnicianFilterChange={setTechnicianFilter}
+          colorFor={(id) => technicianColors.get(id)}
+          unassignedColor={UNASSIGNED_COLOR}
+          countFor={jobsThisWeek}
+          isTechnician={isTechnician}
+          canCreate={!isTechnician}
+          onCreate={() => {
+            setCreateScheduledAt("");
+            setCreateOpen(true);
+          }}
+        />
+
+        <section style={{ ...card, padding: mode === MODES.LIST ? "20px" : 0, border: mode === MODES.LIST ? undefined : "none", background: mode === MODES.LIST ? undefined : "transparent" }}>
+          {mode === MODES.LIST && (
+            <div style={{ ...sunkenPanel, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px", alignItems: "end", marginBottom: "15px" }}>
+              <Field label="Search appointments" style={{ gridColumn: "span 2" }}>
+                <Input
+                  value={appointmentSearch}
+                  onChange={(event) => setAppointmentSearch(event.target.value)}
+                  placeholder="Client, address, technician, pest concern, ID"
+                />
+              </Field>
+              {!isTechnician && (
+                <Field label="Technician">
+                  <Select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)}>
+                    <option value="ALL">All technicians</option>
+                    {technicians.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name || account.username}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+              <Field label="Status">
+                <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option value="ALL">All statuses</option>
+                  {APPOINTMENT_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                </Select>
+              </Field>
+              <Field label="Client">
+                <Select value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}>
+                  <option value="ALL">All clients</option>
+                  {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Pest concern">
+                <Select value={pestConcernFilter} onChange={(event) => setPestConcernFilter(event.target.value)}>
+                  <option value="ALL">All pest concerns</option>
+                  {pestConcernOptions.map((concern) => <option key={concern} value={concern}>{concern}</option>)}
+                </Select>
+              </Field>
+              <Field label="Date from">
+                <Input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} />
+              </Field>
+              <Field label="Date to">
+                <Input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} />
+              </Field>
+              {(dateFrom || dateTo) && (
+                <Button size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ alignSelf: "end" }}>
+                  Clear dates
+                </Button>
+              )}
             </div>
-          </div>}
+          )}
 
-          {scheduleTab === "list" ? <AppointmentListView appointments={visibleAppointments} clients={clients} accounts={activeAccounts} onSelect={(id) => { setSelectedId(id); setTab("Overview"); }} /> : scheduleTab === "technicians" ? <TechnicianAvailability accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : technicians} appointments={visibleAppointments} weekDays={weekDays} clients={clients} /> : (view === "week" ? (
-            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 20rem)", minHeight: "26rem", border: "1px solid #eadede", borderRadius: "10px" }}>
-              <div style={{ minWidth: "780px", display: "grid", gridTemplateColumns: "64px repeat(7, minmax(95px, 1fr))" }}>
-                {/* Header row stays put while the hours scroll under it. */}
-                <div style={{ position: "sticky", top: 0, zIndex: 3, background: "#fffafa", borderBottom: "1px solid #eadede", borderRight: "1px solid #eadede" }} />
-                {weekDays.map((date) => {
-                  const key = localDateKey(date);
-                  const outside = weekLayout.get(key)?.outside || [];
-                  return <div key={key} style={{ position: "sticky", top: 0, zIndex: 3, padding: "0.6rem 0.35rem", textAlign: "center", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: key === localDateKey(new Date()) ? "#fff1f1" : "#fffafa" }}>
-                    <div style={{ color: colors.muted, fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase" }}>{date.toLocaleDateString([], { weekday: "short" })}</div>
-                    <div style={{ color: colors.ink, fontSize: "1.05rem", fontWeight: 800 }}>{date.getDate()}</div>
-                    {outside.length > 0 && <div title={outside.map((entry) => `${clients.find((client) => client.id === entry.clientId)?.name || "Appointment"} at ${new Date(entry.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`).join("\n")} style={{ marginTop: "0.25rem", display: "inline-block", background: "#fff7ed", color: "#c2410c", borderRadius: "999px", padding: "0.1rem 0.4rem", fontSize: "0.6rem", fontWeight: 800 }}>{outside.length} outside {formatTime(`${String(DAY_START_HOUR).padStart(2, "0")}:00`)}–{formatTime(`${String(DAY_END_HOUR).padStart(2, "0")}:00`)}</div>}
-                  </div>;
-                })}
+          <CalendarProvider value={calendarValue}>
+            {mode === MODES.LIST && (
+              <AppointmentListView
+                appointments={visibleAppointments}
+                clients={clients}
+                accounts={activeAccounts}
+                onSelect={(id) => { setSelectedId(id); setTab("Overview"); }}
+              />
+            )}
 
-                {/* Hour labels down the gutter. */}
-                <div style={{ borderRight: "1px solid #eadede" }}>
-                  {HOURS.map((hour) => <div key={hour} style={{ height: `${ROW_HEIGHT}px`, boxSizing: "border-box", borderBottom: "1px solid #eadede", color: colors.muted, fontSize: "0.65rem", padding: "0.25rem 0.4rem", textAlign: "right", fontWeight: 700 }}>{formatTime(`${String(hour).padStart(2, "0")}:00`)}</div>)}
-                </div>
+            {mode === MODES.TECHNICIANS && (
+              <TechnicianAvailability
+                accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : technicians}
+                appointments={visibleAppointments}
+                weekDays={weekDays}
+                clients={clients}
+              />
+            )}
 
-                {/* One positioned layer per day: a card spans its real duration
-                    instead of being trapped inside its starting hour. */}
-                {weekDays.map((date) => {
-                  const key = localDateKey(date);
-                  const layout = weekLayout.get(key) || { placed: [], overflow: [] };
-                  return <div
-                    key={key}
-                    onClick={(event) => {
-                      if (event.target.closest("button")) return;
-                      const bounds = event.currentTarget.getBoundingClientRect();
-                      const rawMinutes = ((event.clientY - bounds.top) / ROW_HEIGHT) * 60 + DAY_START_HOUR * 60;
-                      const snapped = Math.min(DAY_END_HOUR * 60 - 10, Math.max(DAY_START_HOUR * 60, Math.round(rawMinutes / 10) * 10));
-                      openCreateAt(key, `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(snapped % 60).padStart(2, "0")}`);
-                    }}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      const bounds = event.currentTarget.getBoundingClientRect();
-                      const rawMinutes = ((event.clientY - bounds.top) / ROW_HEIGHT) * 60 + DAY_START_HOUR * 60;
-                      const snapped = Math.min(DAY_END_HOUR * 60 - 10, Math.max(DAY_START_HOUR * 60, Math.round(rawMinutes / 10) * 10));
-                      moveAppointment(key, `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(snapped % 60).padStart(2, "0")}`);
-                    }}
-                    style={{
-                      position: "relative",
-                      height: `${HOURS.length * ROW_HEIGHT}px`,
-                      borderRight: "1px solid #f4eceb",
-                      background: draggedId ? "#fffdfd" : "#fff",
-                      backgroundImage: `repeating-linear-gradient(to bottom, #ece4e3 0px, #ece4e3 1px, transparent 1px, transparent ${ROW_HEIGHT}px)`,
-                    }}
-                  >
-                    {layout.placed.map(({ appointment, column, columns }) => {
-                      const { top, height } = spanGeometry(startOf(appointment), endOf(appointment));
-                      return renderAppointmentCard(appointment, false, {
-                        position: "absolute",
-                        top: `${top + 1}px`,
-                        height: `${height}px`,
-                        ...columnPlacement(column, columns),
-                        overflow: "hidden",
-                      }, height);
-                    })}
-                    {layout.overflow.map((group) => {
-                      const { top, height } = spanGeometry(group.start, group.end);
-                      return <button
-                        key={group.id}
-                        type="button"
-                        onClick={() => setOverflowGroup({ ...group, dateKey: key })}
-                        style={{
-                          position: "absolute",
-                          top: `${top + 1}px`,
-                          height: `${height}px`,
-                          ...columnPlacement(group.column, group.columns),
-                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.1rem",
-                          border: "1px dashed #d8b4b4", borderRadius: "10px", background: "#fff6f6",
-                          color: colors.brandInk, fontWeight: 800, fontSize: "0.68rem", cursor: "pointer", overflow: "hidden", zIndex: 1,
-                        }}
-                      >
-                        +{group.items.length} more
-                        {height >= 44 && <span style={{ color: colors.muted, fontWeight: 600, fontSize: "0.6rem" }}>tap to view</span>}
-                      </button>;
-                    })}
-                  </div>;
-                })}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", overflowX: "auto", minWidth: "680px", borderTop: "1px solid #eadede", borderLeft: "1px solid #eadede" }}>
-              {monthCells.map((date) => { const key = localDateKey(date); const entries = visibleAppointments.filter((appointment) => localDateKey(new Date(appointment.scheduledAt)) === key); return <div key={key} onDragOver={(event) => event.preventDefault()} onDrop={() => moveAppointment(key)} style={{ minHeight: "112px", padding: "0.45rem", borderRight: "1px solid #eadede", borderBottom: "1px solid #eadede", background: date.getMonth() === anchorDate.getMonth() ? "#fff" : "#fafafa" }}><div style={{ color: date.getMonth() === anchorDate.getMonth() ? colors.ink : "#a3a3a3", fontWeight: 800, fontSize: "0.75rem", marginBottom: "0.3rem" }}>{date.getDate()}</div><div style={{ display: "grid", gap: "0.3rem" }}>{entries.map((appointment) => renderAppointmentCard(appointment, true))}</div></div>; })}
-            </div>
-          ))}
-          {view === "week" && <div style={{ display: "flex", gap: "0.9rem", flexWrap: "wrap", alignItems: "center", marginTop: "0.75rem" }}>
-            {technicians.map((account) => {
-              const active = technicianFilter === account.id;
-              return <button key={account.id} type="button" disabled={isTechnician} onClick={() => setTechnicianFilter(active ? "ALL" : account.id)} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", border: `1px solid ${active ? colors.brand : "transparent"}`, background: active ? "#fff1f1" : "transparent", borderRadius: "999px", padding: "0.15rem 0.5rem 0.15rem 0.35rem", color: active ? colors.brandInk : colors.muted, fontSize: "0.7rem", fontWeight: active ? 800 : 600, cursor: isTechnician ? "default" : "pointer" }}>
-                <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: technicianColors.get(account.id)?.bar }} />{account.name || account.username}
-              </button>;
-            })}
-            <button type="button" disabled={isTechnician} onClick={() => setTechnicianFilter(technicianFilter === "" ? "ALL" : "")} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", border: `1px solid ${technicianFilter === "" ? colors.brand : "transparent"}`, background: technicianFilter === "" ? "#fff1f1" : "transparent", borderRadius: "999px", padding: "0.15rem 0.5rem 0.15rem 0.35rem", color: technicianFilter === "" ? colors.brandInk : colors.muted, fontSize: "0.7rem", fontWeight: technicianFilter === "" ? 800 : 600, cursor: isTechnician ? "default" : "pointer" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: UNASSIGNED_COLOR.bar }} />Unassigned
-            </button>
-            {technicianFilter !== "ALL" && !isTechnician && <button type="button" onClick={() => setTechnicianFilter("ALL")} style={{ border: 0, background: "none", color: colors.brand, fontSize: "0.7rem", fontWeight: 800, textDecoration: "underline", cursor: "pointer", padding: 0 }}>Show all</button>}
-            <span style={{ color: colors.muted, fontSize: "0.7rem", borderLeft: "1px solid #eadede", paddingLeft: "0.9rem" }}>Dashed outline = Pending · dotted = Reschedule · faded = Completed or Cancelled</span>
-          </div>}
+            {mode === MODES.WEEK && (
+              <WeekGrid
+                weekDays={weekDays}
+                weekLayout={weekLayout}
+                window={hourWindow}
+                rowHeight={rowHeight}
+                dayStartHour={DAY_START_HOUR}
+                dayEndHour={DAY_END_HOUR}
+                onEmptyClick={openCreateAt}
+                onDropAt={moveAppointment}
+                onShowOverflow={setOverflowGroup}
+                onShowAllHours={() => setShowAllHours(true)}
+              />
+            )}
+
+            {mode === MODES.MONTH && (
+              <MonthGrid
+                monthCells={monthCells}
+                anchorDate={anchorDate}
+                appointmentsFor={appointmentsOnDay}
+                onDropAt={moveAppointment}
+              />
+            )}
+          </CalendarProvider>
+
           <div style={{ display: "flex", gap: "1rem", color: colors.muted, fontSize: "0.72rem", marginTop: "0.6rem", alignItems: "center" }}>{canReschedule ? <><GripVertical size={14} /> Drag any appointment to reschedule it. Dropping it saves the new time as Confirmed.</> : <><Lock size={14} /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.</>}</div>
           {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 700, fontSize: "0.82rem" }}>Loading appointments...</div>}
           {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 700, fontSize: "0.82rem" }}>{error || message}</div>}
@@ -653,30 +663,11 @@ ${technician?.name || technician?.username || "Unassigned"} · ${appointment.sta
       {selected && selectedClient && <AppointmentPanel key={`${selected.id}-${selected.status}-${selected.updatedAt || ""}`} appointment={selected} client={selectedClient} tab={tab} setTab={setTab} activeAccounts={technicians} appointments={appointments} canReschedule={canReschedule} canFileService={ownsAppointment(selected)} getSignatureUrl={getSignatureUrl} treatmentMethods={treatmentMethods} onToggleMethod={toggleTreatmentMethod} dynamicMethods={dynamicMethods} dynamicGroups={dynamicGroups} onPrintServiceForm={() => printServiceForm(selected)} onProblem={showError} assignedName={activeAccounts.find((account) => account.id === selected.technicianId)?.name || activeAccounts.find((account) => account.id === selected.technicianId)?.username || "another technician"} canUpload={can("clientDocuments", "create") && ownsAppointment(selected)} canRemove={can("clientDocuments", "delete") && ownsAppointment(selected)} addDocument={addDocument} removeDocument={removeDocument} getDocumentUrl={getDocumentUrl} addAttachment={addAttachment} removeAttachment={removeAttachment} getAttachmentUrl={getAttachmentUrl} onSave={handleManualSave} onTimingSave={handleTimingSave} onReportSubmit={handleReportSubmit} onStockSubmit={handleStockSubmit} onScheduleFollowUp={scheduleFollowUp} inventory={inventory} stockRows={stockRows} setStockRows={setStockRows} onClose={() => setSelectedId(null)} />}
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={showError} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />
       {createOpen && <CreateAppointmentModalV2 clients={clients} activeAccounts={technicians} initialClientId={createClientId} initialScheduledAt={createScheduledAt} onClose={() => { setCreateOpen(false); setCreateClientId(""); setCreateScheduledAt(""); }} onCreate={handleCreate} />}
-      {overflowGroup && <div role="dialog" aria-modal="true" onClick={() => setOverflowGroup(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
-        <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 460px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-            <div>
-              <div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>Also booked</div>
-              <h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{new Date(overflowGroup.start).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</h2>
-              <div style={{ color: colors.muted, fontSize: "0.78rem" }}>{overflowGroup.items.length} more between {new Date(overflowGroup.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} and {new Date(overflowGroup.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>
-            </div>
-            <button type="button" aria-label="Close list" onClick={() => setOverflowGroup(null)} style={{ ...secondaryButton, padding: "0.4rem 0.55rem" }}><X size={16} /></button>
-          </div>
-          <div style={{ display: "grid", gap: "0.5rem", marginTop: "1rem" }}>
-            {overflowGroup.items.map((appointment) => {
-              const client = clients.find((entry) => entry.id === appointment.clientId);
-              return <button key={appointment.id} type="button" onClick={() => { setSelectedId(appointment.id); setTab("Overview"); setOverflowGroup(null); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", textAlign: "left", padding: "0.65rem 0.75rem", background: "#fff", border: "1px solid #e8d9d9", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "10px", cursor: "pointer" }}>
-                <div>
-                  <div style={{ color: colors.ink, fontWeight: 800, fontSize: "0.85rem" }}>{client?.name || "Unknown client"}</div>
-                  <div style={{ color: colors.muted, fontSize: "0.72rem" }}>{new Date(appointment.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {formatDuration(appointment.durationMinutes || 60)} · {appointment.pestConcern || "Inspection"}</div>
-                </div>
-                <span style={badgeStyle(appointment.status)}>{appointment.status}</span>
-              </button>;
-            })}
-          </div>
-        </section>
-      </div>}
+      {/* The "+N more" tile's contents. Cards carry the same technician
+          colours as the grid, so the colour language survives the jump. */}
+      <CalendarProvider value={calendarValue}>
+        <OverflowDialog group={overflowGroup} onClose={() => setOverflowGroup(null)} />
+      </CalendarProvider>
     </div>
   );
 }
@@ -1653,39 +1644,6 @@ function CreateAppointmentModalV2({ clients, activeAccounts, initialClientId = "
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1.25rem" }}><button type="button" onClick={onClose} style={secondaryButton}>Cancel</button><button type="submit" disabled={saving || clients.length === 0} style={primaryButton}>{saving ? "Creating..." : "Create appointment"}</button></div>
     </form>
   </div>;
-}
-
-function CreateAppointmentModal({ clients, activeAccounts, initialScheduledAt = "", onClose, onCreate }) {
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSaving(true);
-    setFormError("");
-    const values = new FormData(event.currentTarget);
-    const result = await onCreate({
-      clientId: values.get("clientId"),
-      scheduledAt: values.get("scheduledAt"),
-      durationMinutes: readDuration(values),
-      pestConcern: values.get("pestConcern"),
-      technicianId: values.get("technicianId"),
-      notes: values.get("notes"),
-    });
-    if (typeof result === "string") setFormError(result);
-    setSaving(false);
-  };
-
-  return (
-    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
-      <form onSubmit={handleSubmit} style={{ ...card, width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}><div><div style={{ color: colors.brand, fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Scheduling</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink }}>New appointment</h2></div><button type="button" aria-label="Close new appointment" onClick={onClose} style={{ border: 0, background: "transparent", cursor: "pointer", color: colors.muted }}><X size={18} /></button></div>
-        <div style={{ display: "grid", gap: "1rem" }}><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Client<select name="clientId" style={inputStyle} required><option value="">Select client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Date and time<input name="scheduledAt" type="datetime-local" defaultValue={initialScheduledAt || defaultAppointmentDateTime()} style={inputStyle} required /></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Technician or staff<select name="technicianId" defaultValue="" style={inputStyle}><option value="">Unassigned</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.username}</option>)}</select></label><label style={{ display: "grid", gap: "0.4rem", color: colors.body, fontWeight: 700, fontSize: "0.82rem" }}>Notes<textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem", marginTop: "1rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue="1" style={{ ...inputStyle, padding: "0.5rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue="0" style={{ ...inputStyle, padding: "0.5rem" }} required /></label></div><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 700, marginTop: "0.65rem" }}>Pest concern<select name="pestConcern" style={{ ...inputStyle, padding: "0.5rem" }}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-        {formError && <div role="alert" style={{ marginTop: "0.9rem", color: colors.danger, fontWeight: 700, fontSize: "0.8rem" }}>{formError}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", marginTop: "1.25rem" }}><button type="button" onClick={onClose} style={secondaryButton}>Cancel</button><button type="submit" disabled={saving || clients.length === 0} style={primaryButton}>{saving ? "Creating..." : "Create appointment"}</button></div>
-      </form>
-    </div>
-  );
 }
 
 function InfoRow({ icon, label, value }) {

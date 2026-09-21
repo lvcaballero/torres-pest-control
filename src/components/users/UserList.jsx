@@ -244,6 +244,10 @@ function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onRe
             <tbody>
               {filteredUsers.map((user) => {
                 const isActive = user.status === ACCOUNT_STATUS.ACTIVE;
+                // PENDING accounts can sign in (the first login promotes them),
+                // so the menu must offer to deactivate them too. Only an
+                // INACTIVE account gets "Activate".
+                const isDeactivated = user.status === ACCOUNT_STATUS.INACTIVE;
                 const initials = (user.name || "U")
                   .split(" ")
                   .filter(Boolean)
@@ -482,7 +486,7 @@ function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onRe
                               width: "100%",
                               border: "none",
                               background: "transparent",
-                              color: isActive ? "#9a2d24" : "#4a6b4a",
+                              color: isDeactivated ? "#4a6b4a" : "#9a2d24",
                               textAlign: "left",
                               padding: "0.6rem 0.7rem",
                               borderRadius: "3.75px",
@@ -490,7 +494,7 @@ function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onRe
                               cursor: "pointer",
                             }}
                           >
-                            {isActive ? "Deactivate" : "Activate"}
+                            {isDeactivated ? "Activate" : "Deactivate"}
                           </button>
                           <button
                             type="button"

@@ -37,21 +37,22 @@
 --   that are meant to be two-handed ask for a second technician and quietly
 --   fall back to one where there is only one account to give.
 --
--- STORAGE — RUN seed-demo-files.mjs AFTER THIS
---   No client_documents or appointment_report_attachments rows are seeded
---   here, and no report signatures. Those rows are metadata pointing at
---   objects in the private buckets, and SQL cannot put bytes in a bucket —
---   inventing the rows alone would produce a client profile whose documents
---   all fail to open.
+-- STORAGE — nothing to do, this script is complete on its own
+--   No client_documents or appointment_report_attachments rows are seeded,
+--   and no report signatures. Those rows are metadata pointing at objects in
+--   the private buckets, and SQL cannot put bytes in a bucket — inventing the
+--   rows alone would give you a client profile whose documents all 404 on
+--   click, which is worse than an empty documents panel.
 --
---   supabase/seed-demo-files.mjs does that half: it generates small
---   placeholder PDFs and PNGs, uploads them the way the app does, and then
---   writes the metadata. Run it after this script.
+--   So the demo has no files in it, by design. Every panel that lists them
+--   simply reads as empty, and completed visits are closed by the written
+--   completion note below — which is exactly what the office records when the
+--   customer signed a printed form. Upload a document or a photo through the
+--   app when you want to see that path; that exercises the real code.
 --
---   Without it, completed visits are closed by the written completion note
---   below, which is what the office records when the customer signed a
---   printed form. seed-demo-files.mjs converts five of them to tablet
---   signatures and clears the note on those, so both paths are represented.
+--   (supabase/seed-demo-files.mjs will generate and upload placeholder files
+--   if you ever want them. It is entirely optional and nothing here depends
+--   on it.)
 --
 -- DATES
 --   Everything is relative to the day you run it — roughly eight weeks of

@@ -1,20 +1,32 @@
-// Item Profile no longer sets Quantity — new items start at 0 stock, and the
-// only thing that can move quantity afterward is Stock In (see
-// InventoryContext.stockIn / services/inventoryService.stockIn), which also
-// writes a row to the Stock Movement Log. That's why there's a "History" tab
-// now alongside the item list: it's the same page, not a separate route.
+// Item Profile no longer sets Quantity — new items start at 0 stock, and
+// quantity only ever moves through a logged movement: Stock In (a whole
+// delivery at once, see InventoryContext.stockInMany), Stock Out (to a
+// technician, or written off as missing or damaged — stockOutManual), the
+// appointment stock-out in Scheduling, and a counted correction. That's why
+// there's a "History" tab alongside the item list: it's the same page, not a
+// separate route.
 //
-// Item profiles are fully editable, except Quantity. Quantity is changed only
-// through Stock In so it always has a matching movement-history record.
+// Item profiles are fully editable, except Quantity, so a stock level can
+// never exist without a movement row that explains it.
 //
 // Splitting this into components/inventory/* is still deferred (see the
 // original note this replaced) — the file's just bigger now.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import useInventory from "../hooks/useInventory";
+import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
 import { INVENTORY_STATUS } from "../services/inventoryService";
+import { ACCOUNT_STATUS, STOCK_OUT_REASONS, STOCK_OUT_REASON_LABELS } from "../utils/constants";
+import {
+  conversionFactor,
+  convertAmount,
+  convertibleUnits,
+  describeConversion,
+  normalizeUnit,
+  UNIT_LABELS,
+} from "../utils/units";
 import { card, colors, primaryButton, secondaryButton } from "../styles/theme";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 
@@ -30,9 +42,6 @@ const CREATE_FORM_DEFAULTS = {
   expirationDate: "",
   safetyLevel: "",
   hazardRating: "",
-  standardRate: "",
-  rateUnit: "",
-  rateNote: "",
   dateReceived: "",
   serialNumber: "",
   condition: "ACTIVE",
@@ -100,12 +109,22 @@ const itemCell = (movement) => (
 
 const HISTORY_COLUMNS = {
   IN: {
-    template: "110px 1.2fr 110px 110px 130px 1.1fr 1.1fr 1fr",
-    minWidth: "1000px",
+    template: "110px 1.2fr 110px 120px 110px 130px 1.1fr 1.1fr 1fr",
+    minWidth: "1120px",
     columns: [
       { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
       { label: "Qty In", render: (m) => <span style={{ fontWeight: 500, color: "#4a6b4a" }}>+{Math.abs(m.quantityDelta)}</span> },
+      // What the delivery note said, when it was not the tracking unit. Keeping
+      // both figures is what makes a converted intake auditable against the note.
+      {
+        label: "Received As",
+        render: (m) => (
+          <span style={{ color: "#50463c" }}>
+            {m.enteredAmount !== null && m.enteredUnit ? `${m.enteredAmount} ${m.enteredUnit}` : "—"}
+          </span>
+        ),
+      },
       { label: "Unit Cost", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.unitCost)}</span> },
       { label: "Total Spent", render: (m) => <span style={{ fontWeight: 500, color: "#4a6b4a" }}>{peso(m.totalCost)}</span> },
       { label: "PO / Reference", render: (m) => <span style={{ color: "#1e293b", fontWeight: 500 }}>{m.reference || "—"}</span> },
@@ -114,8 +133,8 @@ const HISTORY_COLUMNS = {
     ],
   },
   OUT: {
-    template: "110px 1.4fr 110px 130px 1.3fr 1fr",
-    minWidth: "820px",
+    template: "110px 1.4fr 110px 130px 1.2fr 1.3fr 1fr",
+    minWidth: "980px",
     columns: [
       { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
@@ -123,11 +142,23 @@ const HISTORY_COLUMNS = {
       // Derived from the item's current cost, not a figure recorded on the row,
       // so it is labelled as an estimate rather than presented as spend.
       { label: "Est. Value", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.totalCost)}</span> },
+      // Reason and destination are two questions, so they are two columns:
+      // "why did this leave" and "where did it go".
       {
-        label: "Used On",
+        label: "Reason",
         render: (m) => (
           <span style={{ color: "#1e293b", fontWeight: 500 }}>
-            {m.appointmentId ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}` : (m.reference || "—")}
+            {STOCK_OUT_REASON_LABELS[m.stockOutReason] || (m.appointmentId ? STOCK_OUT_REASON_LABELS.APPOINTMENT : "—")}
+          </span>
+        ),
+      },
+      {
+        label: "Used On / Issued To",
+        render: (m) => (
+          <span style={{ color: "#50463c" }}>
+            {m.appointmentId
+              ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}`
+              : (m.reference || "—")}
           </span>
         ),
       },
@@ -160,7 +191,8 @@ function InventoryPage() {
     addItem: onAddItem,
     updateItem,
     setItemStatus,
-    stockIn,
+    stockInMany,
+    stockOutManual,
     stockCorrection,
     removeItem,
     loading,
@@ -170,13 +202,19 @@ function InventoryPage() {
     movementsError,
     refreshMovements,
   } = useInventory();
+  const { technicians } = useUsers();
   const { showSuccess, showError } = useToast();
 
   const [tab, setTab] = useState("items"); // "items" | "history"
   const [openForm, setOpenForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
-  const [stockInItem, setStockInItem] = useState(null);
+  // A Stock In is a delivery note, not an item: the modal opens for the whole
+  // delivery and `stockInSeedItemId` only pre-fills its first line when the
+  // user came in from a specific row.
+  const [stockInOpen, setStockInOpen] = useState(false);
+  const [stockInSeedItemId, setStockInSeedItemId] = useState("");
+  const [stockOutItem, setStockOutItem] = useState(null);
   const [correctionItem, setCorrectionItem] = useState(null);
   const [disableTarget, setDisableTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -333,9 +371,6 @@ function InventoryPage() {
       expirationDate: "",
       safetyLevel: "",
       hazardRating: "",
-      standardRate: "",
-      rateUnit: "",
-      rateNote: "",
       dateReceived: "",
       serialNumber: "",
       condition: "ACTIVE",
@@ -368,9 +403,6 @@ function InventoryPage() {
       newItem.expirationDate = form.expirationDate || null;
       newItem.safetyLevel = form.safetyLevel || null;
       newItem.hazardRating = form.hazardRating || null;
-      newItem.standardRate = form.standardRate || "";
-      newItem.rateUnit = form.rateUnit || "";
-      newItem.rateNote = form.rateNote || "";
       newItem.dateReceived = form.dateReceived || null;
     } else if (form.type === "EQUIPMENT") {
       newItem.serialNumber = form.serialNumber || null;
@@ -409,23 +441,36 @@ function InventoryPage() {
           </h1>
         </div>
         {tab === "items" && (
-          <button
-            type="button"
-            onClick={() => setOpenForm((value) => !value)}
-            style={{
-              background: "#9a2d24",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "3.75px",
-              padding: "0.78rem 1.15rem",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              cursor: "pointer",
-              boxShadow: "none",
-            }}
-          >
-            {openForm ? "Close Form" : "Add Inventory Item"}
-          </button>
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => { setStockInSeedItemId(""); setStockInOpen(true); }}
+              style={{
+                ...secondaryButton,
+                padding: "0.78rem 1.15rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              Stock In Delivery
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpenForm((value) => !value)}
+              style={{
+                background: "#9a2d24",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "3.75px",
+                padding: "0.78rem 1.15rem",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                boxShadow: "none",
+              }}
+            >
+              {openForm ? "Close Form" : "Add Inventory Item"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -742,7 +787,7 @@ function InventoryPage() {
                   <div ref={actionMenuItemId === item.id ? actionMenuRef : null} style={{ display: "flex", gap: "0.45rem", alignItems: "center", justifyContent: "flex-end", overflow: "visible", position: "relative", zIndex: actionMenuItemId === item.id ? 200 : 1 }} onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => setStockInItem(item)}
+                      onClick={() => { setStockInSeedItemId(item.id); setStockInOpen(true); }}
                       style={{
                         ...secondaryButton,
                         padding: "0.42rem 0.72rem",
@@ -802,6 +847,7 @@ function InventoryPage() {
                           }}
                         >
                           <button type="button" onClick={() => { setActionMenuItemId(null); setEditItem(item); }} style={{ ...menuActionStyle, color: "#211b15" }}>Edit</button>
+                          {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setStockOutItem(item); }} style={{ ...menuActionStyle, color: "#9a2d24" }}>Stock Out</button>}
                           {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setCorrectionItem(item); }} style={{ ...menuActionStyle, color: "#7c3aed" }}>Correct Stock</button>}
                           <button type="button" onClick={() => { setActionMenuItemId(null); if (isDisabled) setItemStatus(item.id, INVENTORY_STATUS.ACTIVE).then((r) => handleStatusResult(r, showSuccess, showError, item.name, "enabled")); else setDisableTarget(item); }} style={{ ...menuActionStyle, color: isDisabled ? "#4a6b4a" : "#9a2d24" }}>
                             {isDisabled ? "Enable" : "Disable"}
@@ -1000,18 +1046,38 @@ function InventoryPage() {
         />
       )}
 
-      {stockInItem && (
-        <StockInModal
-          item={stockInItem}
-          onClose={() => setStockInItem(null)}
-          onSubmit={async (values) => {
-            const result = await stockIn(stockInItem.id, values);
+      {stockInOpen && (
+        <BulkStockInModal
+          inventory={inventory}
+          initialItemId={stockInSeedItemId}
+          onClose={() => { setStockInOpen(false); setStockInSeedItemId(""); }}
+          onSubmit={async (entries, header) => {
+            const result = await stockInMany(entries, header);
             if (result !== true) {
               showError(typeof result === "string" ? result : "Could not record the Stock In.");
               return false;
             }
-            showSuccess(`Added ${values.amount} ${stockInItem.unit} to ${stockInItem.name}.`);
-            setStockInItem(null);
+            showSuccess(`Stocked in ${entries.length} item${entries.length === 1 ? "" : "s"} against ${header.reference}.`);
+            setStockInOpen(false);
+            setStockInSeedItemId("");
+            return true;
+          }}
+        />
+      )}
+
+      {stockOutItem && (
+        <StockOutModal
+          item={stockOutItem}
+          technicians={technicians}
+          onClose={() => setStockOutItem(null)}
+          onSubmit={async (values) => {
+            const result = await stockOutManual(stockOutItem.id, values);
+            if (result !== true) {
+              showError(typeof result === "string" ? result : "Could not record the Stock Out.");
+              return false;
+            }
+            showSuccess(`Removed ${values.amount} ${stockOutItem.unit} from ${stockOutItem.name}.`);
+            setStockOutItem(null);
             return true;
           }}
         />
@@ -1126,9 +1192,6 @@ function EditItemModal({ item, onClose, onSave }) {
     expirationDate: item.expirationDate || "",
     safetyLevel: item.safetyLevel || "",
     hazardRating: item.hazardRating || "",
-    standardRate: item.standardRate === 0 || item.standardRate ? String(item.standardRate) : "",
-    rateUnit: item.rateUnit || "",
-    rateNote: item.rateNote || "",
     dateReceived: item.dateReceived || "",
     serialNumber: item.serialNumber || "",
     condition: item.condition || "ACTIVE",
@@ -1213,8 +1276,6 @@ function EditItemModal({ item, onClose, onSave }) {
                 </select>
               </Field>
               <Field label="Hazard Note"><input name="hazardRating" value={values.hazardRating} onChange={handleChange} style={inputStyle} /></Field>
-              <Field label="Standard Rate"><input name="standardRate" type="number" step="any" min="0" value={values.standardRate} onChange={handleChange} style={inputStyle} placeholder="10" /></Field>
-              <Field label="Rate Unit"><input name="rateUnit" value={values.rateUnit} onChange={handleChange} style={inputStyle} placeholder="mL per 1 L water" /></Field>
               <Field label="Date Received"><input name="dateReceived" type="date" value={values.dateReceived} onChange={handleChange} style={inputStyle} /></Field>
             </div>
           </section>
@@ -1256,32 +1317,124 @@ function EditItemModal({ item, onClose, onSave }) {
   );
 }
 
-function StockInModal({ item, onClose, onSubmit }) {
-  const [amount, setAmount] = useState("");
-  const [unitCost, setUnitCost] = useState(item.cost !== undefined && item.cost !== null ? item.cost : "");
+/**
+ * Stock In, for a whole delivery.
+ *
+ * A delivery note lists several products against one PO, one date and one
+ * receiving station, and the old form took them one at a time — which meant
+ * retyping the header four times and, worse, four independent writes where the
+ * third could fail after the first two had already moved the stock. The header
+ * is now entered once and the lines are submitted together through
+ * stock_in_batch(): all of them land, or none of them do.
+ *
+ * Unit conversion sits on the line, not the header, because one note can carry
+ * a drum in gallons and a sack in kilograms. The row shows what the converted
+ * figure will be before it is submitted — the arithmetic is the part staff were
+ * getting wrong, so hiding it would only move the mistake.
+ */
+function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) {
+  const stockableItems = useMemo(
+    () => inventory.filter((item) => item.status !== INVENTORY_STATUS.DISABLED),
+    [inventory]
+  );
+  const findItem = (itemId) => stockableItems.find((item) => item.id === itemId) || null;
+
+  const buildRow = (itemId = "") => {
+    const item = findItem(itemId);
+    return {
+      key: `stock-in-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      itemId,
+      amount: "",
+      // Defaults to the item's own unit, so a user who never opens the picker
+      // gets exactly the old behaviour with no conversion applied.
+      enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
+      unitCost: item?.cost ?? "",
+    };
+  };
+
+  const [rows, setRows] = useState(() => [buildRow(initialItemId)]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reference, setReference] = useState("");
-  const [intakeBranchOrStation, setIntakeBranchOrStation] = useState(item.intakeBranchOrStation || "");
+  const [intakeBranchOrStation, setIntakeBranchOrStation] = useState(
+    findItem(initialItemId)?.intakeBranchOrStation || ""
+  );
   const [idempotencyKey] = useState(() =>
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
   const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
-  const numericAmount = Number(amount) || 0;
-  const numericCost = Number(unitCost) || 0;
-  const totalCapitalSpent = numericAmount * numericCost;
+  const updateRow = (key, changes) => {
+    setValidationError("");
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...changes } : row)));
+  };
+
+  const pickItem = (key, itemId) => {
+    const item = findItem(itemId);
+    updateRow(key, {
+      itemId,
+      enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
+      unitCost: item?.cost ?? "",
+    });
+  };
+
+  /** The base-unit figure a row will actually move the stock by, or null. */
+  const baseAmount = (row) => {
+    const item = findItem(row.itemId);
+    if (!item || row.amount === "") return null;
+    if (!row.enteredUnit || normalizeUnit(row.enteredUnit) === normalizeUnit(item.unit) || !normalizeUnit(item.unit)) {
+      const plain = Number(row.amount);
+      return Number.isFinite(plain) ? plain : null;
+    }
+    return convertAmount(row.amount, row.enteredUnit, item.unit);
+  };
+
+  const rowTotal = (row) => {
+    const amount = baseAmount(row);
+    if (amount === null) return 0;
+    return amount * (Number(row.unitCost) || 0);
+  };
+
+  const totalCapitalSpent = rows.reduce((sum, row) => sum + rowTotal(row), 0);
+  const filledRows = rows.filter((row) => row.itemId);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const parsedAmount = Number(amount);
-    if (!Number.isInteger(parsedAmount) || parsedAmount <= 0 || !date) return;
-    if (!reference.trim() || !intakeBranchOrStation.trim()) return;
+    if (filledRows.length === 0) {
+      setValidationError("Add at least one item to this delivery.");
+      return;
+    }
+    if (new Set(filledRows.map((row) => row.itemId)).size !== filledRows.length) {
+      setValidationError("Each item can only appear once per Stock In. Combine the duplicate lines.");
+      return;
+    }
+    if (!reference.trim() || !intakeBranchOrStation.trim() || !date) return;
+
+    const entries = [];
+    for (const row of filledRows) {
+      const item = findItem(row.itemId);
+      const amount = baseAmount(row);
+      if (amount === null || !(amount > 0)) {
+        setValidationError(`Enter a quantity greater than zero for ${item?.name || "every item"}.`);
+        return;
+      }
+      const converted = normalizeUnit(row.enteredUnit) !== normalizeUnit(item.unit)
+        && Boolean(normalizeUnit(row.enteredUnit))
+        && Boolean(normalizeUnit(item.unit));
+      entries.push({
+        itemId: row.itemId,
+        amount,
+        unitCost: row.unitCost === "" ? null : Number(row.unitCost),
+        enteredAmount: converted ? Number(row.amount) : null,
+        enteredUnit: converted ? row.enteredUnit : null,
+        conversionFactor: converted ? conversionFactor(row.enteredUnit, item.unit) : 1,
+      });
+    }
+
     setSaving(true);
-    await onSubmit({
-      amount: parsedAmount,
-      unitCost: Number(unitCost) || 0,
+    await onSubmit(entries, {
       date,
       reference: reference.trim(),
       intakeBranchOrStation: intakeBranchOrStation.trim(),
@@ -1291,62 +1444,18 @@ function StockInModal({ item, onClose, onSubmit }) {
   };
 
   return (
-    <ModalShell onClose={onClose} title="Stock In" subtitle={`Item: ${item.name} • Current Stock: ${item.quantity} ${item.unit}`}>
+    <ModalShell
+      onClose={onClose}
+      title="Stock In"
+      subtitle="One delivery note: shared PO, date and receiving station, with a line per item."
+      maxWidth="46rem"
+    >
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
-        <div style={{ display: "grid", gap: "1rem" }}>
-          <Field label={`Amount (${item.unit}) *`}>
-            <input
-              type="number"
-              min="1"
-              step="1"
-              inputMode="numeric"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              style={inputStyle}
-              placeholder="0"
-              required
-              autoFocus
-            />
-          </Field>
+        {validationError && (
+          <p style={{ margin: 0, color: "#9a2d24", fontSize: "0.85rem", fontWeight: 500 }}>{validationError}</p>
+        )}
 
-          <Field label={`Purchase Cost per Unit (₱) *`} hint="Unit price paid for this delivery batch">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={unitCost}
-              onChange={(e) => setUnitCost(e.target.value)}
-              style={inputStyle}
-              placeholder="0.00"
-              required
-            />
-          </Field>
-
-          <div
-            style={{
-              padding: "0.9rem 1rem",
-              background: "#efe9e0",
-              borderRadius: "3.75px",
-              border: "1px solid #efe9e0",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "0.75rem",
-            }}
-          >
-            <div>
-              <div style={{ color: "#50463c", fontSize: "0.7rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Total Cost
-              </div>
-              <div style={{ color: "#96897b", fontSize: "0.72rem", marginTop: "0.2rem" }}>
-                Qty × Cost per unit
-              </div>
-            </div>
-            <div style={{ color: "#211b15", fontSize: "1rem", fontWeight: 500, textAlign: "right" }}>
-              ₱{totalCapitalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
           <Field label="Date *">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
           </Field>
@@ -1358,40 +1467,275 @@ function StockInModal({ item, onClose, onSubmit }) {
           </Field>
         </div>
 
+        <div style={{ display: "grid", gap: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #efe9e0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+            <strong style={{ color: "#211b15", fontSize: "0.9rem" }}>Items received</strong>
+            <button
+              type="button"
+              onClick={() => setRows((current) => [...current, buildRow()])}
+              style={{ ...secondaryButton, padding: "0.42rem 0.72rem", fontSize: "0.75rem" }}
+            >
+              <Plus size={13} /> Add item
+            </button>
+          </div>
+
+          {rows.map((row) => {
+            const item = findItem(row.itemId);
+            const alreadyChosen = new Set(rows.filter((other) => other.key !== row.key).map((other) => other.itemId).filter(Boolean));
+            const unitChoices = item ? convertibleUnits(item.unit) : [];
+            const conversionNote = item && row.amount !== "" && row.enteredUnit
+              ? describeConversion(row.amount, row.enteredUnit, item.unit)
+              : "";
+
+            return (
+              <div key={row.key} style={{ display: "grid", gap: "0.45rem", padding: "0.75rem", border: "1px solid #efe9e0", borderRadius: "3.75px", background: "#fcfaf1" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) 90px minmax(0, 0.9fr) 110px auto", gap: "0.45rem", alignItems: "end" }}>
+                  <Field label="Item">
+                    <select
+                      aria-label="Stock In item"
+                      value={row.itemId}
+                      onChange={(event) => pickItem(row.key, event.target.value)}
+                      style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                    >
+                      <option value="">Select item</option>
+                      {stockableItems.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id} disabled={alreadyChosen.has(candidate.id)}>
+                          {candidate.name} ({candidate.quantity} {candidate.unit})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Quantity">
+                    <input
+                      aria-label="Stock In quantity"
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(event) => updateRow(row.key, { amount: event.target.value })}
+                      style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                      placeholder="0"
+                    />
+                  </Field>
+
+                  <Field label="Received in">
+                    {unitChoices.length > 0 ? (
+                      <select
+                        aria-label="Received unit"
+                        value={row.enteredUnit}
+                        onChange={(event) => updateRow(row.key, { enteredUnit: event.target.value })}
+                        style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                      >
+                        {unitChoices.map((unit) => (
+                          <option key={unit} value={unit}>{UNIT_LABELS[unit] || unit}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        aria-label="Received unit"
+                        value={item?.unit || ""}
+                        readOnly
+                        style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem", background: "#efe9e0" }}
+                      />
+                    )}
+                  </Field>
+
+                  <Field label="Cost / unit (₱)">
+                    <input
+                      aria-label="Purchase cost per unit"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.unitCost}
+                      onChange={(event) => updateRow(row.key, { unitCost: event.target.value })}
+                      style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                      placeholder="0.00"
+                    />
+                  </Field>
+
+                  {rows.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label="Remove item line"
+                      onClick={() => setRows((current) => current.filter((other) => other.key !== row.key))}
+                      style={{ border: 0, background: "transparent", color: "#9a2d24", cursor: "pointer", padding: "0.6rem 0.4rem", fontSize: "0.95rem" }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {conversionNote && (
+                  <div style={{ color: "#4a6b4a", fontSize: "0.74rem" }}>
+                    Converted: <strong>{conversionNote}</strong> — stock moves by the {item.unit} figure.
+                  </div>
+                )}
+                {item && (
+                  <div style={{ color: "#96897b", fontSize: "0.72rem" }}>
+                    Line total {peso(rowTotal(row))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            padding: "0.9rem 1rem",
+            background: "#efe9e0",
+            borderRadius: "3.75px",
+            border: "1px solid #efe9e0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <div>
+            <div style={{ color: "#50463c", fontSize: "0.7rem", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Cost
+            </div>
+            <div style={{ color: "#96897b", fontSize: "0.72rem", marginTop: "0.2rem" }}>
+              {filledRows.length} item{filledRows.length === 1 ? "" : "s"} on this delivery
+            </div>
+          </div>
+          <div style={{ color: "#211b15", fontSize: "1rem", fontWeight: 500, textAlign: "right" }}>
+            {peso(totalCapitalSpent)}
+          </div>
+        </div>
+
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.75rem", paddingTop: "1rem", borderTop: "1px solid #efe9e0" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              color: "#50463c",
-              borderRadius: "3.75px",
-              padding: "0.65rem 1rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              border: "none",
-              background: "#7f1d1d",
-              color: "#ffffff",
-              borderRadius: "3.75px",
-              padding: "0.65rem 1.25rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              cursor: saving ? "default" : "pointer",
-              opacity: saving ? 0.7 : 1,
-              boxShadow: "none",
-            }}
-          >
+          <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+          <button type="submit" disabled={saving} style={buttonWhen(saving)}>
             {saving ? "Recording…" : "Submit"}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/**
+ * Stock leaving for a reason that is not an appointment.
+ *
+ * Until now the only way out of the store room was through a service report,
+ * so a container checked out to a technician, a shortfall at count, and a
+ * split drum all had to be filed as a "correction" with the reason typed into
+ * free text. That made them uncountable. Each is now its own reason, and the
+ * checkout names the technician holding the stock.
+ *
+ * The date defaults to today and stays editable: a discrepancy is usually
+ * found days after it happened, and backdating it is what keeps the movement
+ * log lined up with the physical count.
+ */
+function StockOutModal({ item, technicians, onClose, onSubmit }) {
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState(STOCK_OUT_REASONS[0].value);
+  const [technicianId, setTechnicianId] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState("");
+
+  const selectedReason = STOCK_OUT_REASONS.find((entry) => entry.value === reason) || STOCK_OUT_REASONS[0];
+  const activeTechnicians = technicians.filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setValidationError("Enter a quantity greater than zero.");
+      return;
+    }
+    if (parsedAmount > Number(item.quantity)) {
+      setValidationError(`Only ${item.quantity} ${item.unit} is in stock.`);
+      return;
+    }
+    if (selectedReason.requiresTechnician && !technicianId) {
+      setValidationError("Select the technician the stock was checked out to.");
+      return;
+    }
+    setSaving(true);
+    await onSubmit({ amount: parsedAmount, date, reason, technicianId, note: note.trim() });
+    setSaving(false);
+  };
+
+  return (
+    <ModalShell onClose={onClose} title="Stock Out" subtitle={`Item: ${item.name} • Current Stock: ${item.quantity} ${item.unit}`}>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
+        {validationError && (
+          <p style={{ margin: 0, color: "#9a2d24", fontSize: "0.85rem", fontWeight: 500 }}>{validationError}</p>
+        )}
+
+        <Field label={`Quantity (${item.unit}) *`}>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => { setValidationError(""); setAmount(event.target.value); }}
+            style={inputStyle}
+            placeholder="0"
+            required
+            autoFocus
+          />
+        </Field>
+
+        <Field label="Date *" hint="Defaults to today. Change it to record a stock-out that happened earlier.">
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} style={inputStyle} required />
+        </Field>
+
+        <Field label="Reason *">
+          <select
+            value={reason}
+            onChange={(event) => { setValidationError(""); setReason(event.target.value); }}
+            style={inputStyle}
+            required
+          >
+            {STOCK_OUT_REASONS.map((entry) => (
+              <option key={entry.value} value={entry.value}>{entry.label}</option>
+            ))}
+          </select>
+        </Field>
+
+        {selectedReason.requiresTechnician && (
+          <Field label="Technician *">
+            <select
+              value={technicianId}
+              onChange={(event) => { setValidationError(""); setTechnicianId(event.target.value); }}
+              style={inputStyle}
+              required
+            >
+              <option value="">Select a technician</option>
+              {activeTechnicians.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.reference ? `${account.reference} — ` : ""}{account.name || account.username}
+                </option>
+              ))}
+            </select>
+            {activeTechnicians.length === 0 && (
+              <span style={{ color: "#9a2d24", fontSize: "0.74rem" }}>No active technician accounts to check stock out to.</span>
+            )}
+          </Field>
+        )}
+
+        <Field label="Note">
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            style={{ ...inputStyle, minHeight: "80px", resize: "vertical" }}
+            placeholder="Anything worth recording — where it went, how it was damaged"
+          />
+        </Field>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem", paddingTop: "0.75rem", borderTop: "1px solid #efe9e0" }}>
+          <button type="button" onClick={onClose} style={secondaryButton}>Cancel</button>
+          <button type="submit" disabled={saving} style={buttonWhen(saving)}>
+            {saving ? "Recording…" : "Record stock out"}
           </button>
         </div>
       </form>
@@ -1525,7 +1869,6 @@ function InventoryDetailModal({ item, onClose }) {
             {item.expirationDate && <DetailRow label="Expiration Date" value={new Date(item.expirationDate).toLocaleDateString()} />}
             {item.safetyLevel && <DetailRow label="Safety Level" value={item.safetyLevel} />}
               {item.hazardRating && <DetailRow label="Hazard Note" value={item.hazardRating} />}
-            {item.standardRate !== "" && item.standardRate !== null && <DetailRow label="Standard Rate" value={`${item.standardRate} ${item.rateUnit || ""}`.trim()} />}
             {item.dateReceived && <DetailRow label="Date Received" value={new Date(item.dateReceived).toLocaleDateString()} />}
           </div>
         </div>
@@ -1607,11 +1950,12 @@ function DetailRow({ label, value }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, hint, children }) {
   return (
     <label style={{ display: "grid", gap: "0.45rem", color: "#50463c", fontWeight: 500 }}>
       <span>{label}</span>
       {children}
+      {hint && <span style={{ color: "#96897b", fontSize: "0.72rem", fontWeight: 400 }}>{hint}</span>}
     </label>
   );
 }

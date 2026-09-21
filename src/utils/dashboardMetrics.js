@@ -5,10 +5,13 @@
 // appointment table runs to thousands of rows and "this week" means fetching
 // everything to count six of them.
 //
-// On the money side: the schema records what the business SPENDS, never what it
-// CHARGES. There is no price, fee or invoice column anywhere, so revenue,
-// margin and average job value cannot be derived — which is why the old
-// "Business Wealth" panel had nothing to show. Everything below is cost.
+// On the money side: every figure below is COST. Migration 041 added
+// appointments.price, so an agreed price per visit now exists, but it is
+// optional and entered by hand — there is still no invoice, no payment and no
+// record of what was actually collected, so revenue and margin cannot be
+// derived from it and nothing here tries to.
+
+import { crewOf, isAssignedTo } from "./scheduling";
 
 const startOfDay = (date) => {
   const copy = new Date(date);
@@ -59,6 +62,14 @@ export const byTime = (a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt
 // Appointment counts
 // ---------------------------------------------------------------------------
 
+/**
+ * "Is this person on this job?" — an appointment can carry a crew rather than
+ * one technician (migration 041), so every per-technician figure below asks
+ * the crew, not the lead.
+ */
+const onJob = (entry, technicianId) => isAssignedTo(entry, technicianId);
+const unassigned = (entry) => crewOf(entry).length === 0;
+
 export function appointmentsToday(appointments) {
   return appointments.filter((entry) => live(entry) && isToday(entry.scheduledAt)).sort(byTime);
 }
@@ -71,7 +82,7 @@ export function appointmentsThisWeek(appointments) {
 /** Pending with nobody assigned — the queue an office actually works through. */
 export function needsScheduling(appointments) {
   return appointments
-    .filter((entry) => entry.status === "Pending" && !entry.technicianId)
+    .filter((entry) => entry.status === "Pending" && unassigned(entry))
     .sort(byTime);
 }
 
@@ -82,19 +93,19 @@ export function awaitingReschedule(appointments) {
 /** Today's visits for one technician that still have no report filed. */
 export function remainingToday(appointments, technicianId) {
   return appointmentsToday(appointments)
-    .filter((entry) => entry.technicianId === technicianId && !entry.reportSubmitted);
+    .filter((entry) => onJob(entry, technicianId) && !entry.reportSubmitted);
 }
 
 export function completedToday(appointments, technicianId) {
   return appointments.filter((entry) =>
-    entry.technicianId === technicianId
+    onJob(entry, technicianId)
     && entry.reportSubmitted
     && isToday(entry.reportSubmittedAt || entry.scheduledAt));
 }
 
 export function tomorrowsJobs(appointments, technicianId, limit = 3) {
   return appointments
-    .filter((entry) => live(entry) && entry.technicianId === technicianId && isTomorrow(entry.scheduledAt))
+    .filter((entry) => live(entry) && onJob(entry, technicianId) && isTomorrow(entry.scheduledAt))
     .sort(byTime)
     .slice(0, limit);
 }
@@ -105,11 +116,11 @@ export function workloadToday(appointments, technicians) {
   const rows = technicians.map((account) => ({
     id: account.id,
     name: account.name || account.username || "Technician",
-    count: today.filter((entry) => entry.technicianId === account.id).length,
+    count: today.filter((entry) => onJob(entry, account.id)).length,
   }));
-  const unassigned = today.filter((entry) => !entry.technicianId).length;
+  const unassignedCount = today.filter(unassigned).length;
   rows.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  if (unassigned > 0) rows.push({ id: "unassigned", name: "Unassigned", count: unassigned });
+  if (unassignedCount > 0) rows.push({ id: "unassigned", name: "Unassigned", count: unassignedCount });
   return rows;
 }
 

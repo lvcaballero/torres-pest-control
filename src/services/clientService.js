@@ -19,7 +19,7 @@ const BUCKET = "client-documents";
 const SIGNED_URL_TTL_SECONDS = 60;
 
 const CLIENT_COLUMNS =
-  "id, reference, name, email, phone, address, classification, classification_other, pest_concern, source, status, version, archived_at, created_at, updated_at";
+  "id, reference, name, email, phone, address, classification, classification_other, pest_concern, source, service_notes, status, version, archived_at, created_at, updated_at";
 
 const DOCUMENT_COLUMNS = "id, client_id, name, mime_type, size_bytes, storage_path, category, uploaded_at";
 
@@ -47,6 +47,7 @@ export function mapClientRow(row, documents = []) {
     classification: row.classification,
     classificationOther: row.classification_other || "",
     pestConcern: row.pest_concern || "",
+    serviceNotes: row.service_notes || "",
     source: row.source || "Walk-in",
     status: row.status,
     createdAt: row.created_at,
@@ -82,6 +83,7 @@ function buildClientPayload(form) {
     classification: form.classification,
     classification_other: form.classification === "OTHER" ? form.classificationOther?.trim() || null : null,
     pest_concern: form.pestConcern?.trim() || null,
+    service_notes: form.serviceNotes?.trim() || null,
     source: form.source || null,
   };
 }

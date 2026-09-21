@@ -175,7 +175,7 @@ describe("NewAppointmentModal", () => {
     it("warns about a technician already booked in that window", async () => {
       renderModal({ initialScheduledAt: `${TODAY}T09:30` });
 
-      await userEvent.selectOptions(screen.getByLabelText(/Technician/), "t1");
+      await userEvent.click(screen.getByRole("checkbox", { name: /Karl Hameed/ }));
 
       expect(screen.getByRole("status")).toHaveTextContent(/already booked/i);
     });
@@ -194,12 +194,12 @@ describe("NewAppointmentModal", () => {
 
     // busyTechnicianIds already existed and the detail panel used it; this
     // form did not, so a clash was only discoverable by submitting.
-    it("marks a busy technician in the select", () => {
+    it("marks a busy technician in the picker", () => {
       renderModal({ initialScheduledAt: `${TODAY}T09:30` });
 
-      const select = screen.getByLabelText(/Technician/);
-      expect(within(select).getByRole("option", { name: /Karl Hameed — already booked/ })).toBeInTheDocument();
-      expect(within(select).getByRole("option", { name: "Bruce Banner" })).toBeInTheDocument();
+      const picker = screen.getByRole("group", { name: "Assigned technicians" });
+      expect(within(picker).getByRole("checkbox", { name: /Karl Hameed — already booked/ })).toBeInTheDocument();
+      expect(within(picker).getByRole("checkbox", { name: "Bruce Banner" })).toBeInTheDocument();
     });
 
     // Advisory only: a stale appointments list must never stop a booking the
@@ -209,7 +209,7 @@ describe("NewAppointmentModal", () => {
 
       await userEvent.click(clientSearch());
       await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
-      await userEvent.selectOptions(screen.getByLabelText(/Technician/), "t1");
+      await userEvent.click(screen.getByRole("checkbox", { name: /Karl Hameed/ }));
       await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
 
       expect(onCreate).toHaveBeenCalled();
@@ -233,9 +233,39 @@ describe("NewAppointmentModal", () => {
         pestConcern: "Termites",
         serviceType: "",
         serviceLocation: "12 Mabini St",
-        technicianId: "",
+        technicianIds: [],
+        serviceFrequency: "",
+        price: "",
         notes: "Back garden access",
       });
+    });
+
+    // Order is the assignment: the first technician ticked leads the job, and
+    // that is what appointments.technician_id ends up holding.
+    it("sends the whole crew, lead first, in the order they were ticked", async () => {
+      const { onCreate } = renderModal({ initialScheduledAt: `${TODAY}T14:00` });
+
+      await userEvent.click(clientSearch());
+      await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Bruce Banner" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: /Karl Hameed/ }));
+      await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ technicianIds: ["t2", "t1"] }));
+    });
+
+    it("carries the visit's frequency and price", async () => {
+      const { onCreate } = renderModal({ initialScheduledAt: `${TODAY}T14:00` });
+
+      await userEvent.click(clientSearch());
+      await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+      await userEvent.selectOptions(screen.getByLabelText("Frequency"), "Quarterly");
+      await userEvent.type(screen.getByLabelText(/Price/), "2500");
+      await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ serviceFrequency: "Quarterly", price: "2500" })
+      );
     });
 
     // The context mutators report failure by returning the message rather

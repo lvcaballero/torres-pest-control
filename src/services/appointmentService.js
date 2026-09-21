@@ -6,7 +6,7 @@ const ATTACHMENT_BUCKET = "report-attachments";
 const ATTACHMENT_COLUMNS = "id, appointment_id, name, mime_type, size_bytes, storage_path, category, uploaded_at";
 const SIGNED_URL_TTL_SECONDS = 60;
 
-const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, created_at, updated_at";
+const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, service_frequency, price, created_at, updated_at";
 const REPORT_COLUMNS = "appointment_id, findings, treatment_performed, recommendations, follow_up_date, submitted_by, submitted_at, customer_name, signature_path, signed_at, completion_note, technician_signature_path, technician_signed_at, treatment_methods";
 
 function describeError(error) {
@@ -25,8 +25,16 @@ export function mapAppointmentRow(row, report = null) {
     serviceLocation: row.service_location || "",
     cancellationReason: row.cancellation_reason || "",
     technicianId: row.technician_id || "",
+    // The whole crew, lead first. technicianId is kept as the lead so the
+    // calendar colours, the printed form and every existing query that asks
+    // for "the technician" keep working — see migration 041.
+    technicianIds: Array.isArray(row.technicianIds)
+      ? row.technicianIds
+      : (row.technician_id ? [row.technician_id] : []),
     status: row.status,
     notes: row.notes || "",
+    serviceFrequency: row.service_frequency || "",
+    price: row.price === null || row.price === undefined ? "" : Number(row.price),
     report: report?.findings || "",
     treatmentPerformed: report?.treatment_performed || "",
     treatmentMethods: report?.treatment_methods || [],
@@ -48,13 +56,14 @@ export function mapAppointmentRow(row, report = null) {
 }
 
 export async function fetchAppointments() {
-  const [appointmentsResult, reportsResult, stockResult, attachmentsResult] = await Promise.all([
+  const [appointmentsResult, reportsResult, stockResult, attachmentsResult, crewResult] = await Promise.all([
     supabase.from("appointments").select(APPOINTMENT_COLUMNS).order("scheduled_at", { ascending: true }),
     supabase.from("appointment_reports").select(REPORT_COLUMNS),
     supabase.from("inventory_movements").select("item_id, appointment_id, amount, movement_date, batch_number, inventory(name, unit)").eq("movement_type", "OUT").not("appointment_id", "is", null),
     supabase.from("appointment_report_attachments").select(ATTACHMENT_COLUMNS).order("uploaded_at", { ascending: false }),
+    supabase.from("appointment_technicians").select("appointment_id, technician_id, is_lead, assigned_at"),
   ]);
-  const error = appointmentsResult.error || reportsResult.error || stockResult.error || attachmentsResult.error;
+  const error = appointmentsResult.error || reportsResult.error || stockResult.error || attachmentsResult.error || crewResult.error;
   if (error) return { error: describeError(error), appointments: [] };
   const reports = new Map((reportsResult.data || []).map((report) => [report.appointment_id, report]));
   const stockByAppointment = new Map();
@@ -63,6 +72,18 @@ export async function fetchAppointments() {
     entries.push({ itemId: movement.item_id, name: movement.inventory?.name || "Inventory item", amount: Number(movement.amount), unit: movement.inventory?.unit || "", batchNumber: movement.batch_number || "", date: movement.movement_date });
     stockByAppointment.set(movement.appointment_id, entries);
   });
+  // Lead first, then the order they were assigned in, so the crew reads the
+  // same way everywhere it is printed.
+  const crewByAppointment = new Map();
+  [...(crewResult.data || [])]
+    .sort((a, b) => (b.is_lead ? 1 : 0) - (a.is_lead ? 1 : 0)
+      || String(a.assigned_at || "").localeCompare(String(b.assigned_at || "")))
+    .forEach((row) => {
+      const entries = crewByAppointment.get(row.appointment_id) || [];
+      entries.push(row.technician_id);
+      crewByAppointment.set(row.appointment_id, entries);
+    });
+
   const attachmentsByAppointment = new Map();
   (attachmentsResult.data || []).forEach((row) => {
     const entries = attachmentsByAppointment.get(row.appointment_id) || [];
@@ -75,11 +96,28 @@ export async function fetchAppointments() {
       ...row,
       stockUsed: stockByAppointment.get(row.id) || [],
       attachments: attachmentsByAppointment.get(row.id) || [],
+      technicianIds: crewByAppointment.get(row.id) || (row.technician_id ? [row.technician_id] : []),
     }, reports.get(row.id))),
   };
 }
 
-export async function createAppointment({ clientId, scheduledAt, durationMinutes, pestConcern, serviceType, serviceLocation, technicianId, notes }) {
+/**
+ * `technicianIds` is ordered and the first entry leads. A single `technicianId`
+ * is still accepted so callers that only ever assign one person do not have to
+ * wrap it in an array.
+ */
+function crewFrom({ technicianIds, technicianId }) {
+  const crew = (Array.isArray(technicianIds) ? technicianIds : [technicianId])
+    .map((id) => id || "")
+    .filter(Boolean);
+  // Deduplicated in order: the same person picked twice is a slip, not a
+  // booking with two of them on it.
+  return Array.from(new Set(crew));
+}
+
+export async function createAppointment(fields) {
+  const { clientId, scheduledAt, durationMinutes, pestConcern, serviceType, serviceLocation, notes, serviceFrequency, price } = fields;
+  const crew = crewFrom(fields);
   const { data, error } = await supabase.rpc("create_appointment", {
     p_client_id: clientId,
     p_scheduled_at: new Date(scheduledAt).toISOString(),
@@ -87,14 +125,19 @@ export async function createAppointment({ clientId, scheduledAt, durationMinutes
     p_pest_concern: pestConcern?.trim() || null,
     p_service_type: serviceType?.trim() || null,
     p_service_location: serviceLocation?.trim() || null,
-    p_technician_id: technicianId || null,
+    p_technician_ids: crew,
     p_notes: notes || null,
+    p_service_frequency: serviceFrequency?.trim() || null,
+    p_price: price === "" || price === undefined || price === null ? null : Number(price),
   });
   if (error) return { error: describeError(error) };
-  return { appointment: mapAppointmentRow(Array.isArray(data) ? data[0] : data) };
+  // The RPC returns the appointments row, which carries only the lead. The crew
+  // we just sent is authoritative, so it is attached rather than re-fetched.
+  return { appointment: mapAppointmentRow({ ...(Array.isArray(data) ? data[0] : data), technicianIds: crew }) };
 }
 
 export async function updateAppointment(appointment) {
+  const crew = crewFrom(appointment);
   const { data, error } = await supabase.rpc("update_appointment", {
     p_appointment_id: appointment.id,
     p_scheduled_at: new Date(appointment.scheduledAt).toISOString(),
@@ -102,13 +145,17 @@ export async function updateAppointment(appointment) {
     p_pest_concern: appointment.pestConcern?.trim() || null,
     p_service_type: appointment.serviceType?.trim() || null,
     p_service_location: appointment.serviceLocation?.trim() || null,
-    p_technician_id: appointment.technicianId || null,
+    p_technician_ids: crew,
     p_status: appointment.status,
     p_notes: appointment.notes || null,
     p_cancellation_reason: appointment.cancellationReason?.trim() || null,
+    p_service_frequency: appointment.serviceFrequency?.trim() || null,
+    p_price: appointment.price === "" || appointment.price === undefined || appointment.price === null
+      ? null
+      : Number(appointment.price),
   });
   if (error) return { error: describeError(error) };
-  return { appointment: mapAppointmentRow(Array.isArray(data) ? data[0] : data) };
+  return { appointment: mapAppointmentRow({ ...(Array.isArray(data) ? data[0] : data), technicianIds: crew }) };
 }
 
 /**

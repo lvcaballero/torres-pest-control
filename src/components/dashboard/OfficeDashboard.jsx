@@ -19,6 +19,7 @@ import { useScheduling } from "../../context/SchedulingContext";
 import { useInventoryContext } from "../../context/InventoryContext";
 import { ROLES } from "../../utils/constants";
 import { dashboardNote, greetingFor } from "../../utils/greetings";
+import { crewOf, isAssignedTo } from "../../utils/scheduling";
 import { colors, pageShell } from "../../styles/theme";
 import {
   appointmentsToday,
@@ -87,12 +88,12 @@ function OfficeDashboard() {
     const rows = technicians.map((technician) => ({
       label: technician.name || technician.username || "Technician",
       value: appointments.filter((appointment) => appointment.status !== "Cancelled"
-        && appointment.technicianId === technician.id
+        && isAssignedTo(appointment, technician.id)
         && new Date(appointment.scheduledAt) >= currentWeek.start
         && new Date(appointment.scheduledAt) < currentWeek.end).length,
     }));
     const unassigned = appointments.filter((appointment) => appointment.status !== "Cancelled"
-      && !appointment.technicianId
+      && crewOf(appointment).length === 0
       && new Date(appointment.scheduledAt) >= currentWeek.start
       && new Date(appointment.scheduledAt) < currentWeek.end).length;
     if (unassigned > 0) rows.push({ label: "Unassigned", value: unassigned });
@@ -264,7 +265,7 @@ function OfficeDashboard() {
                 first={index === 0}
                 when={dateLabel(appointment.reportSubmittedAt || appointment.scheduledAt)}
                 title={`${nameOf(appointment)} — ${appointment.pestConcern || "Service"}`}
-                detail={`${techName(appointment.technicianId)}${appointment.customerName ? ` · signed by ${appointment.customerName}` : " · no signature on file"}`}
+                detail={`${crewOf(appointment).map((id) => techName(id)).join(", ") || "Unassigned"}${appointment.customerName ? ` · signed by ${appointment.customerName}` : " · no signature on file"}`}
                 action={appointment.signaturePath
                   ? <Chip tone="done">Signed</Chip>
                   : <Chip tone="attn">Unsigned</Chip>}

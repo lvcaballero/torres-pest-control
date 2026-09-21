@@ -21,7 +21,7 @@
 import { Check, RotateCcw, X } from "lucide-react";
 import { neutral, radius, text, weight } from "../../styles/tokens";
 import { formatDuration } from "../../utils/calendarDates";
-import { endOf } from "../../utils/scheduling";
+import { crewOf, endOf } from "../../utils/scheduling";
 import { HATCH_IMAGE, contentTier, statusVisual } from "./appointmentTheme";
 import { useCalendar } from "./CalendarContext";
 
@@ -84,8 +84,16 @@ function AppointmentCard({ appointment, height = null, columns = 1, placement = 
   const isSelected = appointment.id === selectedId;
   const tone = colorFor(appointment);
   const visual = statusVisual(appointment.status);
-  const technician = accounts.find((account) => account.id === appointment.technicianId);
-  const technicianName = technician?.name || technician?.username || "Unassigned";
+  // A job can carry a crew (migration 041). The card has room for one name, so
+  // it shows the lead and says how many others are going, rather than
+  // truncating three names into illegibility.
+  const crew = crewOf(appointment)
+    .map((id) => accounts.find((account) => account.id === id))
+    .map((account) => account?.name || account?.username)
+    .filter(Boolean);
+  const technicianName = crew.length === 0
+    ? "Unassigned"
+    : crew.length === 1 ? crew[0] : `${crew[0]} +${crew.length - 1}`;
 
   // A month cell or a dialog row has no measured height; treat it as the
   // middle tier, which is what those layouts have room for.

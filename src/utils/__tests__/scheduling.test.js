@@ -14,8 +14,10 @@ import {
   appointmentsOverlap,
   busyTechnicianIds,
   canTransition,
+  crewOf,
   describeSlotConflict,
   findTechnicianConflicts,
+  isAssignedTo,
   layoutDayAppointments,
 } from "../scheduling";
 
@@ -209,6 +211,54 @@ describe("findTechnicianConflicts / busyTechnicianIds", () => {
 
     expect(busyTechnicianIds([booked, free, alsoBooked], at("new", "09:30")))
       .toEqual(new Set(["tech-1", "tech-3"]));
+  });
+});
+
+// Migration 041: an appointment can carry a crew, and technicianId is only its
+// lead. Every "is this person on this job" question has to ask the crew.
+describe("crewOf / isAssignedTo", () => {
+  it("reads a crew when there is one", () => {
+    expect(crewOf({ technicianIds: ["t1", "t2"], technicianId: "t1" })).toEqual(["t1", "t2"]);
+  });
+
+  it("falls back to the lead for a row that has not been re-read yet", () => {
+    expect(crewOf({ technicianId: "t1" })).toEqual(["t1"]);
+    expect(crewOf({ technicianIds: [], technicianId: "t1" })).toEqual(["t1"]);
+  });
+
+  it("is empty for an unassigned visit", () => {
+    expect(crewOf({})).toEqual([]);
+    expect(isAssignedTo({}, "t1")).toBe(false);
+  });
+
+  it("counts a second technician as assigned, not just the lead", () => {
+    const job = { technicianIds: ["t1", "t2"] };
+    expect(isAssignedTo(job, "t2")).toBe(true);
+    expect(isAssignedTo(job, "t3")).toBe(false);
+    expect(isAssignedTo(job, "")).toBe(false);
+  });
+});
+
+describe("conflicts across a crew", () => {
+  it("clashes when any one member is double-booked", () => {
+    const existing = at("existing", "09:00", 60, { technicianIds: ["t2"] });
+    const candidate = at("new", "09:30", 60, { technicianIds: ["t1", "t2"] });
+
+    expect(findTechnicianConflicts([existing], candidate).map((entry) => entry.id)).toEqual(["existing"]);
+  });
+
+  it("does not clash when the crews are disjoint", () => {
+    const existing = at("existing", "09:00", 60, { technicianIds: ["t3"] });
+    const candidate = at("new", "09:30", 60, { technicianIds: ["t1", "t2"] });
+
+    expect(findTechnicianConflicts([existing], candidate)).toEqual([]);
+  });
+
+  it("reports every member of an overlapping crew as busy", () => {
+    const existing = at("existing", "09:00", 60, { technicianIds: ["t1", "t2"] });
+
+    expect(busyTechnicianIds([existing], at("new", "09:30")))
+      .toEqual(new Set(["t1", "t2"]));
   });
 });
 

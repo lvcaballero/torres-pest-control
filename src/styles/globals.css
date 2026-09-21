@@ -19,6 +19,7 @@
   --brand: #7f1111;
   --brand-light: #bf3e3e;
   --brand-ink: #8b1e1e;
+  --brand-wash: rgba(127, 17, 17, 0.08);
 
   /* Surfaces, warmest to darkest. */
   --canvas: #fcfaf1;
@@ -138,20 +139,24 @@ a[href] {
   border-radius: var(--radius);
 }
 
+/* The rail is bone, not maroon. These three rules were written for a maroon
+   background: a cream hover wash and a cream focus ring are both invisible on
+   #efe9e0. The `outline: none` stays — it suppresses the UA border — but the
+   border reset must not, because the active item's 3px maroon marker IS a
+   border-left and a blanket `border: none` would erase it. */
 .sidebar-nav-link,
 .sidebar-nav-link:link,
 .sidebar-nav-link:visited {
-  border: none;
   outline: none;
 }
 
 .sidebar-nav-link:hover {
-  background: rgba(252, 250, 241, 0.1);
+  background: var(--brand-wash);
+  color: var(--ink);
 }
 
-.sidebar-nav-link:focus-visible {
-  box-shadow: 0 0 0 2px rgba(252, 250, 241, 0.55);
-}
+/* No bespoke ring: the global :focus-visible rule already paints the brand
+   ring, and it reads clearly against bone where the cream one would not. */
 
 .app-shell {
   min-height: 100vh;

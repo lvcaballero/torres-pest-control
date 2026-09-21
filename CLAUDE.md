@@ -53,7 +53,7 @@ Roles are `ADMIN`, `STAFF`, `TECHNICIAN`.
 
 Apply `supabase/schema-v2.sql` first (idempotent, replaces the v1 `schema.sql`), then every file in `supabase/migrations/` in **numeric order** — later migrations replace earlier definitions of the same function, so order is load-bearing (e.g. 022 → 024 → 027 for `create_appointment`/`update_appointment`, where 027 is the current source of truth). Migrations are written to be re-runnable: they `drop` objects before recreating them. After applying SQL, reload PostgREST's schema cache if the app reports a missing RPC.
 
-Note `013` exists twice (`013-audit-fixes.sql`, `013-user-profile-avatars.sql`) and the header of `039-treatment-methods-admin.sql` documents a superseded `038-treatment-methods-admin.sql` draft. Read the header comment of a migration before touching it — they explain the reasoning and the ordering traps.
+Note `013` exists twice (`013-audit-fixes.sql`, `013-user-profile-avatars.sql`), `039` likewise (`039-treatment-methods-admin.sql`, `039-admin-avatar-management.sql` — they create disjoint objects, so the shared number is harmless), and the header of `039-treatment-methods-admin.sql` documents a superseded `038-treatment-methods-admin.sql` draft. Read the header comment of a migration before touching it — they explain the reasoning and the ordering traps.
 
 Storage buckets are private; files are read through short-lived signed URLs minted at click time (`SIGNED_URL_TTL_SECONDS`), never stored. Buckets: `client-documents`, `report-attachments`, signatures, avatars.
 

@@ -37,15 +37,21 @@
 --   that are meant to be two-handed ask for a second technician and quietly
 --   fall back to one where there is only one account to give.
 --
--- STORAGE
---   No client_documents or appointment_report_attachments rows are seeded,
---   and no report signatures. Those rows are metadata pointing at objects in
---   the private buckets; inventing rows for files that do not exist would
---   produce a client profile whose documents all fail to open. Upload a
---   couple through the app instead — that exercises the real path.
---   Completed visits are therefore closed with a written completion note,
---   which is the same thing the office does when the customer signed a
---   printed form.
+-- STORAGE — RUN seed-demo-files.mjs AFTER THIS
+--   No client_documents or appointment_report_attachments rows are seeded
+--   here, and no report signatures. Those rows are metadata pointing at
+--   objects in the private buckets, and SQL cannot put bytes in a bucket —
+--   inventing the rows alone would produce a client profile whose documents
+--   all fail to open.
+--
+--   supabase/seed-demo-files.mjs does that half: it generates small
+--   placeholder PDFs and PNGs, uploads them the way the app does, and then
+--   writes the metadata. Run it after this script.
+--
+--   Without it, completed visits are closed by the written completion note
+--   below, which is what the office records when the customer signed a
+--   printed form. seed-demo-files.mjs converts five of them to tablet
+--   signatures and clears the note on those, so both paths are represented.
 --
 -- DATES
 --   Everything is relative to the day you run it — roughly eight weeks of

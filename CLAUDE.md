@@ -60,6 +60,8 @@ Note `013` exists twice (`013-audit-fixes.sql`, `013-user-profile-avatars.sql`),
 
 On Supabase, pgcrypto lives in the `extensions` schema, while the six password functions are `security definer set search_path = public` — so `crypt()` is invisible inside them and every login fails with 42883. Migration 043 appends `extensions` to their search_path. Re-run 043 after re-running any migration that recreates an auth function (011, 013, 015, 016, 018, 019, 037), because `create or replace function` restores the narrow path.
 
+Demo data is two files, run in this order: `supabase/seed-demo-data.sql` (clears the records and seeds clients, inventory, appointments and movements; never touches accounts) then `supabase/seed-demo-files.mjs` (uploads generated placeholder PDFs/PNGs to the buckets and writes the document, attachment and signature rows that point at them). Neither lives in `migrations/` — the first truncates, and a truncate has no business in a sequence applied to production.
+
 Storage buckets are private; files are read through short-lived signed URLs minted at click time (`SIGNED_URL_TTL_SECONDS`), never stored. Buckets: `client-documents`, `report-attachments`, signatures, avatars.
 
 ## Dead code in the tree

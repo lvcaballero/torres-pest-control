@@ -25,6 +25,7 @@
   --canvas: #fcfaf1;
   --panel: #ffffff;
   --sunken: #efe9e0;
+  --rail: #e8dcd7;
   --inverted: #252a23;
 
   /* Warm neutrals. */
@@ -139,9 +140,9 @@ a[href] {
   border-radius: var(--radius);
 }
 
-/* The rail is bone, not maroon. These three rules were written for a maroon
-   background: a cream hover wash and a cream focus ring are both invisible on
-   #efe9e0. The `outline: none` stays — it suppresses the UA border — but the
+/* The rail is a light tinted bone, not maroon. These three rules were written
+   for a maroon background: a cream hover wash and a cream focus ring are both
+   invisible on it. The `outline: none` stays — it suppresses the UA border — but the
    border reset must not, because the active item's 3px maroon marker IS a
    border-left and a blanket `border: none` would erase it. */
 .sidebar-nav-link,

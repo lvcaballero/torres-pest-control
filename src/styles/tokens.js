@@ -44,6 +44,21 @@ export const surface = {
   panel: "#ffffff", // pure white — lifts a card above the canvas
   sunken: "#efe9e0", // bone — wells, table headers, section bands
   inverted: "#252a23", // charcoal olive — inverted product panels
+  /**
+   * Bone warmed toward maroon — the navigation rail, and only that.
+   *
+   * The rail wants to be a band distinct from the parchment page without
+   * becoming a slab of accent, which is the mistake the maroon rail made. A
+   * brand-tinted bone widens the gap from the canvas and keeps a trace of the
+   * company colour in the surface itself, so the accent stays available for
+   * the active item.
+   *
+   * It must stay light. The logo is dark red-and-blue artwork on transparency
+   * and needs a light ground: it clears 4.8:1 here, against 1.7:1 on maroon
+   * and 1.4:1 on deep olive. Any dark rail also drops the maroon active
+   * marker to ~1.4:1, which is what forces amber back in as the accent.
+   */
+  rail: "#e8dcd7",
 };
 
 /** Warm neutrals for text and strokes, lightest to darkest. */

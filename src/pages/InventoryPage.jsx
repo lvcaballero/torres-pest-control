@@ -12,7 +12,7 @@
 // Splitting this into components/inventory/* is still deferred (see the
 // original note this replaced) — the file's just bigger now.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
@@ -1332,30 +1332,44 @@ function EditItemModal({ item, onClose, onSave }) {
  * figure will be before it is submitted — the arithmetic is the part staff were
  * getting wrong, so hiding it would only move the mistake.
  */
-// Date / PO / Intake Branch sit in one row, and their labels are not the same
-// height: "PO / Supplier Invoice Reference *" wraps to two lines while the
-// other two don't, and only two of the three carry a hint underneath. Left to
-// itself the row put all three inputs at different heights, because each Field
-// is its own grid and a grid container stretched by the row distributes the
-// slack across its own auto rows — so the field with the fewest rows (Date,
-// which has no hint) pushed its input furthest down.
-//
-// `alignItems: start` stops the stretch, and `subgrid` makes the three fields
-// share this row's label/control/hint tracks instead of sizing their own, so
-// the inputs line up whatever the labels do. Browsers without subgrid ignore
-// the second declaration and still get the un-stretched layout.
-const deliveryNoteGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gridTemplateRows: "auto auto auto",
-  columnGap: "1rem",
-  rowGap: "0.45rem",
-  alignItems: "start",
-};
+/**
+ * The delivery note header: Date, PO reference, Intake Branch on one line.
+ *
+ * Not built out of `Field` like the rest of this file. Field renders each
+ * field as its own grid, and three separate grids cannot agree on where the
+ * input goes — the labels are different heights ("PO / Supplier Invoice
+ * Reference *" wraps) and only two of the three have a hint, so each grid
+ * sized its own rows and the three inputs sat at three different heights.
+ *
+ * Here the label, the control and the hint are direct children of one grid
+ * and land in an explicit band, so every input is on the same line. The
+ * placement lives in `.delivery-note-grid` in globals.css, which is also
+ * where the narrow-screen stacking is; children are emitted in per-field
+ * order so that stacking reads correctly.
+ */
+function DeliveryNoteHeader({ fields }) {
+  return (
+    <div className="delivery-note-grid">
+      {fields.map((field, index) => {
+        const column = `dn-col-${index + 1}`;
+        return (
+          <Fragment key={field.id}>
+            <label className={`dn-label ${column}`} htmlFor={field.id}>
+              {field.label}
+              {/* Non-breaking, so a wrapping label never leaves the asterisk
+                  stranded alone on the second line. */}
+              {field.required && <span aria-hidden="true">{"\u00a0*"}</span>}
+            </label>
+            <div className={`dn-control ${column}`}>{field.control}</div>
+            <span className={`dn-hint ${column}`}>{field.hint || ""}</span>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
-const deliveryNoteField = { gridRow: "span 3", gridTemplateRows: "subgrid" };
-
-function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) {
+export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) {
   const stockableItems = useMemo(
     () => inventory.filter((item) => item.status !== INVENTORY_STATUS.DISABLED),
     [inventory]
@@ -1478,17 +1492,36 @@ function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) 
           <p style={{ margin: 0, color: "#9a2d24", fontSize: "0.85rem", fontWeight: 500 }}>{validationError}</p>
         )}
 
-        <div style={deliveryNoteGrid}>
-          <Field label="Date *" style={deliveryNoteField}>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
-          </Field>
-          <Field label="PO / Supplier Invoice Reference *" hint="Enter the Purchase Order (PO) or invoice number" style={deliveryNoteField}>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} style={inputStyle} placeholder="PO-1001, Invoice #, delivery note" required />
-          </Field>
-          <Field label="Intake Branch / Station *" hint="Station or warehouse where items were received" style={deliveryNoteField}>
-            <input value={intakeBranchOrStation} onChange={(e) => setIntakeBranchOrStation(e.target.value)} style={inputStyle} placeholder="e.g. Main Warehouse, Pasig Station" required />
-          </Field>
-        </div>
+        <DeliveryNoteHeader
+          fields={[
+            {
+              id: "stock-in-date",
+              label: "Date",
+              required: true,
+              control: (
+                <input id="stock-in-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
+              ),
+            },
+            {
+              id: "stock-in-reference",
+              label: "PO / Supplier Invoice Reference",
+              required: true,
+              hint: "Enter the Purchase Order (PO) or invoice number",
+              control: (
+                <input id="stock-in-reference" value={reference} onChange={(e) => setReference(e.target.value)} style={inputStyle} placeholder="PO-1001, Invoice #, delivery note" required />
+              ),
+            },
+            {
+              id: "stock-in-intake",
+              label: "Intake Branch / Station",
+              required: true,
+              hint: "Station or warehouse where items were received",
+              control: (
+                <input id="stock-in-intake" value={intakeBranchOrStation} onChange={(e) => setIntakeBranchOrStation(e.target.value)} style={inputStyle} placeholder="e.g. Main Warehouse, Pasig Station" required />
+              ),
+            },
+          ]}
+        />
 
         <div style={{ display: "grid", gap: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #efe9e0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>

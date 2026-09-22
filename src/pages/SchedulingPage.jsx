@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import ClientDocuments from "../components/clients/ClientDocuments";
+import SignaturePreview from "../components/common/SignaturePreview";
 import SignaturePad from "../components/scheduling/SignaturePad";
 import ServiceReportPrinter from "../components/scheduling/ServiceReportPrinter";
 import useAuth from "../hooks/useAuth";
@@ -971,7 +972,7 @@ function TechnicianSignature({ appointment, onSubmit, getSignatureUrl, onProblem
       {alreadySigned ? (
         <div style={{ padding: "0.65rem", borderRadius: "3.75px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
           {signatureUrl
-            ? <img src={signatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "3.75px" }} />
+            ? <SignaturePreview url={signatureUrl} alt="Technician signature" name="Technician signature" imageStyle={{ background: "#fff", borderRadius: "3.75px" }} />
             : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
           {appointment.technicianSignedAt && <div style={{ marginTop: "0.35rem", color: "#4a6b4a", fontSize: "0.7rem" }}>{formatDateTime(appointment.technicianSignedAt)}</div>}
         </div>
@@ -1073,7 +1074,7 @@ function CustomerConfirmation({ appointment, canOverride, onSubmit, onScheduleFo
       {alreadySigned ? (
         <div style={{ padding: "0.65rem", borderRadius: "3.75px", background: "#ffffff", border: "1px solid #bbf7d0" }}>
           {signatureUrl
-            ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px", background: "#fff", borderRadius: "3.75px" }} />
+            ? <SignaturePreview url={signatureUrl} alt="Customer signature" name="Customer signature" imageStyle={{ background: "#fff", borderRadius: "3.75px" }} />
             : <div style={{ color: colors.muted, fontSize: "0.74rem" }}>Loading signature…</div>}
           <div style={{ marginTop: "0.35rem", color: "#4a6b4a", fontWeight: 500, fontSize: "0.76rem" }}>
             Signed by {appointment.customerName || "the customer"}

@@ -11,6 +11,8 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Download, Eye, FileText, PencilLine, Printer, Trash2, X } from "lucide-react";
 import ClientForm from "./ClientForm";
 import ClientDocuments, { CATEGORY_TAGS } from "./ClientDocuments";
+import ImagePreviewModal, { isImageFile } from "../common/ImagePreviewModal";
+import SignaturePreview from "../common/SignaturePreview";
 import ServiceReportPrinter from "../scheduling/ServiceReportPrinter";
 import PageHeader from "../common/PageHeader";
 import { useScheduling } from "../../context/SchedulingContext";
@@ -43,10 +45,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
     if (!onResolveUrl) return;
 
     files.forEach((file) => {
-      const isImage = Boolean(
-        file.type?.startsWith("image/") ||
-        /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name || "")
-      );
+      const isImage = isImageFile(file);
       if (isImage && !file.url && !file.previewUrl && !thumbUrls[file.id]) {
         onResolveUrl(file, { download: false })
           .then((res) => {
@@ -69,12 +68,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
   }
 
   const handlePreview = async (file) => {
-    const isImage = Boolean(
-      file.type?.startsWith("image/") ||
-      /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name || "")
-    );
-
-    if (isImage) {
+    if (isImageFile(file)) {
       setModalFile(file);
       const cached = thumbUrls[file.id] || file.url || file.previewUrl;
       if (cached) {
@@ -108,7 +102,7 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
       <div className="mt-2.5">
         {files.map((file) => {
           const busy = busyId === file.id;
-          const isImage = Boolean(file.type?.startsWith("image/") || /\.(jpg|jpeg|png|webp)$/i.test(file.name || ""));
+          const isImage = isImageFile(file);
           const imgSrc = thumbUrls[file.id] || file.url || file.previewUrl;
           const fileTag = file.tag || (file.category && (CATEGORY_TAGS[file.category]?.label || file.category));
 
@@ -311,120 +305,15 @@ function HistoryFileList({ files = [], onOpen, onResolveUrl, onRemove, emptyMess
         })}
       </div>
 
-      {modalFile && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setModalFile(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-            backgroundColor: "rgba(15, 23, 42, 0.8)",
-            backdropFilter: "blur(4px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-4xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full"
-            style={{
-              position: "relative",
-              maxWidth: "52rem",
-              maxHeight: "90vh",
-              backgroundColor: "#ffffff",
-              borderRadius: "1rem",
-              overflow: "hidden",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              display: "flex",
-              flexDirection: "column",
-              width: "100%",
-            }}
-          >
-            <div
-              className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.75rem 1rem",
-                borderBottom: "1px solid #efe9e0",
-                backgroundColor: "#efe9e0",
-              }}
-            >
-              <span
-                className="text-xs font-bold text-slate-800 truncate"
-                style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-              >
-                {modalFile.name}
-              </span>
-              <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <button
-                  type="button"
-                  onClick={() => onOpen?.(modalFile, true)}
-                  title="Download"
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
-                  style={{
-                    padding: "0.375rem",
-                    color: "#96897b",
-                    backgroundColor: "transparent",
-                    border: "none",
-                    borderRadius: "0.375rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Download className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalFile(null)}
-                  title="Close"
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
-                  style={{
-                    padding: "0.375rem",
-                    color: "#96897b",
-                    backgroundColor: "transparent",
-                    border: "none",
-                    borderRadius: "0.375rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <X className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
-                </button>
-              </div>
-            </div>
-            <div
-              className="p-4 flex items-center justify-center overflow-auto min-h-[240px] bg-slate-950"
-              style={{
-                padding: "1rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "auto",
-                minHeight: "240px",
-                backgroundColor: "#090d16",
-              }}
-            >
-              {modalUrl ? (
-                <img
-                  src={modalUrl}
-                  alt={modalFile.name}
-                  className="max-h-[75vh] max-w-full object-contain rounded-md"
-                  style={{ maxHeight: "75vh", maxWidth: "100%", objectFit: "contain", borderRadius: "0.375rem" }}
-                />
-              ) : (
-                <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#96897b" }}>
-                  Loading preview...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ImagePreviewModal
+        file={modalFile}
+        url={modalUrl}
+        onClose={() => {
+          setModalFile(null);
+          setModalUrl(null);
+        }}
+        onDownload={(file) => onOpen?.(file, true)}
+      />
     </>
   );
 }
@@ -473,6 +362,8 @@ function ClientDetails({
     return () => { cancelled = true; };
   }, [selectedHistory?.signaturePath, selectedHistory?.technicianSignaturePath, getSignatureUrl]);
 
+  // Reached for downloads and for non-images (PDF, DOCX) only: HistoryFileList
+  // sends images to its lightbox instead of to a new tab.
   const openHistoryDocument = async (document, download = false) => {
     const result = await onResolveDocumentUrl(document, { download });
     if (result?.url) window.open(result.url, download ? "_self" : "_blank", "noopener,noreferrer");
@@ -926,9 +817,7 @@ function ClientDetails({
                         {selectedHistory.signaturePath ? (
                           <>
                             <div style={{ marginTop: "0.35rem", background: "#fff", borderRadius: "3.75px", padding: "0.4rem", display: "inline-block" }}>
-                              {signatureUrl
-                                ? <img src={signatureUrl} alt="Customer signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px" }} />
-                                : <span style={{ color: colors.muted, fontSize: "0.76rem" }}>Loading signature…</span>}
+                              <SignaturePreview url={signatureUrl} alt="Customer signature" name="Customer signature" />
                             </div>
                             <div style={{ marginTop: "0.4rem", color: "#4a6b4a", fontWeight: 500, fontSize: "0.82rem" }}>Signed by {selectedHistory.customerName || "the customer"}</div>
                             {selectedHistory.signedAt && <div style={{ color: colors.muted, fontSize: "0.72rem" }}>{formatDateTime(selectedHistory.signedAt)}</div>}
@@ -945,9 +834,7 @@ function ClientDetails({
                         {selectedHistory.technicianSignaturePath ? (
                           <>
                             <div style={{ marginTop: "0.35rem", background: "#fff", borderRadius: "3.75px", padding: "0.4rem", display: "inline-block" }}>
-                              {technicianSignatureUrl
-                                ? <img src={technicianSignatureUrl} alt="Technician signature" style={{ display: "block", maxWidth: "100%", maxHeight: "100px" }} />
-                                : <span style={{ color: colors.muted, fontSize: "0.76rem" }}>Loading signature…</span>}
+                              <SignaturePreview url={technicianSignatureUrl} alt="Technician signature" name="Technician signature" />
                             </div>
                             <div style={{ marginTop: "0.4rem", color: "#4a6b4a", fontWeight: 500, fontSize: "0.82rem" }}>Signed by {accounts.find((account) => account.id === selectedHistory.technicianId)?.name || accounts.find((account) => account.id === selectedHistory.technicianId)?.username || "the technician"}</div>
                             {selectedHistory.technicianSignedAt && <div style={{ color: colors.muted, fontSize: "0.72rem" }}>{formatDateTime(selectedHistory.technicianSignedAt)}</div>}

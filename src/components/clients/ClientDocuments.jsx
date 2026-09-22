@@ -17,8 +17,9 @@
 // the "URL" was a pointer into this tab's memory that died on reload.
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Eye, FileText, Trash2, UploadCloud, X } from "lucide-react";
+import { Download, Eye, FileText, Trash2, UploadCloud } from "lucide-react";
 import EmptyState from "../common/EmptyState";
+import ImagePreviewModal, { isImageFile } from "../common/ImagePreviewModal";
 import { validateDocument } from "../../utils/validators";
 import { formatDate, formatFileSize } from "../../utils/formatters";
 import { colors } from "../../styles/theme";
@@ -62,10 +63,7 @@ export function CategoryTag({ category }) {
 
 export function FileThumbnail({ file, onResolveUrl, onPreview }) {
   const [src, setSrc] = useState(file.url || file.previewUrl || null);
-  const isImage = Boolean(
-    file.type?.startsWith("image/") ||
-    /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name || "")
-  );
+  const isImage = isImageFile(file);
 
   useEffect(() => {
     let active = true;
@@ -229,7 +227,9 @@ function ClientDocuments({
       return;
     }
 
-    // Signed URLs expire, so navigate immediately rather than rendering a link.
+    // Only downloads and non-images reach this now — images go to the
+    // lightbox. Signed URLs expire, so navigate immediately rather than
+    // rendering a link.
     window.open(url, download ? "_self" : "_blank", "noopener,noreferrer");
   };
 
@@ -238,12 +238,7 @@ function ClientDocuments({
       onPreview(document);
       return;
     }
-    const isImage = Boolean(
-      document.type?.startsWith("image/") ||
-      /\.(jpe?g|png|webp|gif|svg)$/i.test(document.name || "")
-    );
-
-    if (isImage) {
+    if (isImageFile(document)) {
       setModalFile(document);
       if (document.url || document.previewUrl) {
         setModalUrl(document.url || document.previewUrl);
@@ -308,6 +303,24 @@ function ClientDocuments({
     </div>
   );
 
+  const closePreview = () => {
+    setModalFile(null);
+    setModalUrl(null);
+  };
+
+  // Rendered by every layout below. Previously only the tile layout carried a
+  // lightbox, so Preview in the compact and roomy layouts — the ones the
+  // Client Profile and Scheduling document tabs use — fell through to
+  // window.open() and threw the photo into a new tab.
+  const imagePreview = (
+    <ImagePreviewModal
+      file={modalFile}
+      url={modalUrl}
+      onClose={closePreview}
+      onDownload={(file) => handleOpen(file, true)}
+    />
+  );
+
   const fileList = documents.map((document) => {
     const busy = busyId === document.id;
 
@@ -355,7 +368,7 @@ function ClientDocuments({
         <div style={{ display: "flex", gap: compact ? "0.3rem" : "0.5rem", flexWrap: "wrap" }}>
           <button
             type="button"
-            onClick={() => handleOpen(document, false)}
+            onClick={() => handlePreview(document)}
             disabled={busy}
             style={actionStyle("#efe9e0", colors.body, busy)}
           >
@@ -625,120 +638,7 @@ function ClientDocuments({
         {fileInput}
         {statusMessage}
 
-        {modalFile && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setModalFile(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs"
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 9999,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "1rem",
-              backgroundColor: "rgba(15, 23, 42, 0.8)",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="relative max-w-4xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col w-full"
-              style={{
-                position: "relative",
-                maxWidth: "52rem",
-                maxHeight: "90vh",
-                backgroundColor: "#ffffff",
-                borderRadius: "1rem",
-                overflow: "hidden",
-                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                display: "flex",
-                flexDirection: "column",
-                width: "100%",
-              }}
-            >
-              <div
-                className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.75rem 1rem",
-                  borderBottom: "1px solid #efe9e0",
-                  backgroundColor: "#efe9e0",
-                }}
-              >
-                <span
-                  className="text-xs font-bold text-slate-800 truncate"
-                  style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                >
-                  {modalFile.name}
-                </span>
-                <div className="flex items-center gap-2" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <button
-                    type="button"
-                    onClick={() => handleOpen(modalFile, true)}
-                    title="Download"
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
-                    style={{
-                      padding: "0.375rem",
-                      color: "#96897b",
-                      backgroundColor: "transparent",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Download className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalFile(null)}
-                    title="Close"
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
-                    style={{
-                      padding: "0.375rem",
-                      color: "#96897b",
-                      backgroundColor: "transparent",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X className="w-4 h-4" style={{ width: "1rem", height: "1rem" }} />
-                  </button>
-                </div>
-              </div>
-              <div
-                className="p-4 flex items-center justify-center overflow-auto min-h-[240px] bg-slate-950"
-                style={{
-                  padding: "1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "auto",
-                  minHeight: "240px",
-                  backgroundColor: "#090d16",
-                }}
-              >
-                {modalUrl ? (
-                  <img
-                    src={modalUrl}
-                    alt={modalFile.name}
-                    className="max-h-[75vh] max-w-full object-contain rounded-md"
-                    style={{ maxHeight: "75vh", maxWidth: "100%", objectFit: "contain", borderRadius: "0.375rem" }}
-                  />
-                ) : (
-                  <div className="text-xs text-slate-400 animate-pulse" style={{ fontSize: "0.75rem", color: "#96897b" }}>
-                    Loading preview...
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {imagePreview}
       </div>
     );
   }
@@ -806,6 +706,7 @@ function ClientDocuments({
         )}
 
         {statusMessage}
+        {imagePreview}
       </section>
     );
   }
@@ -854,6 +755,8 @@ function ClientDocuments({
       ) : (
         <div style={{ display: "grid", gap: "0.75rem" }}>{fileList}</div>
       )}
+
+      {imagePreview}
     </div>
   );
 }

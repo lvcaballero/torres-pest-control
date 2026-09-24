@@ -11,6 +11,7 @@ import {
   ALLOWED_DOCUMENT_TYPES,
   MAX_ATTACHMENT_BYTES,
   MAX_DOCUMENT_BYTES,
+  LIMITS,
   MIN_PASSWORD_LENGTH,
 } from "./constants";
 
@@ -186,5 +187,82 @@ export function validateAttachment(file) {
   if (!typeAllowed) return "Only JPG, PNG, and PDF files are allowed.";
   if (file.size > MAX_ATTACHMENT_BYTES) return "File exceeds the 5MB upload limit.";
 
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Numeric and date bounds. Mirrors migration 047; see LIMITS in constants.js.
+// Each returns an error string, or null when the value is acceptable.
+// ---------------------------------------------------------------------------
+
+const peso = (value) => `₱${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Optional money figure (blank is allowed): 0 to max, at most two decimals. */
+export function validateMoney(value, { max = LIMITS.MAX_PRICE, label = "Price" } = {}) {
+  if (value === "" || value === null || value === undefined) return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return `${label} must be a number.`;
+  if (amount < 0) return `${label} cannot be negative.`;
+  if (amount > max) return `${label} cannot be more than ${peso(max)}.`;
+  if (Math.round(amount * 100) !== Number((amount * 100).toFixed(6))) return `${label} can have at most two decimal places.`;
+  return null;
+}
+
+/** Required quantity: greater than zero and at most max. */
+export function validateQuantity(value, { max = LIMITS.MAX_MOVEMENT_QTY, label = "Quantity" } = {}) {
+  const amount = Number(value);
+  if (value === "" || value === null || value === undefined || !Number.isFinite(amount) || amount <= 0) {
+    return `${label} must be greater than zero.`;
+  }
+  if (amount > max) return `${label} cannot be more than ${max.toLocaleString()}.`;
+  return null;
+}
+
+/**
+ * Today's date as YYYY-MM-DD in the browser's local time zone.
+ *
+ * Not `new Date().toISOString().slice(0, 10)`: that is the UTC date, which in
+ * the Philippines (UTC+8) is still yesterday until 8 am.
+ */
+export function todayISO(now = new Date()) {
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/** True when a YYYY-MM-DD date is after today (local). Blank is not future. */
+export function isFutureDate(value, now = new Date()) {
+  if (!value) return false;
+  return String(value) > todayISO(now);
+}
+
+/** Error when a stock movement date is missing or in the future. */
+export function validateMovementDate(value, now = new Date()) {
+  if (!value) return "Choose a date.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return "Choose a valid date.";
+  if (isFutureDate(value, now)) return "The date cannot be in the future.";
+  return null;
+}
+
+/**
+ * Error when an appointment start is in the past. Allows the same five-minute
+ * grace as create_appointment(), so "book it for right now" still saves.
+ */
+export function validateAppointmentStart(value, now = new Date()) {
+  const start = value instanceof Date ? value : new Date(value);
+  if (!value || Number.isNaN(start.getTime())) return "Choose a date and time.";
+  if (start.getTime() < now.getTime() - LIMITS.PAST_BOOKING_GRACE_MS) {
+    return "Appointments cannot be booked in the past.";
+  }
+  return null;
+}
+
+/** Error when a duration (minutes) is outside 15 minutes to 24 hours. */
+export function validateDuration(minutes) {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value < LIMITS.MIN_DURATION_MINUTES) {
+    return `Duration must be at least ${LIMITS.MIN_DURATION_MINUTES} minutes.`;
+  }
+  if (value > LIMITS.MAX_DURATION_MINUTES) return "Duration cannot be more than 24 hours.";
   return null;
 }

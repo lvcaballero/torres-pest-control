@@ -9,7 +9,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import SchedulingPage from "../SchedulingPage";
+import SchedulingPage, { buildStockRows, defaultStockOutDate, validateStockOut } from "../SchedulingPage";
 import { localDateKey, startOfWeek } from "../../utils/calendarDates";
 
 // SchedulingPage reads ?appointment= via useSearchParams, so it needs a router
@@ -48,6 +48,8 @@ const mockAppointments = [
     durationMinutes: 60,
     status: "Confirmed",
     pestConcern: "Termites",
+    serviceType: "Termite Control",
+    serviceId: "s1",
   },
   {
     id: "a2",
@@ -60,6 +62,24 @@ const mockAppointments = [
   },
 ];
 
+const mockInventory = [
+  { id: "i1", name: "Termidor SC", type: "CHEMICAL", unit: "L", quantity: 10, status: "ACTIVE" },
+  { id: "i2", name: "Bait station", type: "EQUIPMENT", unit: "pc", quantity: 3, status: "ACTIVE" },
+  { id: "i3", name: "Gloves", type: "MATERIAL", unit: "pair", quantity: 50, status: "ACTIVE" },
+];
+
+const mockServices = [
+  {
+    id: "s1",
+    name: "Termite Control",
+    isActive: true,
+    defaultPrice: 4500,
+    defaultDurationMinutes: 120,
+    materials: [{ itemId: "i1", defaultAmount: 1.5 }, { itemId: "i2", defaultAmount: 2 }],
+  },
+];
+
+const mockStockOutMany = jest.fn(async () => [{ movement_id: "m1" }]);
 const mockUpdateAppointment = jest.fn(async (a) => a);
 const mockCreateAppointment = jest.fn(async (a) => ({ ...a, id: "new" }));
 
@@ -83,12 +103,22 @@ jest.mock("../../hooks/useClients", () => ({
 
 jest.mock("../../hooks/useInventory", () => ({
   __esModule: true,
-  default: () => ({ inventory: [], stockOutMany: jest.fn() }),
+  default: () => ({ inventory: mockInventory, stockOutMany: mockStockOutMany }),
 }));
 
 jest.mock("../../hooks/useUsers", () => ({
   __esModule: true,
   default: () => ({ staff: [], technicians: mockTechnicians }),
+}));
+
+jest.mock("../../hooks/useServices", () => ({
+  __esModule: true,
+  default: () => ({
+    services: mockServices,
+    activeServices: mockServices,
+    serviceById: (id) => mockServices.find((service) => service.id === id) || null,
+    serviceByName: (name) => mockServices.find((service) => service.name === name) || null,
+  }),
 }));
 
 jest.mock("../../hooks/useTreatmentMethods", () => ({
@@ -120,6 +150,7 @@ jest.mock("../../context/ToastContext", () => ({
 beforeEach(() => {
   mockUpdateAppointment.mockClear();
   mockCreateAppointment.mockClear();
+  mockStockOutMany.mockClear();
 });
 
 describe("SchedulingPage", () => {
@@ -295,5 +326,103 @@ describe("SchedulingPage", () => {
     card.dispatchEvent(new MouseEvent("dragstart", { bubbles: true }));
 
     expect(mockUpdateAppointment).not.toHaveBeenCalled();
+  });
+});
+
+describe("the Stock-Out tab", () => {
+  async function openStockTab() {
+    renderPage();
+    await userEvent.click(screen.getByText("Rhey Garcia"));
+    await userEvent.click(screen.getByRole("button", { name: "Stock-Out" }));
+  }
+
+  // Team lead's request: materials come from the service profile, and the
+  // technician confirms rather than typing them from memory.
+  it("prefills the service profile's materials", async () => {
+    await openStockTab();
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Prefilled from the Termite Control service profile/);
+    expect(screen.getByLabelText("Chemical item")).toHaveValue("i1");
+    expect(screen.getByLabelText("Chemical quantity")).toHaveValue(1.5);
+    expect(screen.getByLabelText("Equipment item")).toHaveValue("i2");
+  });
+
+  it("has an editable date that cannot go past today", async () => {
+    await openStockTab();
+
+    const date = screen.getByLabelText("Stock-out date");
+    expect(date.getAttribute("max")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(date.value <= date.getAttribute("max")).toBe(true);
+  });
+
+  it("records the chosen date, not today, when backdated", async () => {
+    await openStockTab();
+
+    const date = screen.getByLabelText("Stock-out date");
+    await userEvent.clear(date);
+    await userEvent.type(date, "2026-01-15");
+    await userEvent.click(screen.getByRole("button", { name: /Record stock out/ }));
+
+    expect(mockStockOutMany).toHaveBeenCalledWith(
+      "a1",
+      [
+        { itemId: "i1", amount: 1.5, batchNumber: "" },
+        { itemId: "i2", amount: 2, batchNumber: "" },
+      ],
+      "2026-01-15"
+    );
+    // Let the save settle so its state updates land inside the test.
+    expect(await screen.findByRole("button", { name: "Record stock out" })).toBeEnabled();
+  });
+
+  it("refuses more than is in stock, before calling the server", async () => {
+    await openStockTab();
+
+    const quantity = screen.getByLabelText("Equipment quantity");
+    await userEvent.clear(quantity);
+    await userEvent.type(quantity, "5");
+
+    expect(screen.getByText("Only 3 pc in stock.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Record stock out/ }));
+    expect(mockStockOutMany).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Only 3 pc of Bait station is in stock/);
+  });
+});
+
+describe("stock-out helpers", () => {
+  const now = new Date(2026, 8, 24, 10, 0);
+
+  it("defaults the date to the visit's day once it has happened", () => {
+    expect(defaultStockOutDate({ scheduledAt: new Date(2026, 8, 20, 9).toISOString() }, now)).toBe("2026-09-20");
+  });
+
+  it("defaults to today for a visit still ahead", () => {
+    expect(defaultStockOutDate({ scheduledAt: new Date(2026, 8, 30, 9).toISOString() }, now)).toBe("2026-09-24");
+  });
+
+  it("keeps one empty row per category beside the prefilled ones", () => {
+    const rows = buildStockRows(mockServices[0], mockInventory);
+    expect(rows.map((row) => [row.category, row.itemId, row.amount])).toEqual([
+      ["CHEMICAL", "i1", "1.5"],
+      ["EQUIPMENT", "i2", "2"],
+      ["MATERIAL", "", ""],
+    ]);
+  });
+
+  it("skips a listed material whose item no longer exists", () => {
+    const rows = buildStockRows({ materials: [{ itemId: "gone", defaultAmount: 1 }] }, mockInventory);
+    expect(rows.every((row) => row.itemId === "")).toBe(true);
+  });
+
+  it("accepts decimals and refuses a future date", () => {
+    const rows = [{ itemId: "i1", amount: "0.4", batchNumber: " L1 " }];
+    expect(validateStockOut(rows, "2026-01-01", mockInventory)).toEqual({ error: null, entries: [{ itemId: "i1", amount: 0.4, batchNumber: "L1" }] });
+    expect(validateStockOut(rows, "2999-01-01", mockInventory).error).toMatch(/future/);
+  });
+
+  it("refuses zero, blanks and absurd quantities", () => {
+    expect(validateStockOut([{ itemId: "i1", amount: "0" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
+    expect(validateStockOut([{ itemId: "i1", amount: "" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
+    expect(validateStockOut([], "2026-01-01", mockInventory).error).toMatch(/at least one item/);
   });
 });

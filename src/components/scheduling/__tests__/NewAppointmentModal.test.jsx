@@ -3,7 +3,19 @@ import userEvent from "@testing-library/user-event";
 import NewAppointmentModal from "../NewAppointmentModal";
 import { localDateKey } from "../../../utils/calendarDates";
 
-const TODAY = localDateKey(new Date());
+// Tomorrow, not today: the form refuses times in the past (migration 047), so
+// a fixture at "today 09:30" would pass before 9:30 and fail after it.
+const TOMORROW_DATE = new Date();
+TOMORROW_DATE.setDate(TOMORROW_DATE.getDate() + 1);
+const TODAY = localDateKey(TOMORROW_DATE);
+const YESTERDAY_DATE = new Date();
+YESTERDAY_DATE.setDate(YESTERDAY_DATE.getDate() - 1);
+const YESTERDAY = localDateKey(YESTERDAY_DATE);
+
+const services = [
+  { id: "s1", name: "Termite Control", defaultPrice: 4500, defaultDurationMinutes: 120, isActive: true, materials: [{ itemId: "i1", defaultAmount: 2 }] },
+  { id: "s2", name: "Fumigation", defaultPrice: null, defaultDurationMinutes: 150, isActive: true, materials: [] },
+];
 
 const clients = [
   { id: "c1", name: "Rhey Garcia", address: "12 Mabini St", phone: "09171234567" },
@@ -231,6 +243,7 @@ describe("NewAppointmentModal", () => {
         scheduledAt: `${TODAY}T14:00`,
         durationMinutes: 60,
         pestConcern: "Termites",
+        serviceId: "",
         serviceType: "",
         serviceLocation: "12 Mabini St",
         technicianIds: [],
@@ -279,6 +292,95 @@ describe("NewAppointmentModal", () => {
       await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("That technician is already booked.");
+    });
+
+    describe("safeguards", () => {
+      it("refuses a time in the past", async () => {
+        const { onCreate } = renderModal({ initialScheduledAt: `${YESTERDAY}T10:00` });
+
+        await userEvent.click(clientSearch());
+        await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+        await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+
+        expect(onCreate).not.toHaveBeenCalled();
+        expect(screen.getByRole("alert")).toHaveTextContent(/cannot be booked in the past/);
+      });
+
+      it("will not let the picker go below now", () => {
+        renderModal();
+
+        expect(screen.getByLabelText(/Date and time/).getAttribute("min")).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+      });
+
+      it("refuses a price over ₱999,999.99", async () => {
+        const { onCreate } = renderModal({ initialScheduledAt: `${TODAY}T14:00` });
+
+        await userEvent.click(clientSearch());
+        await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+        await userEvent.type(screen.getByLabelText(/Price/), "10000000");
+        await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+
+        expect(onCreate).not.toHaveBeenCalled();
+        expect(screen.getByRole("alert")).toHaveTextContent(/cannot be more than ₱999,999.99/);
+      });
+
+      it("refuses a custom duration of zero", async () => {
+        const { onCreate } = renderModal({ initialScheduledAt: `${TODAY}T14:00` });
+
+        await userEvent.click(clientSearch());
+        await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Custom" }));
+        await userEvent.clear(screen.getByLabelText("Hours"));
+        await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+
+        expect(onCreate).not.toHaveBeenCalled();
+        expect(screen.getByRole("alert")).toHaveTextContent(/at least 15 minutes/);
+      });
+    });
+
+    describe("service profiles", () => {
+      it("lists the services it is given", () => {
+        renderModal({ services });
+
+        const select = screen.getByLabelText(/Service type/);
+        expect(within(select).getByRole("option", { name: "Termite Control" })).toBeInTheDocument();
+        expect(within(select).getByRole("option", { name: "Fumigation" })).toBeInTheDocument();
+      });
+
+      it("fills the default price and duration, and sends the link and the name", async () => {
+        const { onCreate } = renderModal({ services, initialScheduledAt: `${TODAY}T08:00` });
+
+        await userEvent.click(clientSearch());
+        await userEvent.click(screen.getByRole("option", { name: /Rhey Garcia/ }));
+        await userEvent.selectOptions(screen.getByLabelText(/Service type/), "s1");
+
+        expect(screen.getByLabelText(/Price/)).toHaveValue(4500);
+        expect(screen.getByRole("button", { name: "2h" })).toHaveAttribute("aria-pressed", "true");
+        expect(screen.getByText(/Prefills 1 material on the Stock-Out tab/)).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: /Create appointment/ }));
+        expect(onCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ serviceId: "s1", serviceType: "Termite Control", price: "4500", durationMinutes: 120 })
+        );
+      });
+
+      it("never overwrites a price already typed", async () => {
+        renderModal({ services, initialScheduledAt: `${TODAY}T08:00` });
+
+        await userEvent.type(screen.getByLabelText(/Price/), "3000");
+        await userEvent.selectOptions(screen.getByLabelText(/Service type/), "s1");
+
+        expect(screen.getByLabelText(/Price/)).toHaveValue(3000);
+      });
+
+      it("switches to a custom duration for a non-preset default", async () => {
+        renderModal({ services });
+
+        await userEvent.selectOptions(screen.getByLabelText(/Service type/), "s2");
+
+        expect(screen.getByLabelText("Hours")).toHaveValue(2);
+        expect(screen.getByLabelText("Minutes")).toHaveValue(30);
+      });
     });
 
     it("closes from Cancel and from Escape", async () => {

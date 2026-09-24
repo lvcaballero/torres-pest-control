@@ -20,8 +20,9 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, MapPin, Phone } from "lucide-react";
 import { neutral, radius, status, surface, text, weight } from "../../styles/tokens";
-import { PEST_CONCERN_SUGGESTIONS, SERVICE_FREQUENCIES, SERVICE_TYPES } from "../../utils/constants";
-import { defaultAppointmentDateTime } from "../../utils/calendarDates";
+import { LIMITS, PEST_CONCERN_SUGGESTIONS, SERVICE_FREQUENCIES } from "../../utils/constants";
+import { defaultAppointmentDateTime, toDateTimeLocal } from "../../utils/calendarDates";
+import { validateAppointmentStart, validateDuration, validateMoney } from "../../utils/validators";
 import { busyTechnicianIds, describeSlotConflict } from "../../utils/scheduling";
 import Button from "../ui/Button";
 import Field from "../ui/Field";
@@ -73,6 +74,7 @@ function NewAppointmentModal({
   clients,
   activeAccounts,
   appointments = [],
+  services = [],
   initialClientId = "",
   initialScheduledAt = "",
   onClose,
@@ -92,6 +94,8 @@ function NewAppointmentModal({
   const [customHours, setCustomHours] = useState(1);
   const [customMinutes, setCustomMinutes] = useState(0);
   const [technicianIds, setTechnicianIds] = useState([]);
+  const [serviceId, setServiceId] = useState("");
+  const [price, setPrice] = useState("");
 
   const selectedClient = clients.find((client) => client.id === clientId) || null;
 
@@ -117,10 +121,45 @@ function NewAppointmentModal({
     });
   }, [appointments, scheduledAt, durationMinutes, technicianIds]);
 
+  const selectedService = services.find((service) => service.id === serviceId) || null;
+
+  // A service profile carries a default price and duration (migration 047).
+  // Choosing one fills them in; the price only when it is still blank, so a
+  // figure already agreed with the client is never overwritten.
+  const chooseService = (id) => {
+    setServiceId(id);
+    const service = services.find((entry) => entry.id === id);
+    if (!service) return;
+    if (price === "" && service.defaultPrice !== null && service.defaultPrice !== undefined) {
+      setPrice(String(service.defaultPrice));
+    }
+    const minutes = Number(service.defaultDurationMinutes);
+    if (minutes > 0) {
+      if (DURATION_PRESETS.includes(minutes)) {
+        setDurationChoice(minutes);
+      } else {
+        setDurationChoice(CUSTOM);
+        setCustomHours(Math.floor(minutes / 60));
+        setCustomMinutes(minutes % 60);
+      }
+    }
+  };
+
+  // Recomputed per render: the picker's lower bound moves with the clock.
+  const earliest = toDateTimeLocal(new Date());
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!clientId) {
       setFormError("Select a client from the list.");
+      return;
+    }
+    const guard =
+      validateAppointmentStart(scheduledAt) ||
+      validateDuration(durationMinutes) ||
+      validateMoney(price, { label: "Price" });
+    if (guard) {
+      setFormError(guard);
       return;
     }
 
@@ -133,11 +172,12 @@ function NewAppointmentModal({
       scheduledAt: values.get("scheduledAt"),
       durationMinutes,
       pestConcern: values.get("pestConcern"),
-      serviceType: values.get("serviceType") || "",
+      serviceId,
+      serviceType: selectedService?.name || "",
       serviceLocation: values.get("serviceLocation") || "",
       technicianIds,
       serviceFrequency: values.get("serviceFrequency") || "",
-      price: values.get("price") || "",
+      price,
       notes: values.get("notes"),
     });
 
@@ -224,6 +264,7 @@ function NewAppointmentModal({
               value={serviceLocation}
               onChange={(event) => setServiceLocation(event.target.value)}
               placeholder="Defaults to the client's address"
+              maxLength={LIMITS.NOTES_MAX}
             />
           </Field>
         </Section>
@@ -234,6 +275,7 @@ function NewAppointmentModal({
               name="scheduledAt"
               type="datetime-local"
               value={scheduledAt}
+              min={earliest}
               onChange={(event) => setScheduledAt(event.target.value)}
               required
             />
@@ -257,7 +299,7 @@ function NewAppointmentModal({
                   aria-pressed={durationChoice === minutes}
                   style={
                     durationChoice === minutes
-                      ? { borderColor: "#7f1111", color: "#8b1e1e", background: "rgba(127, 17, 17, 0.06)" }
+                      ? { border: "1px solid #7f1111", color: "#8b1e1e", background: "rgba(127, 17, 17, 0.06)" }
                       : undefined
                   }
                 >
@@ -270,7 +312,7 @@ function NewAppointmentModal({
                 aria-pressed={durationChoice === CUSTOM}
                 style={
                   durationChoice === CUSTOM
-                    ? { borderColor: "#7f1111", color: "#8b1e1e", background: "rgba(127, 17, 17, 0.06)" }
+                    ? { border: "1px solid #7f1111", color: "#8b1e1e", background: "rgba(127, 17, 17, 0.06)" }
                     : undefined
                 }
               >
@@ -286,6 +328,7 @@ function NewAppointmentModal({
                   type="number"
                   min="0"
                   max="24"
+                  step="1"
                   value={customHours}
                   onChange={(event) => setCustomHours(event.target.value)}
                 />
@@ -321,12 +364,12 @@ function NewAppointmentModal({
         </Section>
 
         <Section legend="Work" span={2}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
-            <Field label="Service type">
-              <Select name="serviceType" defaultValue="">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px", alignItems: "start" }}>
+            <Field label="Service type" hint={selectedService?.materials?.length ? `Prefills ${selectedService.materials.length} material${selectedService.materials.length === 1 ? "" : "s"} on the Stock-Out tab.` : undefined}>
+              <Select name="serviceType" value={serviceId} onChange={(event) => chooseService(event.target.value)}>
                 <option value="">Select a service type</option>
-                {SERVICE_TYPES.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>{service.name}</option>
                 ))}
               </Select>
             </Field>
@@ -353,12 +396,21 @@ function NewAppointmentModal({
             </Field>
 
             <Field label="Price (₱)">
-              <Input name="price" type="number" min="0" step="0.01" placeholder="0.00" />
+              <Input
+                name="price"
+                type="number"
+                min="0"
+                max={LIMITS.MAX_PRICE}
+                step="0.01"
+                placeholder="0.00"
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+              />
             </Field>
           </div>
 
           <Field label="Notes">
-            <Textarea name="notes" rows={3} />
+            <Textarea name="notes" rows={3} maxLength={LIMITS.NOTES_MAX} />
           </Field>
         </Section>
 

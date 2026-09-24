@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import Field from "../common/Field";
 import {
   CLIENT_SOURCES,
+  LIMITS,
   clientClassificationOptions,
 } from "../../utils/constants";
 import { humanizeEnum } from "../../utils/formatters";
@@ -96,6 +97,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
           <input
             aria-label="Client Name"
             name="name"
+            maxLength={LIMITS.SHORT_TEXT_MAX}
             value={form.name}
             onChange={handleFieldChange}
             style={styleFor("name")}
@@ -106,6 +108,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
           <input
             aria-label="Email"
             name="email"
+            maxLength={LIMITS.SHORT_TEXT_MAX}
             type="email"
             value={form.email}
             onChange={handleFieldChange}
@@ -132,6 +135,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
           <textarea
             aria-label="Address"
             name="address"
+            maxLength={LIMITS.NOTES_MAX}
             value={form.address}
             onChange={handleFieldChange}
             rows={3}
@@ -176,6 +180,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
             <input
               aria-label="Please specify"
               name="classificationOther"
+            maxLength={LIMITS.SHORT_TEXT_MAX}
               value={form.classificationOther}
               onChange={handleFieldChange}
               style={styleFor("classificationOther")}
@@ -192,6 +197,7 @@ function ClientForm({ initialValues, onSubmit, submitLabel = "Save Client", foot
             <textarea
               aria-label="Service Notes"
               name="serviceNotes"
+            maxLength={LIMITS.NOTES_MAX}
               value={form.serviceNotes}
               onChange={handleFieldChange}
               rows={4}

@@ -52,16 +52,27 @@ export const PEST_CONCERN_SUGGESTIONS = [
   "General Pest Control",
 ];
 
-export const SERVICE_TYPES = [
-  "Inspection",
-  "General Treatment",
-  "Termite Control",
-  "Rodent Control",
-  "Fumigation",
-  "Soil Poisoning",
-  "Follow-up Visit",
-  "Maintenance Contract",
-];
+// Service types are admin-managed in the `services` table (migration 047) and
+// read through useServices(). Each appointment keeps the service NAME it was
+// booked under in appointments.service_type, so retiring or deleting a service
+// never rewrites history.
+
+// Upper bounds on figures people type. Mirrors migration 047 (the appointment
+// RPCs, the services/service_materials checks and the inventory_movements
+// trigger) — change both sides together. They exist so a slipped key cannot
+// book a ₱10,000,000 visit or stock out 1e9 litres and break every total.
+export const LIMITS = {
+  MAX_PRICE: 999999.99,
+  MAX_UNIT_COST: 999999.99,
+  MAX_MOVEMENT_QTY: 100000,
+  MIN_DURATION_MINUTES: 15,
+  MAX_DURATION_MINUTES: 1440,
+  NOTES_MAX: 2000,
+  SHORT_TEXT_MAX: 120,
+  // Grace for "book it for right now": the form opens on the current minute
+  // and the RPC allows the same five minutes.
+  PAST_BOOKING_GRACE_MS: 5 * 60 * 1000,
+};
 
 // Treatment methods are now admin-managed and stored in the
 // `treatment_methods` database table (migration 038).  Use the

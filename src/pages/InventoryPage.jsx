@@ -12,13 +12,15 @@
 // Splitting this into components/inventory/* is still deferred (see the
 // original note this replaced) — the file's just bigger now.
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, MoreHorizontal, Plus, Search } from "lucide-react";
 import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
 import { INVENTORY_STATUS } from "../services/inventoryService";
-import { ACCOUNT_STATUS, STOCK_OUT_REASONS, STOCK_OUT_REASON_LABELS } from "../utils/constants";
+import { ACCOUNT_STATUS, LIMITS, STOCK_OUT_REASONS, STOCK_OUT_REASON_LABELS } from "../utils/constants";
+import { todayISO, validateMoney, validateMovementDate, validateQuantity } from "../utils/validators";
+import { LOSS_REASONS, REASON_FILTERS, countByReason, describeLosses, filterByReason, reasonOf, recentLossesByItem, summarizeLosses } from "../utils/stockMovements";
 import {
   conversionFactor,
   convertAmount,
@@ -100,6 +102,38 @@ const HISTORY_SECTIONS = [
 
 const peso = (value) => `₱${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// Missing and damaged are the reasons someone has to chase, so they are the
+// two that carry colour; routine reasons stay quiet.
+const REASON_TONES = {
+  MISSING: { background: "#faf0e2", border: "1px solid #fed7aa", color: "#b45309" },
+  DAMAGED: { background: "#f9ecea", border: "1px solid #f5c2bd", color: "#9a2d24" },
+  TECHNICIAN_CHECKOUT: { background: "#eef2f8", border: "1px solid #c7d4e8", color: "#334e7a" },
+  APPOINTMENT: { background: "#f4f1ec", border: "1px solid #efe9e0", color: "#50463c" },
+};
+
+function ReasonBadge({ reason }) {
+  if (!reason) return <span style={{ color: "#96897b" }}>—</span>;
+  return (
+    <span
+      data-reason={reason}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.3rem",
+        borderRadius: "999px",
+        padding: "0.22rem 0.6rem",
+        fontSize: "0.74rem",
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+        ...(REASON_TONES[reason] || REASON_TONES.APPOINTMENT),
+      }}
+    >
+      {LOSS_REASONS.includes(reason) && <AlertTriangle size={12} aria-hidden="true" />}
+      {STOCK_OUT_REASON_LABELS[reason] || reason}
+    </span>
+  );
+}
+
 const itemCell = (movement) => (
   <div>
     <div style={{ fontWeight: 500, color: "#211b15" }}>{movement.itemName}</div>
@@ -144,23 +178,24 @@ const HISTORY_COLUMNS = {
       { label: "Est. Value", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.totalCost)}</span> },
       // Reason and destination are two questions, so they are two columns:
       // "why did this leave" and "where did it go".
-      {
-        label: "Reason",
-        render: (m) => (
-          <span style={{ color: "#1e293b", fontWeight: 500 }}>
-            {STOCK_OUT_REASON_LABELS[m.stockOutReason] || (m.appointmentId ? STOCK_OUT_REASON_LABELS.APPOINTMENT : "—")}
-          </span>
-        ),
-      },
+      { label: "Reason", render: (m) => <ReasonBadge reason={reasonOf(m)} /> },
       {
         label: "Used On / Issued To",
-        render: (m) => (
-          <span style={{ color: "#50463c" }}>
-            {m.appointmentId
-              ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}`
-              : (m.reference || "—")}
-          </span>
-        ),
+        render: (m, context = {}) => {
+          const technician = m.technicianId ? context.technicianName?.(m.technicianId) : "";
+          return (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#50463c" }}>
+                {m.appointmentId
+                  ? `Appointment ${String(m.appointmentId).slice(0, 8).toUpperCase()}`
+                  : technician
+                    ? `Checked out to ${technician}`
+                    : (m.reference || "—")}
+              </div>
+              {m.note && <div style={{ color: "#96897b", fontSize: "0.76rem", marginTop: "0.15rem", overflowWrap: "anywhere" }}>{m.note}</div>}
+            </div>
+          );
+        },
       },
       { label: "Recorded By", render: (m) => <span style={{ color: "#96897b" }}>{m.actor || "—"}</span> },
     ],
@@ -248,6 +283,20 @@ function InventoryPage() {
   const [historyBranchFilter, setHistoryBranchFilter] = useState("ALL");
   const [historyDateFilter, setHistoryDateFilter] = useState("ALL");
   const [historySort, setHistorySort] = useState("DATE_DESC");
+  // Stock Out only: which reason, and for checkouts which technician.
+  const [historyReasonFilter, setHistoryReasonFilter] = useState("ALL");
+  const [historyTechnicianFilter, setHistoryTechnicianFilter] = useState("ALL");
+
+  const technicianName = useCallback(
+    (id) => {
+      const account = technicians.find((entry) => entry.id === id);
+      return account ? account.name || account.username : "";
+    },
+    [technicians]
+  );
+
+  // Missing/damaged per item over the last 30 days, for the list badge.
+  const recentLosses = useMemo(() => recentLossesByItem(movements), [movements]);
 
   const uniqueBranches = useMemo(() => {
     const set = new Set();
@@ -282,9 +331,10 @@ function InventoryPage() {
       if (itemStockFilter === "OUT" && !isOutOfStock) return false;
       if (itemStockFilter === "LOW" && !isLowStock) return false;
       if (itemStockFilter === "HEALTHY" && isLowStock) return false;
+      if (itemStockFilter === "LOSSES" && !recentLosses.has(item.id)) return false;
       return true;
     });
-  }, [inventory, itemSearch, itemTypeFilter, itemStatusFilter, itemStockFilter]);
+  }, [inventory, itemSearch, itemTypeFilter, itemStatusFilter, itemStockFilter, recentLosses]);
 
   const hasItemFilters = itemSearch || itemTypeFilter !== "ALL" || itemStatusFilter !== "ALL" || itemStockFilter !== "ALL";
 
@@ -298,13 +348,17 @@ function InventoryPage() {
   const activeHistorySection = HISTORY_SECTIONS.find((section) => section.key === historySection) || HISTORY_SECTIONS[0];
   const activeHistoryColumns = HISTORY_COLUMNS[historySection] || HISTORY_COLUMNS.IN;
 
-  const filteredAndSortedMovements = useMemo(() => {
-    let result = [...movements];
+  // Stage 1: every filter except the Stock Out reason. The reason chips count
+  // against this, so each chip says what choosing it would show.
+  const sectionMovements = useMemo(() => {
+    let result = movements.filter((m) => (m.movementType || "IN") === historySection);
 
     const term = historySearch.trim().toLowerCase();
     if (term) {
       result = result.filter((m) => {
-        const text = `${m.itemName || ""} ${m.reference || ""} ${m.intakeBranchOrStation || ""} ${m.actor || ""}`.toLowerCase();
+        const reasonLabel = STOCK_OUT_REASON_LABELS[reasonOf(m)] || "";
+        const technician = m.technicianId ? technicianName(m.technicianId) : "";
+        const text = `${m.itemName || ""} ${m.reference || ""} ${m.intakeBranchOrStation || ""} ${m.actor || ""} ${m.note || ""} ${reasonLabel} ${technician}`.toLowerCase();
         return text.includes(term);
       });
     }
@@ -313,14 +367,12 @@ function InventoryPage() {
       result = result.filter((m) => m.itemId === historyItemFilter);
     }
 
-    result = result.filter((m) => (m.movementType || "IN") === historySection);
-
     if (historySection === "IN" && historyBranchFilter !== "ALL") {
       result = result.filter((m) => m.intakeBranchOrStation === historyBranchFilter);
     }
 
     if (historyDateFilter !== "ALL") {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = todayISO();
       if (historyDateFilter === "TODAY") {
         result = result.filter((m) => m.movementDate === todayStr);
       } else if (historyDateFilter === "7DAYS") {
@@ -331,6 +383,17 @@ function InventoryPage() {
         result = result.filter((m) => new Date(m.movementDate) >= limit);
       }
     }
+    return result;
+  }, [movements, historySearch, historyItemFilter, historySection, historyBranchFilter, historyDateFilter, technicianName]);
+
+  const reasonCounts = useMemo(() => countByReason(sectionMovements), [sectionMovements]);
+  const lossSummary = useMemo(() => summarizeLosses(sectionMovements), [sectionMovements]);
+
+  // Stage 2: the reason (Stock Out only), then the sort.
+  const filteredAndSortedMovements = useMemo(() => {
+    const result = historySection === "OUT"
+      ? filterByReason(sectionMovements, { reason: historyReasonFilter, technicianId: historyTechnicianFilter })
+      : [...sectionMovements];
 
     result.sort((a, b) => {
       if (historySort === "DATE_ASC") return new Date(a.movementDate) - new Date(b.movementDate);
@@ -343,10 +406,12 @@ function InventoryPage() {
     });
 
     return result;
-  }, [movements, historySearch, historyItemFilter, historySection, historyBranchFilter, historyDateFilter, historySort]);
+  }, [sectionMovements, historySection, historySort, historyReasonFilter, historyTechnicianFilter]);
 
+  // Loaded on the items tab too: the missing/damaged badge on each item reads
+  // the movement log.
   useEffect(() => {
-    if (tab === "history") refreshMovements();
+    refreshMovements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -417,6 +482,15 @@ function InventoryPage() {
     }
 
     if (!newItem.name || !newItem.unit || Number.isNaN(newItem.cost)) return;
+    const limitError =
+      validateMoney(form.cost, { max: LIMITS.MAX_UNIT_COST, label: "Cost per unit" }) ||
+      (newItem.reorderLevel !== null && newItem.reorderLevel > LIMITS.MAX_MOVEMENT_QTY
+        ? `Reorder level cannot be more than ${LIMITS.MAX_MOVEMENT_QTY.toLocaleString()}.`
+        : null);
+    if (limitError) {
+      showError(limitError);
+      return;
+    }
 
     const result = await onAddItem(newItem);
     if (result !== true) {
@@ -505,7 +579,7 @@ function InventoryPage() {
                   </Field>
                   <UnitField value={form.unit} onChange={(unit) => setForm((previous) => ({ ...previous, unit }))} />
                   <Field label="Cost per Unit (₱) *">
-                    <input name="cost" type="number" min="0" step="0.01" value={form.cost} onChange={handleChange} style={inputStyle} placeholder="0.00" required />
+                    <input name="cost" type="number" min="0" max={LIMITS.MAX_UNIT_COST} step="0.01" value={form.cost} onChange={handleChange} style={inputStyle} placeholder="0.00" required />
                   </Field>
                   <Field label="Supplier">
                     <input name="supplier" value={form.supplier} onChange={handleChange} style={inputStyle} placeholder="Supplier name" />
@@ -514,7 +588,7 @@ function InventoryPage() {
                     <input name="storageLocation" value={form.storageLocation} onChange={handleChange} style={inputStyle} placeholder="e.g. Storage Room A" />
                   </Field>
                   <Field label="Reorder Level">
-                    <input name="reorderLevel" type="number" min="0" step="0.1" value={form.reorderLevel} onChange={handleChange} style={inputStyle} placeholder="0" />
+                    <input name="reorderLevel" type="number" min="0" max={LIMITS.MAX_MOVEMENT_QTY} step="0.1" value={form.reorderLevel} onChange={handleChange} style={inputStyle} placeholder="0" />
                   </Field>
                 </div>
               </div>
@@ -667,6 +741,7 @@ function InventoryPage() {
                     <option value="OUT">Out of Stock</option>
                     <option value="LOW">Low Stock</option>
                     <option value="HEALTHY">Healthy Stock</option>
+                    <option value="LOSSES">Missing / damaged (30 days)</option>
                   </select>
                 </div>
 
@@ -756,7 +831,18 @@ function InventoryPage() {
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ffffff")}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, color: "#211b15", fontSize: "0.96rem" }}>{item.name}</div>
+                    <div style={{ fontWeight: 500, color: "#211b15", fontSize: "0.96rem", display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                      {item.name}
+                      {recentLosses.has(item.id) && (
+                        <span
+                          title="Missing or damaged stock recorded in the last 30 days. See History → Stock Out."
+                          style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", borderRadius: "999px", padding: "0.1rem 0.5rem", fontSize: "0.68rem", fontWeight: 500, ...REASON_TONES.MISSING }}
+                        >
+                          <AlertTriangle size={11} aria-hidden="true" />
+                          {describeLosses(recentLosses.get(item.id))}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", color: "#96897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.supplier || item.storageLocation || "Inventory item"}
                     </div>
@@ -879,7 +965,7 @@ function InventoryPage() {
                 <input
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder="Item, PO#, branch, actor…"
+                  placeholder="Item, PO#, reason, technician, note…"
                   style={inputStyle}
                 />
               </Field>
@@ -966,6 +1052,79 @@ function InventoryPage() {
             })}
           </div>
 
+          {historySection === "OUT" && (
+            <div style={{ display: "grid", gap: "0.75rem", marginBottom: "1rem" }}>
+              <div role="group" aria-label="Filter stock-outs by reason" style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", alignItems: "center" }}>
+                {REASON_FILTERS.map((option) => {
+                  const active = historyReasonFilter === option.value;
+                  const tone = REASON_TONES[option.value];
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => { setHistoryReasonFilter(option.value); setHistoryTechnicianFilter("ALL"); }}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: "0.4rem",
+                        padding: "0.42rem 0.8rem",
+                        borderRadius: "999px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        border: active ? `1px solid ${tone?.color || "#50463c"}` : "1px solid #efe9e0",
+                        background: active ? (tone?.background || "#efe9e0") : "#ffffff",
+                        color: active ? (tone?.color || "#211b15") : "#50463c",
+                      }}
+                    >
+                      {LOSS_REASONS.includes(option.value) && <AlertTriangle size={12} aria-hidden="true" />}
+                      {option.label}
+                      <span style={{ fontSize: "0.72rem", color: "#96897b" }}>{reasonCounts[option.value] ?? 0}</span>
+                    </button>
+                  );
+                })}
+                {historyReasonFilter === "TECHNICIAN_CHECKOUT" && (
+                  <select
+                    aria-label="Checked out to"
+                    value={historyTechnicianFilter}
+                    onChange={(event) => setHistoryTechnicianFilter(event.target.value)}
+                    style={{ ...inputStyle, width: "auto", minWidth: "200px", padding: "0.45rem 0.6rem", fontSize: "0.8rem" }}
+                  >
+                    <option value="ALL">All technicians</option>
+                    {technicians.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name || account.username}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div data-testid="loss-summary" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.6rem" }}>
+                {LOSS_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => { setHistoryReasonFilter(reason); setHistoryTechnicianFilter("ALL"); }}
+                    style={{
+                      textAlign: "left",
+                      padding: "0.75rem 0.9rem",
+                      borderRadius: "7.5px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      ...REASON_TONES[reason],
+                    }}
+                  >
+                    <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 500 }}>
+                      {STOCK_OUT_REASON_LABELS[reason]}
+                    </div>
+                    <div style={{ marginTop: "0.25rem", fontSize: "1.05rem", fontWeight: 500, color: "#211b15", overflowWrap: "anywhere" }}>
+                      {lossSummary[reason].count} record{lossSummary[reason].count === 1 ? "" : "s"} · {peso(lossSummary[reason].value)}
+                    </div>
+                    <div style={{ fontSize: "0.72rem", marginTop: "0.1rem" }}>Estimated value, for the dates and items filtered above.</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Records Table */}
           <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
@@ -1018,7 +1177,7 @@ function InventoryPage() {
                   }}
                 >
                   {activeHistoryColumns.columns.map((column) => (
-                    <div key={column.label}>{column.render(movement)}</div>
+                    <div key={column.label}>{column.render(movement, { technicianName })}</div>
                   ))}
                 </div>
               ))}
@@ -1214,6 +1373,15 @@ function EditItemModal({ item, onClose, onSave }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!values.name.trim() || !values.unit.trim() || values.cost === "") return;
+    const limitError =
+      validateMoney(values.cost, { max: LIMITS.MAX_UNIT_COST, label: "Cost per unit" }) ||
+      (values.reorderLevel !== "" && Number(values.reorderLevel) > LIMITS.MAX_MOVEMENT_QTY
+        ? `Reorder level cannot be more than ${LIMITS.MAX_MOVEMENT_QTY.toLocaleString()}.`
+        : null);
+    if (limitError) {
+      setValidationError(limitError);
+      return;
+    }
     if (values.lastMaintenanceDate && values.nextMaintenanceDate && values.nextMaintenanceDate <= values.lastMaintenanceDate) {
       setValidationError("Next maintenance must be after the last maintenance date.");
       return;
@@ -1244,7 +1412,7 @@ function EditItemModal({ item, onClose, onSave }) {
           </Field>
           <UnitField value={values.unit} onChange={(unit) => setValues((previous) => ({ ...previous, unit }))} />
           <Field label="Cost per Unit (₱) *">
-            <input name="cost" type="number" min="0" step="0.01" value={values.cost} onChange={handleChange} style={inputStyle} required />
+            <input name="cost" type="number" min="0" max={LIMITS.MAX_UNIT_COST} step="0.01" value={values.cost} onChange={handleChange} style={inputStyle} required />
           </Field>
           <Field label="Supplier">
             <input name="supplier" value={values.supplier} onChange={handleChange} style={inputStyle} />
@@ -1253,7 +1421,7 @@ function EditItemModal({ item, onClose, onSave }) {
             <input name="storageLocation" value={values.storageLocation} onChange={handleChange} style={inputStyle} />
           </Field>
           <Field label="Reorder Level">
-            <input name="reorderLevel" type="number" min="0" step="0.1" value={values.reorderLevel} onChange={handleChange} style={inputStyle} />
+            <input name="reorderLevel" type="number" min="0" max={LIMITS.MAX_MOVEMENT_QTY} step="0.1" value={values.reorderLevel} onChange={handleChange} style={inputStyle} />
           </Field>
         </div>
 
@@ -1390,7 +1558,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
   };
 
   const [rows, setRows] = useState(() => [buildRow(initialItemId)]);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayISO());
   const [reference, setReference] = useState("");
   const [intakeBranchOrStation, setIntakeBranchOrStation] = useState(
     findItem(initialItemId)?.intakeBranchOrStation || ""
@@ -1448,6 +1616,11 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       return;
     }
     if (!reference.trim() || !intakeBranchOrStation.trim() || !date) return;
+    const dateError = validateMovementDate(date);
+    if (dateError) {
+      setValidationError(`Delivery ${dateError.charAt(0).toLowerCase()}${dateError.slice(1)}`);
+      return;
+    }
 
     const entries = [];
     for (const row of filledRows) {
@@ -1455,6 +1628,13 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       const amount = baseAmount(row);
       if (amount === null || !(amount > 0)) {
         setValidationError(`Enter a quantity greater than zero for ${item?.name || "every item"}.`);
+        return;
+      }
+      const limitError =
+        validateQuantity(amount, { label: `Quantity for ${item?.name || "an item"}` }) ||
+        validateMoney(row.unitCost, { max: LIMITS.MAX_UNIT_COST, label: `Cost per unit for ${item?.name || "an item"}` });
+      if (limitError) {
+        setValidationError(limitError);
         return;
       }
       const converted = normalizeUnit(row.enteredUnit) !== normalizeUnit(item.unit)
@@ -1499,7 +1679,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
               label: "Date",
               required: true,
               control: (
-                <input id="stock-in-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
+                <input id="stock-in-date" type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} style={inputStyle} required />
               ),
             },
             {
@@ -1567,6 +1747,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
                       aria-label="Stock In quantity"
                       type="number"
                       min="0"
+                      max={LIMITS.MAX_MOVEMENT_QTY}
                       step="any"
                       inputMode="decimal"
                       value={row.amount}
@@ -1603,6 +1784,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
                       aria-label="Purchase cost per unit"
                       type="number"
                       min="0"
+                      max={LIMITS.MAX_UNIT_COST}
                       step="0.01"
                       value={row.unitCost}
                       onChange={(event) => updateRow(row.key, { unitCost: event.target.value })}
@@ -1689,7 +1871,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
  */
 function StockOutModal({ item, technicians, onClose, onSubmit }) {
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayISO());
   const [reason, setReason] = useState(STOCK_OUT_REASONS[0].value);
   const [technicianId, setTechnicianId] = useState("");
   const [note, setNote] = useState("");
@@ -1702,8 +1884,9 @@ function StockOutModal({ item, technicians, onClose, onSubmit }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setValidationError("Enter a quantity greater than zero.");
+    const limitError = validateQuantity(amount) || validateMovementDate(date);
+    if (limitError) {
+      setValidationError(limitError);
       return;
     }
     if (parsedAmount > Number(item.quantity)) {
@@ -1742,7 +1925,7 @@ function StockOutModal({ item, technicians, onClose, onSubmit }) {
         </Field>
 
         <Field label="Date *" hint="Defaults to today. Change it to record a stock-out that happened earlier.">
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} style={inputStyle} required />
+          <input type="date" value={date} max={todayISO()} onChange={(event) => { setValidationError(""); setDate(event.target.value); }} style={inputStyle} required />
         </Field>
 
         <Field label="Reason *">
@@ -1785,6 +1968,7 @@ function StockOutModal({ item, technicians, onClose, onSubmit }) {
             onChange={(event) => setNote(event.target.value)}
             style={{ ...inputStyle, minHeight: "80px", resize: "vertical" }}
             placeholder="Anything worth recording — where it went, how it was damaged"
+            maxLength={LIMITS.NOTES_MAX}
           />
         </Field>
 

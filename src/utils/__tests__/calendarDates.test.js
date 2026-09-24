@@ -106,12 +106,33 @@ describe("toDateTimeLocal", () => {
 });
 
 describe("defaultAppointmentDateTime", () => {
-  it("opens on today at the start of the working day", () => {
-    expect(defaultAppointmentDateTime(7)).toBe(`${localDateKey(new Date())}T07:00`);
+  const at = (hours, minutes = 0) => {
+    const date = new Date(2026, 8, 24, hours, minutes);
+    return date;
+  };
+
+  it("opens on today at the start of the working day, before it has begun", () => {
+    expect(defaultAppointmentDateTime(7, { now: at(6, 15) })).toBe("2026-09-24T07:00");
   });
 
   it("follows a different opening hour", () => {
-    expect(defaultAppointmentDateTime(9)).toMatch(/T09:00$/);
+    expect(defaultAppointmentDateTime(9, { now: at(6) })).toMatch(/T09:00$/);
+  });
+
+  // It used to open on 7:00 all day long — a past time after 7 am, which the
+  // booking rules now refuse.
+  it("moves to the next whole hour once the day has started", () => {
+    expect(defaultAppointmentDateTime(7, { now: at(10, 20) })).toBe("2026-09-24T11:00");
+  });
+
+  it("rolls to tomorrow's opening after the working day ends", () => {
+    expect(defaultAppointmentDateTime(7, { now: at(17, 30) })).toBe("2026-09-25T07:00");
+    expect(defaultAppointmentDateTime(7, { now: at(23, 10) })).toBe("2026-09-25T07:00");
+  });
+
+  it("never returns a time in the past", () => {
+    const now = new Date();
+    expect(new Date(defaultAppointmentDateTime()).getTime()).toBeGreaterThan(now.getTime());
   });
 });
 

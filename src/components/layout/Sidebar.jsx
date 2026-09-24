@@ -21,6 +21,7 @@ import {
   Gauge,
   ListChecks,
   Package,
+  SprayCan,
   Users,
 } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
@@ -49,13 +50,18 @@ const NAV_GROUPS = [
       { label: "Scheduling", path: "/scheduling", subsystem: SUBSYSTEMS.SCHEDULING, action: "view", Icon: CalendarDays },
       { label: "Client Profiles", path: "/clients", subsystem: SUBSYSTEMS.CLIENTS, action: "view", Icon: BriefcaseBusiness },
       { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package },
+      // Services and Treatment Methods are the operational catalog the office
+      // runs the day on — what is sold, what materials it uses, how it is
+      // applied — so they sit with the work, not with account administration.
+      // Both stay admin-only through the SETTINGS subsystem.
+      { label: "Services", path: "/services", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: SprayCan },
+      { label: "Treatment Methods", path: "/treatment-methods", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: ListChecks },
     ],
   },
   {
     label: "Administration",
     items: [
       { label: "User Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Users },
-      { label: "Treatment Methods", path: "/treatment-methods", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: ListChecks },
     ],
   },
 ];

@@ -9,6 +9,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ClientsProvider } from "./context/ClientsContext";
 import { InventoryProvider } from "./context/InventoryContext";
+import { ServicesProvider } from "./context/ServicesContext";
 import { SchedulingProvider } from "./context/SchedulingContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
 
@@ -30,6 +31,7 @@ import ClientDetailPage from "./pages/ClientDetailPage";
 import InventoryPage from "./pages/InventoryPage";
 import SchedulingPage from "./pages/SchedulingPage";
 import TreatmentMethodsPage from "./pages/TreatmentMethodsPage";
+import ServicesPage from "./pages/ServicesPage";
 
 import { SUBSYSTEMS } from "./utils/permissions";
 import { isSupabaseConfigured } from "./services/supabaseClient";
@@ -74,6 +76,7 @@ function App() {
         <ToastProvider>
           <ClientsProvider>
             <InventoryProvider>
+              <ServicesProvider>
               <SchedulingProvider>
                 <NotificationsProvider>
                 <Routes>
@@ -117,10 +120,15 @@ function App() {
                   path="/treatment-methods"
                   element={<Guarded subsystem={SUBSYSTEMS.SETTINGS} action="view"><TreatmentMethodsPage /></Guarded>}
                 />
+                <Route
+                  path="/services"
+                  element={<Guarded subsystem={SUBSYSTEMS.SETTINGS} action="view"><ServicesPage /></Guarded>}
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
                 </NotificationsProvider>
               </SchedulingProvider>
+              </ServicesProvider>
             </InventoryProvider>
           </ClientsProvider>
         </ToastProvider>

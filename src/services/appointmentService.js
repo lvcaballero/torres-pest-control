@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { todayISO } from "../utils/validators";
 
 // File bytes for report attachments live here; the table holds only metadata.
 // Same arrangement as client-documents — see clientService.js.
@@ -6,7 +7,7 @@ const ATTACHMENT_BUCKET = "report-attachments";
 const ATTACHMENT_COLUMNS = "id, appointment_id, name, mime_type, size_bytes, storage_path, category, uploaded_at";
 const SIGNED_URL_TTL_SECONDS = 60;
 
-const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, service_frequency, price, created_at, updated_at";
+const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, service_frequency, price, service_id, created_at, updated_at";
 const REPORT_COLUMNS = "appointment_id, findings, treatment_performed, recommendations, follow_up_date, submitted_by, submitted_at, customer_name, signature_path, signed_at, completion_note, technician_signature_path, technician_signed_at, treatment_methods";
 
 function describeError(error) {
@@ -22,6 +23,9 @@ export function mapAppointmentRow(row, report = null) {
     durationMinutes: Number(row.duration_minutes) || 60,
     pestConcern: row.pest_concern || "",
     serviceType: row.service_type || "",
+    // Link to the service profile (migration 047), used only to prefill the
+    // Stock-Out tab. serviceType stays the name the visit was booked under.
+    serviceId: row.service_id || "",
     serviceLocation: row.service_location || "",
     cancellationReason: row.cancellation_reason || "",
     technicianId: row.technician_id || "",
@@ -116,7 +120,7 @@ function crewFrom({ technicianIds, technicianId }) {
 }
 
 export async function createAppointment(fields) {
-  const { clientId, scheduledAt, durationMinutes, pestConcern, serviceType, serviceLocation, notes, serviceFrequency, price } = fields;
+  const { clientId, scheduledAt, durationMinutes, pestConcern, serviceType, serviceId, serviceLocation, notes, serviceFrequency, price } = fields;
   const crew = crewFrom(fields);
   const { data, error } = await supabase.rpc("create_appointment", {
     p_client_id: clientId,
@@ -129,6 +133,7 @@ export async function createAppointment(fields) {
     p_notes: notes || null,
     p_service_frequency: serviceFrequency?.trim() || null,
     p_price: price === "" || price === undefined || price === null ? null : Number(price),
+    p_service_id: serviceId || null,
   });
   if (error) return { error: describeError(error) };
   // The RPC returns the appointments row, which carries only the lead. The crew
@@ -153,6 +158,7 @@ export async function updateAppointment(appointment) {
     p_price: appointment.price === "" || appointment.price === undefined || appointment.price === null
       ? null
       : Number(appointment.price),
+    p_service_id: appointment.serviceId || null,
   });
   if (error) return { error: describeError(error) };
   return { appointment: mapAppointmentRow({ ...(Array.isArray(data) ? data[0] : data), technicianIds: crew }) };
@@ -296,7 +302,10 @@ export async function stockOut(itemId, appointmentId, amount, date = new Date().
   return { movement: row, newQuantity: Number(row?.new_quantity) };
 }
 
-export async function stockOutBatch(appointmentId, items, date = new Date().toISOString().slice(0, 10)) {
+// `date` is the business day the materials were used. The default is the
+// local date, not toISOString()'s UTC one, which in the Philippines is still
+// yesterday until 8 am.
+export async function stockOutBatch(appointmentId, items, date = todayISO()) {
   const { data, error } = await supabase.rpc("stock_out_batch", {
     p_appointment_id: appointmentId,
     p_items: items.map((item) => ({ item_id: item.itemId, amount: Number(item.amount), batch_number: item.batchNumber || null })),

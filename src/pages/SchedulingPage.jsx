@@ -21,9 +21,10 @@ import useAuth from "../hooks/useAuth";
 import useClients from "../hooks/useClients";
 import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
+import useServices from "../hooks/useServices";
 import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
-import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, SERVICE_FREQUENCIES, SERVICE_TYPES } from "../utils/constants";
+import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
 import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments } from "../utils/scheduling";
 import {
@@ -56,7 +57,7 @@ import {
   visibleHourWindow,
 } from "../utils/calendarGeometry";
 import PageHeader from "../components/common/PageHeader";
-import { validateAttachment } from "../utils/validators";
+import { todayISO, validateAppointmentStart, validateAttachment, validateDuration, validateMoney, validateMovementDate, validateQuantity } from "../utils/validators";
 import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton, sunkenPanel } from "../styles/theme";
 import Button from "../components/ui/Button";
 import Field from "../components/ui/Field";
@@ -70,6 +71,8 @@ const MAX_CARD_COLUMNS = 3;
 
 const TAB_LABELS = ["Overview", "Documents", "Report", "Stock-Out"];
 const STOCK_CATEGORIES = ["CHEMICAL", "MATERIAL", "EQUIPMENT"];
+// Select value for a service name that has no profile behind it any more.
+const LEGACY_SERVICE = "__legacy__";
 
 function SchedulingPage() {
   const { can, currentUser } = useAuth();
@@ -77,6 +80,7 @@ function SchedulingPage() {
   const { clients, addDocument, removeDocument, getDocumentUrl } = useClients();
   const { inventory, stockOutMany } = useInventory();
   const { staff, technicians } = useUsers();
+  const { activeServices, serviceById, serviceByName } = useServices();
   const { appointments, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl, uploadSignature, getSignatureUrl, loading, error } = useScheduling();
   const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
@@ -85,7 +89,6 @@ function SchedulingPage() {
   const [tab, setTab] = useState("Overview");
   const [draggedId, setDraggedId] = useState(null);
   const [message, setMessage] = useState("");
-  const [stockRows, setStockRows] = useState(STOCK_CATEGORIES.map((category) => ({ id: `stock-row-${category}`, category, itemId: "", amount: "", batchNumber: "" })));
   const [createOpen, setCreateOpen] = useState(false);
   const [createClientId, setCreateClientId] = useState("");
   const [createScheduledAt, setCreateScheduledAt] = useState("");
@@ -258,6 +261,15 @@ function SchedulingPage() {
     const keptTime = minutesToTimeValue(minutesOfDay(current.scheduledAt));
     const nextScheduledAt = `${dateKey}T${time || keptTime}:00`;
     const movedAppointment = { ...current, scheduledAt: nextScheduledAt, status: "Confirmed" };
+    // Refused before anything is written: the Reschedule step below would
+    // otherwise land and strand the visit in that status (migration 047).
+    if (validateAppointmentStart(nextScheduledAt)) {
+      setDraggedId(null);
+      const pastRefusal = "Appointments cannot be moved into the past.";
+      showError(pastRefusal);
+      setMessage(pastRefusal);
+      return;
+    }
     // Moving requires the Reschedule status first, so an appointment that cannot
     // reach Reschedule cannot be dragged at all.
     if (!canTransition(current.status, "Reschedule")) {
@@ -306,6 +318,23 @@ function SchedulingPage() {
     const nextStatus = form.get("status");
     const timingChanged = new Date(nextScheduledAt).getTime() !== new Date(selected.scheduledAt).getTime()
       || nextDuration !== (Number(selected.durationMinutes) || 60);
+    const guard =
+      (timingChanged && new Date(nextScheduledAt).getTime() !== new Date(selected.scheduledAt).getTime() && validateAppointmentStart(nextScheduledAt)
+        ? "Appointments cannot be moved into the past."
+        : null) ||
+      (timingChanged ? validateDuration(nextDuration) : null) ||
+      validateMoney(form.get("price"), { label: "Price" });
+    if (guard) {
+      showError(guard);
+      setMessage(guard);
+      return;
+    }
+    // The select holds a service id; the appointment stores the name as its
+    // snapshot. LEGACY_SERVICE keeps a name whose profile is gone.
+    const chosenService = form.get("serviceId");
+    const nextService = chosenService === LEGACY_SERVICE
+      ? { serviceId: "", serviceType: selected.serviceType }
+      : { serviceId: chosenService || "", serviceType: serviceById(chosenService)?.name || "" };
     const candidate = {
       ...selected,
       scheduledAt: nextScheduledAt,
@@ -345,7 +374,7 @@ function SchedulingPage() {
       scheduledAt: nextScheduledAt,
       durationMinutes: nextDuration,
       pestConcern: form.get("pestConcern"),
-      serviceType: form.get("serviceType") || "",
+      ...nextService,
       serviceLocation: form.get("serviceLocation") || "",
       technicianIds,
       serviceFrequency: form.get("serviceFrequency") || "",
@@ -456,31 +485,21 @@ function SchedulingPage() {
     setCreateOpen(true);
   };
 
-  const handleStockSubmit = async (event) => {
-    event.preventDefault();
-    const entries = stockRows.filter((row) => row.itemId).map((row) => ({ itemId: row.itemId, amount: Number(row.amount), batchNumber: (row.batchNumber || "").trim() }));
-    // Decimals are the point of migration 036: applying 0.4 L is the honest
-    // number, and the whole-number rule now applies only to stock coming IN.
-    if (entries.length === 0 || entries.some((entry) => !Number.isFinite(entry.amount) || entry.amount <= 0)) {
-      setMessage("Select at least one item and enter a quantity greater than zero.");
-      return;
-    }
-    if (new Set(entries.map((entry) => entry.itemId)).size !== entries.length) {
-      setMessage("Select each inventory item only once per stock-out.");
-      return;
-    }
-    const result = await stockOutMany(selected.id, entries);
+  // StockOutForm validates and owns its rows; this records them. Returns true
+  // or the error string, so the form knows whether to clear itself.
+  const handleStockSubmit = async ({ entries, date }) => {
+    const result = await stockOutMany(selected.id, entries, date);
     if (typeof result === "string") {
       showError(result);
       setMessage(result);
-      return;
+      return result;
     }
     entries.forEach((entry) => {
       const item = inventory.find((candidate) => candidate.id === entry.itemId);
-      addStockUsed(selected.id, { itemId: entry.itemId, name: item?.name || "Inventory item", amount: entry.amount, unit: item?.unit || "", batchNumber: entry.batchNumber, date: new Date().toISOString().slice(0, 10) });
+      addStockUsed(selected.id, { itemId: entry.itemId, name: item?.name || "Inventory item", amount: entry.amount, unit: item?.unit || "", batchNumber: entry.batchNumber, date });
     });
-    setStockRows(STOCK_CATEGORIES.map((category) => ({ id: `stock-row-${category}-${Date.now()}`, category, itemId: "", amount: "", batchNumber: "" })));
     setMessage(`${entries.length} stock item${entries.length === 1 ? "" : "s"} recorded as OUT for this appointment.`);
+    return true;
   };
 
   const handleCreate = async (fields) => {
@@ -730,7 +749,7 @@ function SchedulingPage() {
             onScheduleFollowUp: scheduleFollowUp,
             onProblem: showError,
           }}
-          stock={{ inventory, stockRows, setStockRows }}
+          stock={{ inventory, service: serviceById(selected.serviceId) || serviceByName(selected.serviceType), services: activeServices, serviceById, serviceByName }}
         />
       )}
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={showError} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />
@@ -739,6 +758,7 @@ function SchedulingPage() {
           clients={clients}
           activeAccounts={technicians}
           appointments={appointments}
+          services={activeServices}
           initialClientId={createClientId}
           initialScheduledAt={createScheduledAt}
           onClose={() => {
@@ -758,7 +778,7 @@ function SchedulingPage() {
   );
 }
 
-function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, onSave }) {
+function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, services = [], serviceById = () => null, serviceByName = () => null, onSave }) {
   const hours = Math.floor((appointment.durationMinutes || 60) / 60);
   const minutes = (appointment.durationMinutes || 60) % 60;
   const [technicianIds, setTechnicianIds] = useState(() => crewOf(appointment));
@@ -770,6 +790,15 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
   // The crew is React state, not a form field, so it is handed to the save
   // handler directly rather than read back out of FormData.
   const handleSubmit = (event) => onSave(event, technicianIds);
+  // Pre-047 appointments carry only a name, so an exact name match adopts the
+  // profile. A retired service stays selectable on the visit that uses it; a
+  // name with no profile at all is kept as LEGACY_SERVICE so saving the form
+  // never erases what the visit was booked as.
+  const currentService = serviceById(appointment.serviceId) || serviceByName(appointment.serviceType);
+  const serviceChoices = currentService && !services.some((service) => service.id === currentService.id)
+    ? [...services, currentService]
+    : services;
+  const initialServiceValue = currentService?.id || (appointment.serviceType ? LEGACY_SERVICE : "");
 
   return <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
     <InfoRow icon={<UserRound size={15} />} label="Client contact" value={`${client.phone || "No phone"} ${client.email ? `• ${client.email}` : ""}`} />
@@ -782,16 +811,16 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Date and time</strong><input name="scheduledAt" type="datetime-local" defaultValue={toDateTimeLocal(appointment.scheduledAt)} style={inputStyle} />{appointment.status !== "Reschedule" && <span style={hintStyle}>Set the status to Reschedule before changing the date, time, or duration.</span>}</div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Hours<input name="durationHours" type="number" min="0" max="24" defaultValue={hours} style={{ ...inputStyle, padding: "0.55rem" }} required /></label><label style={{ display: "grid", gap: "0.25rem", color: colors.muted, fontSize: "0.72rem", fontWeight: 500 }}>Minutes<input name="durationMinutes" type="number" min="0" max="59" defaultValue={minutes} style={{ ...inputStyle, padding: "0.55rem" }} required /></label></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Technicians</strong><TechnicianPicker accounts={activeAccounts} value={technicianIds} busyIds={busyTechnicians} onChange={setTechnicianIds} />{conflicts.length > 0 && <span style={{ color: colors.danger, fontSize: "0.72rem", fontWeight: 500 }}>Conflict: someone on this crew overlaps another appointment.</span>}</div>
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service type</strong><select name="serviceType" defaultValue={appointment.serviceType || ""} style={inputStyle}><option value="">Select a service type</option>{SERVICE_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service location</strong><input name="serviceLocation" defaultValue={appointment.serviceLocation || ""} placeholder={client.address || "Client address"} style={inputStyle} /><span style={hintStyle}>Leave blank to use the client's address.</span></div>
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service type</strong><select name="serviceId" aria-label="Service type" defaultValue={initialServiceValue} style={inputStyle}><option value="">Select a service type</option>{serviceChoices.map((service) => <option key={service.id} value={service.id}>{service.name}{service.isActive ? "" : " (retired)"}</option>)}{initialServiceValue === LEGACY_SERVICE && <option value={LEGACY_SERVICE}>{appointment.serviceType} (no longer in the catalog)</option>}</select></div>
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Service location</strong><input name="serviceLocation" maxLength={LIMITS.NOTES_MAX} defaultValue={appointment.serviceLocation || ""} placeholder={client.address || "Client address"} style={inputStyle} /><span style={hintStyle}>Leave blank to use the client's address.</span></div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Pest concern</strong><select name="pestConcern" defaultValue={appointment.pestConcern || ""} style={inputStyle}><option value="">Select a pest concern</option>{PEST_CONCERN_SUGGESTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
       <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Frequency</strong><select name="serviceFrequency" defaultValue={appointment.serviceFrequency || ""} style={inputStyle}><option value="">Not set</option>{SERVICE_FREQUENCIES.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>
-      <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Price (₱)</strong><input name="price" type="number" min="0" step="0.01" defaultValue={appointment.price === "" || appointment.price === null || appointment.price === undefined ? "" : appointment.price} placeholder="0.00" style={inputStyle} /></div>
+      <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Price (₱)</strong><input name="price" type="number" min="0" max={LIMITS.MAX_PRICE} step="0.01" defaultValue={appointment.price === "" || appointment.price === null || appointment.price === undefined ? "" : appointment.price} placeholder="0.00" style={inputStyle} /></div>
     </div>
     <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Status</strong><select name="status" value={status} onChange={(event) => setStatus(event.target.value)} style={inputStyle}>{statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>{statusOptions.length === 1 && <span style={hintStyle}>A {appointment.status.toLowerCase()} appointment cannot change status.</span>}</div>
-    {status === "Cancelled" && <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Cancellation reason (optional)</strong><textarea name="cancellationReason" defaultValue={appointment.cancellationReason || ""} rows={2} placeholder="Why is this appointment being cancelled?" style={{ ...inputStyle, resize: "vertical" }} /></div>}
-    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Visit notes</strong><textarea name="notes" defaultValue={appointment.notes} rows={3} style={{ ...inputStyle, resize: "vertical" }} /></div>
+    {status === "Cancelled" && <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Cancellation reason (optional)</strong><textarea name="cancellationReason" maxLength={LIMITS.NOTES_MAX} defaultValue={appointment.cancellationReason || ""} rows={2} placeholder="Why is this appointment being cancelled?" style={{ ...inputStyle, resize: "vertical" }} /></div>}
+    <div style={{ display: "grid", gap: "0.4rem" }}><strong style={labelStyle}>Visit notes</strong><textarea name="notes" defaultValue={appointment.notes} rows={3} maxLength={LIMITS.NOTES_MAX} style={{ ...inputStyle, resize: "vertical" }} /></div>
     <button type="submit" style={primaryButton}><Check size={15} /> Save appointment</button>
   </form>;
 }
@@ -1222,7 +1251,7 @@ function AppointmentPanel({
     getAttachmentUrl,
   } = files;
   const { onSave, onStockSubmit, onScheduleFollowUp, onProblem } = actions;
-  const { inventory, stockRows, setStockRows } = stock;
+  const { inventory, service, services, serviceById, serviceByName } = stock;
 
   const busyTechnicians = busyTechnicianIds(appointments, appointment);
   const notice = (text) => (
@@ -1334,6 +1363,9 @@ function AppointmentPanel({
                   activeAccounts={activeAccounts}
                   busyTechnicians={busyTechnicians}
                   appointments={appointments}
+                  services={services}
+                  serviceById={serviceById}
+                  serviceByName={serviceByName}
                   onSave={onSave}
                 />
               </fieldset>
@@ -1506,10 +1538,10 @@ function AppointmentPanel({
 
                 {tab === "Stock-Out" && (
                   <StockOutForm
+                    key={appointment.id}
                     appointment={appointment}
                     inventory={inventory}
-                    stockRows={stockRows}
-                    setStockRows={setStockRows}
+                    service={service}
                     onSubmit={onStockSubmit}
                   />
                 )}
@@ -1594,29 +1626,138 @@ function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
   );
 }
 
-function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmit }) {
+let stockRowCounter = 0;
+const newStockRow = (category, itemId = "", amount = "") => ({ id: `stock-row-${category}-${(stockRowCounter += 1)}`, category, itemId, amount: amount === "" ? "" : String(amount), batchNumber: "" });
+
+/**
+ * The date a stock-out for this visit defaults to: the visit's own day once it
+ * has happened, today otherwise. Always editable, never later than today.
+ */
+export function defaultStockOutDate(appointment, now = new Date()) {
+  const today = todayISO(now);
+  const visitDay = appointment?.scheduledAt ? localDateKey(new Date(appointment.scheduledAt)) : today;
+  return visitDay < today ? visitDay : today;
+}
+
+/**
+ * Rows for the Stock-Out tab. With a service profile the materials it lists
+ * come first, quantities filled in (migration 047); every category keeps at
+ * least one row so an unlisted item can still be added.
+ */
+export function buildStockRows(service, inventory) {
+  const byId = new Map(inventory.map((item) => [item.id, item]));
+  const prefilled = (service?.materials || [])
+    .map((material) => ({ material, item: byId.get(material.itemId) }))
+    .filter(({ item }) => item && STOCK_CATEGORIES.includes(item.type))
+    .map(({ material, item }) => newStockRow(item.type, item.id, material.defaultAmount));
+  const missing = STOCK_CATEGORIES.filter((category) => !prefilled.some((row) => row.category === category));
+  return [...prefilled, ...missing.map((category) => newStockRow(category))];
+}
+
+/**
+ * Pure validation for a stock-out submission. Returns an error string, or
+ * null with the rows ready to send.
+ */
+export function validateStockOut(rows, date, inventory) {
+  const dateError = validateMovementDate(date);
+  if (dateError) return { error: dateError };
+  const entries = rows
+    .filter((row) => row.itemId)
+    .map((row) => ({ itemId: row.itemId, amount: Number(row.amount), batchNumber: (row.batchNumber || "").trim(), raw: row.amount }));
+  if (entries.length === 0) return { error: "Select at least one item and enter a quantity greater than zero." };
+  if (new Set(entries.map((entry) => entry.itemId)).size !== entries.length) return { error: "Select each inventory item only once per stock-out." };
+  for (const entry of entries) {
+    const item = inventory.find((candidate) => candidate.id === entry.itemId);
+    const quantityError = validateQuantity(entry.raw, { label: `Quantity for ${item?.name || "an item"}` });
+    if (quantityError) return { error: quantityError };
+    if (item && entry.amount > Number(item.quantity)) return { error: `Only ${item.quantity} ${item.unit} of ${item.name} is in stock.` };
+  }
+  // eslint-disable-next-line no-unused-vars
+  return { error: null, entries: entries.map(({ raw, ...entry }) => entry) };
+}
+
+function StockOutForm({ appointment, inventory, service, onSubmit }) {
+  const alreadyRecorded = (appointment.stockUsed || []).length > 0;
+  const hasProfile = Boolean(service?.materials?.length);
+  const [rows, setRows] = useState(() => buildStockRows(hasProfile && !alreadyRecorded ? service : null, inventory));
+  const [prefilled, setPrefilled] = useState(hasProfile && !alreadyRecorded);
+  const [date, setDate] = useState(() => defaultStockOutDate(appointment));
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const today = todayISO();
+
   const updateRow = (rowId, field, value) => {
-    setStockRows((current) => current.map((row) => row.id === rowId ? { ...row, [field]: value } : row));
+    setFormError("");
+    setRows((current) => current.map((row) => row.id === rowId ? { ...row, [field]: value } : row));
   };
 
-  const addRow = (category) => {
-    setStockRows((current) => [...current, { id: `stock-row-${category}-${Date.now()}`, category, itemId: "", amount: "" }]);
-  };
+  const addRow = (category) => setRows((current) => [...current, newStockRow(category)]);
 
   const removeRow = (rowId) => {
-    setStockRows((current) => current.length <= STOCK_CATEGORIES.length ? current : current.filter((row) => row.id !== rowId));
+    setRows((current) => current.length <= STOCK_CATEGORIES.length ? current : current.filter((row) => row.id !== rowId));
+  };
+
+  const applyServiceDefaults = () => {
+    setFormError("");
+    setRows(buildStockRows(service, inventory));
+    setPrefilled(true);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const { error, entries } = validateStockOut(rows, date, inventory);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    setSaving(true);
+    const result = await onSubmit({ entries, date });
+    setSaving(false);
+    if (result === true) {
+      setRows(buildStockRows(null, inventory));
+      setPrefilled(false);
+    } else if (typeof result === "string") {
+      setFormError(result);
+    }
   };
 
   const categoryLabel = (category) => category.charAt(0) + category.slice(1).toLowerCase();
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "grid", gap: "1rem" }}>
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }} noValidate>
       <div style={{ padding: "0.85rem", borderRadius: "3.75px", background: "#faf0e2", color: "#9a3412", fontSize: "0.78rem" }}>
         <PackageCheck size={15} style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> Select every chemical, material, or equipment item used. All rows are submitted together.
       </div>
+
+      {prefilled && service && (
+        <div role="status" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", padding: "0.7rem 0.85rem", borderRadius: "3.75px", border: `1px solid ${colors.line}`, background: colors.canvas, color: colors.body, fontSize: "0.78rem" }}>
+          <span>Prefilled from the <strong>{service.name}</strong> service profile. Adjust the quantities to what was actually used before recording.</span>
+        </div>
+      )}
+      {!prefilled && hasProfile && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", color: colors.muted, fontSize: "0.76rem" }}>
+          <span>{alreadyRecorded ? "Materials were already recorded for this visit." : ""} {service.name} lists {service.materials.length} default material{service.materials.length === 1 ? "" : "s"}.</span>
+          <button type="button" onClick={applyServiceDefaults} style={{ ...secondaryButton, padding: "0.4rem 0.6rem", fontSize: "0.72rem" }}>Use service defaults</button>
+        </div>
+      )}
+
+      <label style={{ display: "grid", gap: "0.3rem", color: colors.ink, fontSize: "0.8rem", fontWeight: 500 }}>
+        Date used
+        <input
+          type="date"
+          aria-label="Stock-out date"
+          value={date}
+          max={today}
+          onChange={(event) => { setFormError(""); setDate(event.target.value); }}
+          style={{ ...inputStyle, padding: "0.55rem" }}
+          required
+        />
+        <span style={{ color: colors.muted, fontSize: "0.7rem", fontWeight: 400 }}>Defaults to the visit's date. Change it to record materials used on an earlier day.</span>
+      </label>
+
       {STOCK_CATEGORIES.map((category) => {
-        const categoryRows = stockRows.filter((row) => row.category === category);
-        const categoryItems = inventory.filter((item) => item.type === category && item.status !== "DISABLED");
+        const categoryRows = rows.filter((row) => row.category === category);
+        const categoryItems = inventory.filter((item) => item.type === category && (item.status !== "DISABLED" || categoryRows.some((row) => row.itemId === item.id)));
         return (
           <section key={category} style={{ display: "grid", gap: "0.6rem", padding: "0.8rem", border: "1px solid #efe9e0", borderRadius: "3.75px", background: "#fcfaf1" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
@@ -1625,21 +1766,26 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
             </div>
             {categoryRows.map((row) => {
               const selectedItemIds = new Set(categoryRows.filter((candidate) => candidate.id !== row.id).map((candidate) => candidate.itemId).filter(Boolean));
+              const item = inventory.find((candidate) => candidate.id === row.itemId);
+              const short = item && Number(row.amount) > Number(item.quantity);
+              const disabledItem = item?.status === "DISABLED";
               return (
                 <div key={row.id} style={{ display: "grid", gap: "0.3rem" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 82px auto", gap: "0.45rem", alignItems: "center" }}>
-                  <select aria-label={`${categoryLabel(category)} item`} value={row.itemId} onChange={(event) => updateRow(row.id, "itemId", event.target.value)} style={{ ...inputStyle, padding: "0.62rem 0.55rem", fontSize: "0.78rem" }} required={categoryRows.length === 1 && categoryItems.length > 0}>
+                  <select aria-label={`${categoryLabel(category)} item`} value={row.itemId} onChange={(event) => updateRow(row.id, "itemId", event.target.value)} style={{ ...inputStyle, padding: "0.62rem 0.55rem", fontSize: "0.78rem" }}>
                     <option value="">Select item</option>
-                    {categoryItems.map((item) => <option key={item.id} value={item.id} disabled={selectedItemIds.has(item.id)}>{item.name} ({item.quantity} {item.unit})</option>)}
+                    {categoryItems.map((option) => <option key={option.id} value={option.id} disabled={selectedItemIds.has(option.id)}>{option.name} ({option.quantity} {option.unit})</option>)}
                   </select>
-                  <input aria-label={`${categoryLabel(category)} quantity`} type="number" min="0" step="any" value={row.amount} onChange={(event) => updateRow(row.id, "amount", event.target.value)} placeholder="Qty" style={{ ...inputStyle, padding: "0.62rem 0.55rem", fontSize: "0.78rem" }} />
+                  <input aria-label={`${categoryLabel(category)} quantity`} type="number" min="0" max={LIMITS.MAX_MOVEMENT_QTY} step="any" value={row.amount} onChange={(event) => updateRow(row.id, "amount", event.target.value)} placeholder="Qty" style={{ ...inputStyle, padding: "0.62rem 0.55rem", fontSize: "0.78rem" }} />
                   {categoryRows.length > 1 && <button type="button" aria-label={`Remove ${categoryLabel(category)} row`} onClick={() => removeRow(row.id)} style={{ border: 0, background: "transparent", color: colors.danger, cursor: "pointer", padding: "0.4rem" }}><X size={15} /></button>}
                 </div>
+                {(short || disabledItem) && <span style={{ color: colors.danger, fontSize: "0.7rem", fontWeight: 500 }}>{disabledItem ? `${item.name} is disabled and cannot be stocked out. Remove it or pick another item.` : `Only ${item.quantity} ${item.unit} in stock.`}</span>}
                 {category === "CHEMICAL" && row.itemId && <input
                   aria-label="Batch or lot number"
                   value={row.batchNumber || ""}
                   onChange={(event) => updateRow(row.id, "batchNumber", event.target.value)}
                   placeholder="Batch / lot no. from the container — e.g. L24-0917"
+                  maxLength={LIMITS.SHORT_TEXT_MAX}
                   style={{ ...inputStyle, padding: "0.5rem 0.55rem", fontSize: "0.74rem" }}
                 />}
                 </div>
@@ -1649,8 +1795,9 @@ function StockOutForm({ appointment, inventory, stockRows, setStockRows, onSubmi
           </section>
         );
       })}
-      <button type="submit" style={primaryButton}><PackageCheck size={15} /> Record stock out</button>
-      {(appointment.stockUsed || []).length > 0 && <div style={{ display: "grid", gap: "0.45rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Recorded for this service</strong>{appointment.stockUsed.map((entry, index) => <div key={`${entry.itemId}-${index}`} style={{ display: "flex", justifyContent: "space-between", padding: "0.55rem 0.7rem", border: "1px solid #efe9e0", borderRadius: "3.75px", fontSize: "0.78rem" }}><span>{entry.name}</span><strong>{entry.amount} {entry.unit}</strong></div>)}</div>}
+      {formError && <p role="alert" style={{ margin: 0, color: colors.danger, fontSize: "0.8rem", fontWeight: 500 }}>{formError}</p>}
+      <button type="submit" disabled={saving} style={{ ...primaryButton, opacity: saving ? 0.6 : 1 }}><PackageCheck size={15} /> {saving ? "Recording…" : "Record stock out"}</button>
+      {(appointment.stockUsed || []).length > 0 && <div style={{ display: "grid", gap: "0.45rem" }}><strong style={{ fontSize: "0.76rem", color: colors.muted }}>Recorded for this service</strong>{appointment.stockUsed.map((entry, index) => <div key={`${entry.itemId}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", padding: "0.55rem 0.7rem", border: "1px solid #efe9e0", borderRadius: "3.75px", fontSize: "0.78rem" }}><span>{entry.name}{entry.date && <span style={{ color: colors.muted, marginLeft: "0.4rem" }}>· {new Date(`${entry.date}T00:00:00`).toLocaleDateString()}</span>}</span><strong>{entry.amount} {entry.unit}</strong></div>)}</div>}
     </form>
   );
 }

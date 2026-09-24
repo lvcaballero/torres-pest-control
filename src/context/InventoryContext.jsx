@@ -6,6 +6,7 @@ import * as inventoryService from "../services/inventoryService";
 import * as appointmentService from "../services/appointmentService";
 import { addLog, LOG_TYPES } from "../services/logService";
 import { STOCK_OUT_REASON_LABELS } from "../utils/constants";
+import { todayISO, validateMovementDate, validateQuantity } from "../utils/validators";
 import { useAuthContext } from "./AuthContext";
 
 const InventoryContext = createContext(null);
@@ -212,16 +213,22 @@ export function InventoryProvider({ children }) {
   );
 
   const stockOutMany = useCallback(
-    async (appointmentId, entries) => {
+    async (appointmentId, entries, date = todayISO()) => {
+      const dateError = validateMovementDate(date);
+      if (dateError) return dateError;
       const requested = new Map(entries.map((entry) => [entry.itemId, Number(entry.amount)]));
       for (const [itemId, amount] of requested) {
         const target = inventory.find((entry) => entry.id === itemId);
         if (!target) return "Inventory item not found.";
-        if (!Number.isInteger(amount) || amount <= 0) return "Stock-out quantities must be positive whole numbers.";
+        // Decimals are allowed on the way out (migration 036): 0.4 L applied
+        // is the honest figure. This used to demand whole numbers, which
+        // contradicted both the database and the Stock-Out form.
+        const quantityError = validateQuantity(amount, { label: "Stock-out quantity" });
+        if (quantityError) return quantityError;
         if (amount > Number(target.quantity)) return `Requested quantity for ${target.name} exceeds available stock.`;
       }
 
-      const result = await appointmentService.stockOutBatch(appointmentId, entries);
+      const result = await appointmentService.stockOutBatch(appointmentId, entries, date);
       if (result.error) return result.error;
       if (!result.movements.length) return "Stock Out did not return a saved movement.";
       setInventory((previous) => previous.map((entry) => {
@@ -241,6 +248,7 @@ export function InventoryProvider({ children }) {
             reference: `Appointment ${appointmentId}`,
             actor: movement.actor || "",
             movementType: "OUT",
+            stockOutReason: "APPOINTMENT",
             appointmentId,
             itemName: target?.name || "Unknown item",
             itemUnit: target?.unit || "",

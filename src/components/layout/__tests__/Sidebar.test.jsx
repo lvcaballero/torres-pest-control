@@ -87,6 +87,7 @@ describe("Sidebar groups", () => {
       expect(screen.queryByText("Administration")).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /User Accounts/ })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /Treatment Methods/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Services/ })).not.toBeInTheDocument();
 
       // …while the groups they can use are untouched.
       expect(screen.getByText("Operations")).toBeInTheDocument();
@@ -109,7 +110,24 @@ describe("Sidebar groups", () => {
     const operations = lists.find(
       (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Operations")
     );
-    expect(within(operations).getAllByRole("link")).toHaveLength(3);
+    expect(within(operations).getAllByRole("link")).toHaveLength(5);
+  });
+
+  // Team lead's request: the service catalog and the treatment checklist are
+  // operational data, so they live under Operations, not Administration.
+  it("lists Services and Treatment Methods under Operations for an admin", () => {
+    renderSidebar("/", "ADMIN");
+
+    const operations = screen.getAllByRole("list").find(
+      (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Operations")
+    );
+    const administration = screen.getAllByRole("list").find(
+      (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Administration")
+    );
+
+    expect(within(operations).getByRole("link", { name: /Services/ })).toHaveAttribute("href", "/services");
+    expect(within(operations).getByRole("link", { name: /Treatment Methods/ })).toHaveAttribute("href", "/treatment-methods");
+    expect(within(administration).queryByRole("link", { name: /Treatment Methods/ })).not.toBeInTheDocument();
   });
 });
 

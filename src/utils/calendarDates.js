@@ -76,11 +76,27 @@ export function toDateTimeLocal(value) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-/** The value the create form opens on: today at the start of the working day. */
-export function defaultAppointmentDateTime(startHour = 7) {
-  const date = new Date();
+/**
+ * The value the create form opens on: the start of the working day, or — once
+ * that has passed — the next whole hour, rolling to tomorrow's opening after
+ * `endHour`. It used to be today at 7:00 unconditionally, which after 7 am is
+ * a time in the past that the booking rules (migration 047) refuse.
+ */
+export function defaultAppointmentDateTime(startHour = 7, { now = new Date(), endHour = 18 } = {}) {
+  const date = new Date(now);
   date.setHours(startHour, 0, 0, 0);
-  return toDateTimeLocal(date);
+  if (date > now) return toDateTimeLocal(date);
+
+  const nextHour = new Date(now);
+  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+  if (nextHour.getHours() >= startHour && nextHour.getHours() < endHour && isSameDay(nextHour, now)) {
+    return toDateTimeLocal(nextHour);
+  }
+
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(startHour, 0, 0, 0);
+  return toDateTimeLocal(tomorrow);
 }
 
 /** `"1 hour and 30 minutes"`, for reading back a duration in prose. */

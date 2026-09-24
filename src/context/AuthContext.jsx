@@ -132,11 +132,11 @@ export function AuthProvider({ children }) {
     setSessionVerified(false);
   }, [session]);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email, password, { remember = false } = {}) => {
     const { session: nextSession, profile, error: loginError } = await authService.login(email, password);
     if (loginError) return loginError;
 
-    setSession(nextSession);
+    setSession({ ...nextSession, remember });
     addLog(profile.name, "Logged in.", LOG_TYPES.AUTH);
     return true;
   }, []);

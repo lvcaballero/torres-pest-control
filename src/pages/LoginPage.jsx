@@ -1,6 +1,7 @@
 // Sign-in route. The form itself is components/auth/Login.
 
 import { Navigate, useLocation } from "react-router-dom";
+import AuthLayout from "../components/auth/AuthLayout";
 import Login from "../components/auth/Login";
 import useAuth from "../hooks/useAuth";
 
@@ -13,9 +14,9 @@ function LoginPage() {
   }
 
   return (
-    <div className="standalone-login-page">
+    <AuthLayout>
       <Login onLogin={login} />
-    </div>
+    </AuthLayout>
   );
 }
 

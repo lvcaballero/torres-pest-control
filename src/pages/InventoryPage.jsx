@@ -31,6 +31,7 @@ import {
 } from "../utils/units";
 import { card, colors, primaryButton, secondaryButton } from "../styles/theme";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import { formatDate } from "../utils/formatters";
 
 const CREATE_FORM_DEFAULTS = {
   name: "",
@@ -146,7 +147,7 @@ const HISTORY_COLUMNS = {
     template: "110px 1.2fr 110px 120px 110px 130px 1.1fr 1.1fr 1fr",
     minWidth: "1120px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{formatDate(m.movementDate)}</span> },
       { label: "Item Name", render: itemCell },
       { label: "Qty In", render: (m) => <span style={{ fontWeight: 500, color: "#4a6b4a" }}>+{Math.abs(m.quantityDelta)}</span> },
       // What the delivery note said, when it was not the tracking unit. Keeping
@@ -170,7 +171,7 @@ const HISTORY_COLUMNS = {
     template: "110px 1.4fr 110px 130px 1.2fr 1.3fr 1fr",
     minWidth: "980px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{formatDate(m.movementDate)}</span> },
       { label: "Item Name", render: itemCell },
       { label: "Qty Out", render: (m) => <span style={{ fontWeight: 500, color: "#9a2d24" }}>-{Math.abs(m.quantityDelta)}</span> },
       // Derived from the item's current cost, not a figure recorded on the row,
@@ -204,7 +205,7 @@ const HISTORY_COLUMNS = {
     template: "110px 1.4fr 120px 1.6fr 1fr",
     minWidth: "760px",
     columns: [
-      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
+      { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{formatDate(m.movementDate)}</span> },
       { label: "Item Name", render: itemCell },
       {
         label: "Adjustment",
@@ -2106,10 +2107,10 @@ function InventoryDetailModal({ item, onClose }) {
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <DetailRow label="Chemical Type" value={item.chemicalType} />
-            {item.expirationDate && <DetailRow label="Expiration Date" value={new Date(item.expirationDate).toLocaleDateString()} />}
+            {item.expirationDate && <DetailRow label="Expiration Date" value={formatDate(item.expirationDate)} />}
             {item.safetyLevel && <DetailRow label="Safety Level" value={item.safetyLevel} />}
               {item.hazardRating && <DetailRow label="Hazard Note" value={item.hazardRating} />}
-            {item.dateReceived && <DetailRow label="Date Received" value={new Date(item.dateReceived).toLocaleDateString()} />}
+            {item.dateReceived && <DetailRow label="Date Received" value={formatDate(item.dateReceived)} />}
           </div>
         </div>
       )}
@@ -2125,8 +2126,8 @@ function InventoryDetailModal({ item, onClose }) {
             <DetailRow label="Condition" value={item.condition} />
             {item.manufacturer && <DetailRow label="Manufacturer" value={item.manufacturer} />}
             {item.model && <DetailRow label="Model" value={item.model} />}
-            {item.lastMaintenanceDate && <DetailRow label="Last Maintenance" value={new Date(item.lastMaintenanceDate).toLocaleDateString()} />}
-            {item.nextMaintenanceDate && <DetailRow label="Next Maintenance" value={new Date(item.nextMaintenanceDate).toLocaleDateString()} />}
+            {item.lastMaintenanceDate && <DetailRow label="Last Maintenance" value={formatDate(item.lastMaintenanceDate)} />}
+            {item.nextMaintenanceDate && <DetailRow label="Next Maintenance" value={formatDate(item.nextMaintenanceDate)} />}
           </div>
         </div>
       )}
@@ -2149,11 +2150,11 @@ function InventoryDetailModal({ item, onClose }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.85rem", color: "#96897b" }}>
           <div>
             <div style={{ fontWeight: 500, color: "#50463c" }}>Created</div>
-            {new Date(item.createdAt).toLocaleDateString()}
+            {formatDate(item.createdAt)}
           </div>
           <div>
             <div style={{ fontWeight: 500, color: "#50463c" }}>Last Updated</div>
-            {new Date(item.updatedAt).toLocaleDateString()}
+            {formatDate(item.updatedAt)}
           </div>
         </div>
       </div>

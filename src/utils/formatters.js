@@ -59,3 +59,17 @@ export function humanizeEnum(value) {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
+
+/** "Sep 24" — the short form used in lists, rows and chips. */
+export function formatShortDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * "1 visit", "3 visits", "0 visits". `many` defaults to `one` + "s"; pass it
+ * for irregular words ("1 activity" / "2 activities").
+ */
+export function plural(count, one, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}

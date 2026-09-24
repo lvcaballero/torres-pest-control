@@ -11,8 +11,39 @@
  */
 
 /* Inter substitutes for Lateral, Source Serif for Lateral Display. Both are
-   named in the style reference as the intended fallbacks. */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap");
+   named in the style reference as the intended fallbacks. They are bundled
+   (latin subset, from fontsource) rather than fetched from Google Fonts, so
+   the app renders in its own type on a site network that blocks it. */
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("./fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/source-serif-4-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("./fonts/source-serif-4-latin-500-normal.woff2") format("woff2");
+}
 
 :root {
   /* Brand — fixed. */
@@ -25,24 +56,29 @@
   --canvas: #fcfaf1;
   --panel: #ffffff;
   --sunken: #efe9e0;
-  --rail: #e8dcd7;
+  --rail: #efe9e0;
   --inverted: #252a23;
 
   /* Warm neutrals. */
   --loam: #c7bcaf;
-  --bark: #96897b;
+  --bark: #8a7d70;
   --saddle: #50463c;
   --ink: #211b15;
 
   /* Text roles. */
   --body: var(--saddle);
   --muted: var(--bark);
-  --line: var(--sunken);
+  --line: #e6dfd3;
 
   /* Semantic. */
   --success: #4a6b4a;
-  --warning: #a06a24;
+  --warning: #9a6420;
   --danger: #9a2d24;
+  --success-bg: #eef2ec;
+  --warning-bg: #faf0e2;
+  --danger-bg: #f9ecea;
+  --amber: #e8b672;
+  --wheat: #f0c891;
 
   /* Shape. */
   --radius: 3.75px;
@@ -72,8 +108,8 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.71;
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--body);

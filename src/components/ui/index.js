@@ -1,6 +1,9 @@
 // One import site for the shared primitives.
 
+export { default as Avatar, AvatarStack, initialsFor } from "./Avatar";
 export { default as Button } from "./Button";
+export { default as Card } from "./Card";
+export { default as DataTable } from "./DataTable";
 export { default as Field } from "./Field";
 export { default as Input } from "./Input";
 export { default as Modal } from "./Modal";

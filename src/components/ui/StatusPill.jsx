@@ -1,36 +1,50 @@
-// A small stamp for a status or a role.
+// A small stamp for a status or a role: always a dot plus a word.
 //
-// Replaces four parallel implementations: badgeStyle() in SchedulingPage,
-// `badge` in theme.js, Chip in DashboardParts, and roleBadgeColors in Navbar.
+// Colour alone never carries a status here — someone who can't tell the
+// greens from the ambers still reads "Completed". Green, amber and red are
+// reserved for status; maroon ("brand") marks a confirmed booking and the
+// brand, nothing else.
+//
 // The pill radius is deliberate and the one place it is allowed — a stamp is
 // not a button, and the design language reserves 3.75px for controls.
 
-import { neutral, radius, status as semantic, surface, text, weight } from "../../styles/tokens";
+import { brand, neutral, radius, status as semantic, surface, weight } from "../../styles/tokens";
 
-/**
- * Appointment statuses, plus the roles Navbar stamps. Kept desaturated so the
- * pills sit inside the warm palette rather than shouting over it.
- */
 export const TONES = {
   neutral: { background: surface.sunken, color: neutral.saddle },
   success: { background: semantic.successSurface, color: semantic.success },
   warning: { background: semantic.warningSurface, color: semantic.warning },
   danger: { background: semantic.dangerSurface, color: semantic.danger },
-  brand: { background: "rgba(127, 17, 17, 0.08)", color: "#8b1e1e" },
+  brand: { background: "rgba(127, 17, 17, 0.07)", color: brand.base },
 };
 
 const STATUS_TONES = {
+  // Appointments.
   Pending: "warning",
   Confirmed: "brand",
   Reschedule: "warning",
   Completed: "success",
-  Cancelled: "danger",
+  Cancelled: "neutral",
   Scheduled: "neutral",
+  // Accounts and records.
   ACTIVE: "success",
   INACTIVE: "neutral",
+  PENDING: "warning",
+  ARCHIVED: "neutral",
+  // Roles.
   ADMIN: "brand",
   STAFF: "neutral",
   TECHNICIAN: "success",
+  // Stock.
+  Healthy: "success",
+  "Low Stock": "danger",
+  "Low stock": "danger",
+  "Out of stock": "danger",
+  Disabled: "neutral",
+  // Reports.
+  Signed: "success",
+  "No signature": "warning",
+  "Report due": "danger",
 };
 
 /** The tone for a status or role string, falling back to neutral. */
@@ -38,7 +52,7 @@ export function toneFor(value) {
   return STATUS_TONES[value] || "neutral";
 }
 
-function StatusPill({ children, tone, status, icon = null, style, ...rest }) {
+function StatusPill({ children, tone, status, icon = null, dot = true, style, ...rest }) {
   const palette = TONES[tone || toneFor(status || children)] || TONES.neutral;
 
   return (
@@ -46,19 +60,26 @@ function StatusPill({ children, tone, status, icon = null, style, ...rest }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "4px",
+        gap: "6px",
         borderRadius: radius.pill,
-        padding: "2px 10px",
-        fontSize: text.caption.fontSize,
+        padding: "1px 9px 1px 8px",
+        fontSize: "12px",
+        lineHeight: "19px",
         fontWeight: weight.medium,
-        letterSpacing: text.caption.letterSpacing,
         whiteSpace: "nowrap",
         ...palette,
         ...style,
       }}
       {...rest}
     >
-      {icon}
+      {icon ||
+        (dot && (
+          <span
+            aria-hidden="true"
+            data-status-dot=""
+            style={{ width: "6px", height: "6px", borderRadius: "50%", background: "currentColor", flexShrink: 0 }}
+          />
+        ))}
       {status || children}
     </span>
   );

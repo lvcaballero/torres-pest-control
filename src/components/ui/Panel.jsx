@@ -6,7 +6,7 @@
 // red-tinted one — which is most of why the app read as several products
 // stitched together.
 
-import { surface, text, weight } from "../../styles/tokens";
+import { surface, text } from "../../styles/tokens";
 import { card, eyebrow as eyebrowStyle, subheading } from "../../styles/theme";
 
 function Panel({

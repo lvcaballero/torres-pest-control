@@ -142,7 +142,7 @@ function TechnicianDashboard() {
                 key={`report-${appointment.id}`}
                 first={index === 0}
                 when={whenLabel(appointment.scheduledAt)}
-                whenWidth="96px"
+                whenWidth="118px"
                 title={nameOf(appointment)}
                 detail={["Report still to file", appointment.pestConcern].filter(Boolean).join(" · ")}
                 action={<Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={rowAction}>Open report</Link>}
@@ -153,7 +153,7 @@ function TechnicianDashboard() {
                 key={`signature-${appointment.id}`}
                 first={reportsToFile.length === 0 && index === 0}
                 when={whenLabel(appointment.scheduledAt)}
-                whenWidth="96px"
+                whenWidth="118px"
                 title={nameOf(appointment)}
                 detail="Technician signature still needed"
                 action={<Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={rowAction}>Sign report</Link>}
@@ -213,7 +213,7 @@ function TechnicianDashboard() {
                 key={appointment.id}
                 first={index === 0}
                 when={whenLabel(appointment.reportSubmittedAt || appointment.scheduledAt)}
-                whenWidth="96px"
+                whenWidth="118px"
                 title={nameOf(appointment)}
                 detail={[appointment.treatmentMethods?.length ? `${appointment.treatmentMethods.length} treatment method${appointment.treatmentMethods.length === 1 ? "" : "s"}` : "Report filed", appointment.technicianSignaturePath ? "Signed" : "Signature pending"].join(" · ")}
                 action={appointment.technicianSignaturePath

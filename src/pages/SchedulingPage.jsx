@@ -82,7 +82,7 @@ function SchedulingPage() {
   const { staff, technicians } = useUsers();
   const { activeServices, serviceById, serviceByName } = useServices();
   const { appointments, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl, uploadSignature, getSignatureUrl, loading, error } = useScheduling();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState(MODES.WEEK);
   const [anchorDate, setAnchorDate] = useState(new Date());
@@ -128,6 +128,21 @@ function SchedulingPage() {
     setSelectedId(requestedId);
     if (searchParams.get("tab") === "Report") setTab("Report");
   }, [appointments, searchParams, isTechnician, currentUser?.id]);
+  // The top bar's "New visit" (and a client's "Book visit") land here with
+  // ?new=1, optionally &client=<id>. Open the form once, then drop the
+  // params so a refresh or Back doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    if (!isTechnician) {
+      setCreateClientId(searchParams.get("client") || "");
+      setCreateScheduledAt("");
+      setCreateOpen(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    next.delete("client");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, isTechnician]);
   const activeAccounts = useMemo(
     () => [...staff, ...technicians].filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE),
     [staff, technicians]

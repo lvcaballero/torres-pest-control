@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Sidebar, { groupHeadingId, isNavItemActive } from "../Sidebar";
 import { can } from "../../../utils/permissions";
-import { brand } from "../../../styles/tokens";
+import { brand, surface } from "../../../styles/tokens";
 
 // A jest.mock factory may only close over variables whose names begin with
 // "mock" — it is hoisted above the imports.
@@ -12,7 +12,8 @@ const mockAuth = { role: "ADMIN" };
 jest.mock("../../../hooks/useAuth", () => ({
   __esModule: true,
   default: () => ({
-    currentUser: { role: mockAuth.role },
+    currentUser: { name: "Maria Santos", role: mockAuth.role },
+    logout: jest.fn(),
     // The real matrix, not a stub: the point of these tests is that the rail
     // is driven by permissions, so faking can() would test nothing.
     can: (subsystem, action = "view") =>
@@ -21,11 +22,11 @@ jest.mock("../../../hooks/useAuth", () => ({
   }),
 }));
 
-function renderSidebar(pathname = "/", role = "ADMIN") {
+function renderSidebar(pathname = "/", role = "ADMIN", badges = {}) {
   mockAuth.role = role;
   return render(
     <MemoryRouter initialEntries={[pathname]}>
-      <Sidebar />
+      <Sidebar badges={badges} />
     </MemoryRouter>
   );
 }
@@ -65,69 +66,60 @@ describe("isNavItemActive", () => {
 });
 
 describe("Sidebar groups", () => {
-  it("shows all three groups to an admin", () => {
+  it("shows the main items and the whole Setup group to an admin", () => {
     renderSidebar("/", "ADMIN");
 
-    expect(screen.getByText("Main")).toBeInTheDocument();
-    expect(screen.getByText("Operations")).toBeInTheDocument();
-    expect(screen.getByText("Administration")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /User Accounts/ })).toBeInTheDocument();
+    ["Today", "Schedule", "Clients", "Inventory"].forEach((label) => {
+      expect(screen.getByRole("link", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Setup")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("href", "/users");
+    expect(screen.getByRole("link", { name: /Activity log/ })).toHaveAttribute("href", "/activity");
+    expect(screen.getByRole("link", { name: /Services/ })).toHaveAttribute("href", "/services");
+    expect(screen.getByRole("link", { name: /Treatment methods/ })).toHaveAttribute("href", "/treatment-methods");
   });
 
-  // The regression: filtering the items without then dropping the empty group
-  // leaves an "Administration" heading floating above nothing.
-  it.each(["TECHNICIAN", "STAFF"])(
-    "drops the whole Administration group for a %s, not just its links",
-    (role) => {
-      renderSidebar("/", role);
+  // Filtering the items without then dropping the empty group would leave a
+  // "Setup" heading floating above nothing.
+  it.each(["TECHNICIAN", "STAFF"])("drops the whole Setup group for a %s, not just its links", (role) => {
+    renderSidebar("/", role);
 
-      expect(can(role, "users")).toBe(false);
-      expect(can(role, "settings")).toBe(false);
+    expect(can(role, "users")).toBe(false);
+    expect(can(role, "settings")).toBe(false);
 
-      expect(screen.queryByText("Administration")).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /User Accounts/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /Treatment Methods/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /Services/ })).not.toBeInTheDocument();
-
-      // …while the groups they can use are untouched.
-      expect(screen.getByText("Operations")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Scheduling/ })).toBeInTheDocument();
-    }
-  );
+    expect(screen.queryByText("Setup")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Accounts/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Activity log/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Schedule/ })).toBeInTheDocument();
+  });
 
   it("labels each group's list by its heading, so the grouping reaches a screen reader", () => {
     renderSidebar("/", "ADMIN");
 
     const lists = screen.getAllByRole("list");
-    expect(lists).toHaveLength(3);
-
+    expect(lists).toHaveLength(2);
     lists.forEach((list) => {
       const headingId = list.getAttribute("aria-labelledby");
-      expect(headingId).toBeTruthy();
       expect(document.getElementById(headingId)).toBeInTheDocument();
     });
 
-    const operations = lists.find(
-      (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Operations")
-    );
-    expect(within(operations).getAllByRole("link")).toHaveLength(5);
+    const setup = lists.find((list) => list.getAttribute("aria-labelledby") === groupHeadingId("Setup"));
+    expect(within(setup).getAllByRole("link")).toHaveLength(4);
+  });
+});
+
+describe("Sidebar badges", () => {
+  it("shows a count beside Schedule and Inventory", () => {
+    renderSidebar("/", "ADMIN", { scheduling: 3, inventory: 4 });
+
+    expect(within(screen.getByRole("link", { name: /Schedule/ })).getByText("3")).toBeInTheDocument();
+    expect(within(screen.getByRole("link", { name: /Inventory/ })).getByText("4")).toBeInTheDocument();
   });
 
-  // Team lead's request: the service catalog and the treatment checklist are
-  // operational data, so they live under Operations, not Administration.
-  it("lists Services and Treatment Methods under Operations for an admin", () => {
-    renderSidebar("/", "ADMIN");
+  it("shows nothing for a count of zero", () => {
+    renderSidebar("/", "ADMIN", { scheduling: 0 });
 
-    const operations = screen.getAllByRole("list").find(
-      (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Operations")
-    );
-    const administration = screen.getAllByRole("list").find(
-      (list) => list.getAttribute("aria-labelledby") === groupHeadingId("Administration")
-    );
-
-    expect(within(operations).getByRole("link", { name: /Services/ })).toHaveAttribute("href", "/services");
-    expect(within(operations).getByRole("link", { name: /Treatment Methods/ })).toHaveAttribute("href", "/treatment-methods");
-    expect(within(administration).queryByRole("link", { name: /Treatment Methods/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("link", { name: /Schedule/ })).queryByText("0")).toBeNull();
   });
 });
 
@@ -137,63 +129,35 @@ describe("Sidebar active state", () => {
 
     const current = screen.getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page");
     expect(current).toHaveLength(1);
-    expect(current[0]).toHaveTextContent("Client Profiles");
+    expect(current[0]).toHaveTextContent("Clients");
   });
 
-  // Asserted against the token, never a literal hex, so the test tracks the
-  // design system rather than pinning a colour it does not own.
-  it("paints the active item's left marker in the brand colour and leaves the rest transparent", () => {
+  it("lifts the active item to white with a maroon marker, and only that item", () => {
     renderSidebar("/scheduling", "ADMIN");
 
-    const active = screen.getByRole("link", { name: /Scheduling/ });
-    expect(active).toHaveStyle({ borderLeftColor: brand.base, background: brand.wash });
+    const active = screen.getByRole("link", { name: /Schedule/ });
+    expect(active).toHaveStyle({ background: surface.panel });
+    expect(active.querySelector("[data-active-marker]")).toHaveStyle({ background: brand.base });
 
-    const inactive = screen.getByRole("link", { name: /Dashboard/ });
-    expect(inactive).toHaveStyle({ borderLeftColor: "transparent" });
+    expect(screen.getByRole("link", { name: /Today/ }).querySelector("[data-active-marker]")).toBeNull();
   });
 
-  // The marker is on every item, active or not, so lighting one up cannot
-  // shove its label sideways.
-  it("reserves the marker's width on every item", () => {
-    renderSidebar("/scheduling", "ADMIN");
+  it("moves the marker when the user navigates", async () => {
+    renderSidebar("/clients");
 
-    screen.getAllByRole("link").forEach((link) => {
-      expect(link).toHaveStyle({ borderLeftWidth: "3px" });
-    });
+    await userEvent.click(screen.getByRole("link", { name: /Inventory/ }));
+
+    expect(screen.getByRole("link", { name: /Clients/ }).querySelector("[data-active-marker]")).toBeNull();
+    expect(screen.getByRole("link", { name: /Clients/ })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /Inventory/ }).querySelector("[data-active-marker]")).not.toBeNull();
   });
 });
 
-// Regression: every tab you had visited kept a 3px marker forever.
-//
-// styles.link used the `borderLeft` shorthand while styles.activeLink set the
-// `borderLeftColor` longhand. CSS expands a shorthand into longhands at parse
-// time, so once React had written borderLeftColor for the active item, going
-// inactive made it remove that key by assigning "" — which deletes the
-// declaration rather than restoring the shorthand's transparent, leaving
-// border-left-color at its initial value of currentColor. Measured in
-// Chromium: rgb(80, 70, 60), the link's own text colour, which is exactly
-// what the reported screenshot showed.
-describe("the active marker does not stick to visited items", () => {
-  it("restores a transparent marker when an item stops being active", async () => {
-    renderSidebar("/clients");
+describe("Sidebar footer", () => {
+  it("shows who is signed in", () => {
+    renderSidebar("/", "STAFF");
 
-    const clients = () => screen.getByRole("link", { name: /Client Profiles/ });
-    expect(clients().style.borderLeftColor).toBe(brand.base);
-
-    // Navigate for real, inside the same router, so React updates the nodes
-    // rather than remounting them. (Re-rendering MemoryRouter with different
-    // initialEntries does NOT navigate — it ignores them after mount.)
-    await userEvent.click(screen.getByRole("link", { name: /Inventory/ }));
-
-    // The value that matters: an empty string here is the bug, because the
-    // browser then falls back to currentColor.
-    expect(clients().style.borderLeftColor).toBe("transparent");
-    expect(clients()).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("link", { name: /Inventory/ }).style.borderLeftColor).toBe(brand.base);
-  });
-
-  it("leaves a never-visited item transparent", () => {
-    renderSidebar("/clients");
-    expect(screen.getByRole("link", { name: /Dashboard/ }).style.borderLeftColor).toBe("transparent");
+    expect(screen.getByText("Maria Santos")).toBeInTheDocument();
+    expect(screen.getByText("Staff")).toBeInTheDocument();
   });
 });

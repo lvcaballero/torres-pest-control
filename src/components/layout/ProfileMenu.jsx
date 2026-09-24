@@ -4,6 +4,7 @@ import { ChevronDown, LogOut, ShieldCheck, UserCog } from "lucide-react";
 import { neutral, radius, surface, text, weight } from "../../styles/tokens";
 import StatusPill from "../ui/StatusPill";
 import Avatar from "./Avatar";
+import { humanizeEnum } from "../../utils/formatters";
 
 const panelStyle = {
   position: "absolute",
@@ -34,11 +35,62 @@ const itemStyle = {
   textAlign: "left",
 };
 
-function ProfileMenu({ user, open, onToggle, onNavigate, onLogout }) {
+/** The rail footer's trigger: avatar, name and role in a full-width row. */
+function RailTrigger({ user, displayName, open, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-haspopup="menu"
+      className="ui-interactive"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        width: "100%",
+        padding: "4px 6px",
+        border: "1px solid transparent",
+        borderRadius: radius.control,
+        background: "transparent",
+        color: neutral.ink,
+        textAlign: "left",
+      }}
+    >
+      <Avatar user={user} size={30} />
+      <span style={{ lineHeight: 1.25, minWidth: 0, flex: 1 }}>
+        <span
+          style={{
+            display: "block",
+            fontSize: "13px",
+            fontWeight: weight.medium,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {displayName}
+        </span>
+        <span style={{ display: "block", fontSize: "11.5px", color: neutral.bark }}>{humanizeEnum(user.role)}</span>
+      </span>
+      <ChevronDown
+        size={14}
+        style={{ color: neutral.bark, flexShrink: 0, transform: open ? "rotate(180deg)" : undefined }}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+function ProfileMenu({ user, open, onToggle, onNavigate, onLogout, variant = "chip" }) {
   const displayName = user.name || user.username || "User";
+  const isRail = variant === "rail";
 
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+    <div style={{ position: "relative", display: isRail ? "block" : "inline-flex", alignItems: "center" }}>
+      {isRail ? (
+        <RailTrigger user={user} displayName={displayName} open={open} onToggle={onToggle} />
+      ) : (
       <button
         type="button"
         onClick={onToggle}
@@ -78,9 +130,13 @@ function ProfileMenu({ user, open, onToggle, onNavigate, onLogout }) {
         </span>
         <ChevronDown size={14} style={{ color: neutral.bark, flexShrink: 0 }} aria-hidden="true" />
       </button>
+      )}
 
       {open && (
-        <div role="menu" style={panelStyle}>
+        <div
+          role="menu"
+          style={isRail ? { ...panelStyle, top: "auto", bottom: "calc(100% + 8px)", left: 0, right: "auto", width: "100%", minWidth: "200px" } : panelStyle}
+        >
           <div
             style={{
               display: "flex",

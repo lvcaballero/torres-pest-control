@@ -176,33 +176,143 @@ a[href] {
   border-radius: var(--radius);
 }
 
-/* The rail is a light tinted bone, not maroon. These three rules were written
-   for a maroon background: a cream hover wash and a cream focus ring are both
-   invisible on it. The `outline: none` stays — it suppresses the UA border — but the
-   border reset must not, because the active item's 3px maroon marker IS a
-   border-left and a blanket `border: none` would erase it. */
+/* ---------------------------------------------------------------------
+ * App shell: rail + top bar + content.
+ *
+ * Wide: a two-column grid, the rail sticky and full height. Below 860px
+ * (layout.drawerBreakpoint in tokens.js) the rail leaves the grid and slides
+ * in over a scrim when [data-drawer="open"]. There is no horizontal page
+ * scroll at any width: the content column is minmax(0, 1fr), so a wide table
+ * scrolls inside its own .scroll-x rather than pushing the page sideways.
+ * ------------------------------------------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--rail);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px 14px;
+  overflow: hidden;
+  z-index: 30;
+}
+
 .sidebar-nav-link,
 .sidebar-nav-link:link,
 .sidebar-nav-link:visited {
   outline: none;
 }
 
-.sidebar-nav-link:hover {
-  background: var(--brand-wash);
+.sidebar-nav-link:not([aria-current="page"]):hover {
+  background: rgba(255, 255, 255, 0.55);
   color: var(--ink);
 }
 
-/* No bespoke ring: the global :focus-visible rule already paints the brand
-   ring, and it reads clearly against bone where the cream one would not. */
-
-.app-shell {
-  min-height: 100vh;
+.app-scrim {
+  display: none;
 }
 
-/* Must stay in sync with Sidebar's inline width. */
+.app-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.app-menu-button {
+  display: none !important;
+}
+
 .app-content {
-  min-height: 100vh;
-  margin-left: 264px;
+  flex: 1;
+  min-width: 0;
+  padding: 28px 32px 48px;
+}
+
+/* Pages lay out with inline `display: grid`. A grid item's min-width is
+   `auto` by default, so one wide child (the week calendar, a table) stretches
+   the whole track and every sibling with it, and the page scrolls sideways
+   at phone width. Letting items shrink hands that overflow back to the child
+   that owns a scroller. */
+.app-content [style*="display: grid"] > * {
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 86vw);
+    height: 100%;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    z-index: 70;
+  }
+
+  .app-shell[data-drawer="open"] .app-rail {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+
+  .app-shell[data-drawer="open"] .app-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(33, 27, 21, 0.32);
+    z-index: 60;
+  }
+
+  .app-menu-button {
+    display: inline-flex !important;
+    flex-shrink: 0;
+  }
+
+  .app-topbar {
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .app-topbar-date,
+  .global-search-kbd {
+    display: none;
+  }
+
+  .app-content {
+    padding: 20px 16px 40px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* The New visit button keeps its icon and its aria-label. */
+  .app-topbar-label {
+    display: none;
+  }
 }
 
 a {

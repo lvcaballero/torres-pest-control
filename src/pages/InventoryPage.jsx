@@ -14,6 +14,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, MoreHorizontal, Plus, Search } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import useInventory from "../hooks/useInventory";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
@@ -272,7 +273,13 @@ function InventoryPage() {
   }, []);
 
   // Inventory and history filtering states
-  const [itemSearch, setItemSearch] = useState("");
+  // The top bar's search links an item here as ?q=<name>.
+  const [searchParams] = useSearchParams();
+  const [itemSearch, setItemSearch] = useState(() => searchParams.get("q") || "");
+  useEffect(() => {
+    const requested = searchParams.get("q");
+    if (requested !== null) setItemSearch(requested);
+  }, [searchParams]);
   const [itemTypeFilter, setItemTypeFilter] = useState("ALL");
   const [itemStatusFilter, setItemStatusFilter] = useState("ALL");
   const [itemStockFilter, setItemStockFilter] = useState("ALL");

@@ -1,32 +1,90 @@
-// Sidebar + content shell for every authenticated page.
+// Sidebar + top bar + content: the shell for every authenticated page.
 //
-// This markup used to be inlined in App.js around <Routes>. As a component it
-// can wrap routes individually, which is what lets the login and landing
-// pages opt out of the chrome.
+// Wide screens: a two-column grid, the rail sticky on the left. Below the
+// drawer breakpoint (860px, in globals.css) the rail leaves the grid and
+// slides in over a scrim when the top bar's menu button asks for it; it
+// closes again on navigation, on Escape and on a scrim tap, and focus goes
+// back to the button that opened it.
 
-import { Outlet } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import useAuth from "../../hooks/useAuth";
+import useInventory from "../../hooks/useInventory";
+import { useScheduling } from "../../context/SchedulingContext";
+import { lowStockItems, needsScheduling } from "../../utils/dashboardMetrics";
+import { SUBSYSTEMS } from "../../utils/permissions";
 import { layout } from "../../styles/tokens";
 import { appBackground } from "../../styles/theme";
 
+/**
+ * Sidebar counts: visits nobody has been assigned to, and active items at or
+ * below their reorder level. Each only for someone who can act on it.
+ */
+export function navBadges({ appointments, inventory, canSchedule, canStock }) {
+  return {
+    scheduling: canSchedule ? needsScheduling(appointments).length : 0,
+    inventory: canStock
+      ? lowStockItems(inventory.filter((item) => item.status !== "DISABLED")).length
+      : 0,
+  };
+}
+
 function Layout({ children }) {
+  const location = useLocation();
+  const { can } = useAuth();
+  const { appointments } = useScheduling();
+  const { inventory } = useInventory();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuButtonRef = useRef(null);
+
+  const badges = useMemo(
+    () =>
+      navBadges({
+        appointments,
+        inventory,
+        canSchedule: can(SUBSYSTEMS.SCHEDULING, "create"),
+        canStock: can(SUBSYSTEMS.INVENTORY, "edit"),
+      }),
+    [appointments, inventory, can]
+  );
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen((wasOpen) => {
+      if (wasOpen) window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+      return false;
+    });
+  }, []);
+
+  // Any navigation closes the drawer.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeDrawer();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [drawerOpen, closeDrawer]);
+
   return (
-    <div className="app-shell" style={{ background: appBackground }}>
-      <Sidebar />
-      <div
-        className="app-content"
-        style={{ padding: "30px 30px 45px" }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") event.preventDefault();
-        }}
-      >
-        {/* One max-width, matching pageShell. The inner wrapper used to be
-            1280px while every page also applied pageShell's 1200px, so the
-            outer constraint never did anything. */}
-        <div style={{ maxWidth: layout.pageMaxWidth, margin: "0 auto" }}>
-          <Navbar />
-          {children || <Outlet />}
+    <div className="app-shell" data-drawer={drawerOpen ? "open" : "closed"} style={{ background: appBackground }}>
+      <Sidebar badges={badges} open={drawerOpen} onClose={closeDrawer} />
+      <div className="app-scrim" aria-hidden="true" onClick={closeDrawer} />
+
+      <div className="app-main">
+        <Navbar onOpenMenu={() => setDrawerOpen(true)} menuOpen={drawerOpen} menuButtonRef={menuButtonRef} />
+        <div
+          className="app-content"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") event.preventDefault();
+          }}
+        >
+          <div style={{ maxWidth: layout.pageMaxWidth }}>{children || <Outlet />}</div>
         </div>
       </div>
     </div>

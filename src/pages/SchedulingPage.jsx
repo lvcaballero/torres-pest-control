@@ -24,9 +24,9 @@ import useUsers from "../hooks/useUsers";
 import useServices from "../hooks/useServices";
 import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
-import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
+import { APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -72,7 +72,7 @@ const LEGACY_SERVICE = "__legacy__";
 
 function SchedulingPage() {
   const { can, currentUser } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const { clients, addDocument, removeDocument, getDocumentUrl } = useClients();
   const { inventory, stockOutMany } = useInventory();
   const { staff, technicians } = useUsers();
@@ -139,13 +139,11 @@ function SchedulingPage() {
     next.delete("client");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, isTechnician]);
-  const activeAccounts = useMemo(
-    () => [...staff, ...technicians].filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE),
-    [staff, technicians]
-  );
   // Every account, inactive included, for resolving names on visits already
   // booked. Booking itself only offers `bookableTechnicians`.
   const allAccounts = useMemo(() => [...staff, ...technicians], [staff, technicians]);
+  // Who can be put on a visit: deactivated accounts are never offered.
+  const activeTechnicians = useMemo(() => bookableTechnicians(technicians), [technicians]);
 
   useEffect(() => {
     setTreatmentMethods(selected?.treatmentMethods || []);
@@ -176,7 +174,7 @@ function SchedulingPage() {
       if (isTechnician && !isAssignedTo(appointment, currentUser?.id)) return false;
       const client = clients.find((entry) => entry.id === appointment.clientId);
       const crewNames = crewOf(appointment)
-        .map((id) => activeAccounts.find((account) => account.id === id))
+        .map((id) => allAccounts.find((account) => account.id === id))
         .map((account) => account?.name || account?.username || "")
         .join(" ");
       const text = `${appointment.id} ${client?.name || ""} ${client?.address || ""} ${appointment.pestConcern || ""} ${appointment.status} ${crewNames}`.toLowerCase();
@@ -190,7 +188,7 @@ function SchedulingPage() {
         && (!dateFrom || localDateKey(new Date(appointment.scheduledAt)) >= dateFrom)
         && (!dateTo || localDateKey(new Date(appointment.scheduledAt)) <= dateTo);
     });
-  }, [appointments, appointmentSearch, clients, activeAccounts, technicianFilter, statusFilter, clientFilter, pestConcernFilter, dateFrom, dateTo, isTechnician, currentUser?.id]);
+  }, [appointments, appointmentSearch, clients, allAccounts, technicianFilter, statusFilter, clientFilter, pestConcernFilter, dateFrom, dateTo, isTechnician, currentUser?.id]);
 
   const pestConcernOptions = useMemo(
     () => Array.from(new Set(appointments.filter(ownsAppointment).map((appointment) => appointment.pestConcern).filter(Boolean))).sort(),
@@ -254,14 +252,37 @@ function SchedulingPage() {
    * Leaving it undefined now keeps the appointment's own time of day, so a
    * month drag changes the date and nothing else.
    */
+  // Moves a visit to a new start and puts its status back as it was.
+  //
+  // update_appointment (migration 047) only lets the time change while the
+  // row is in Reschedule, so a move is two writes: hop to Reschedule, then
+  // save the new time with the ORIGINAL status. The drop used to save
+  // "Confirmed" here, which silently confirmed Pending visits nobody had
+  // agreed to. If the second write fails, the first is undone so the visit
+  // isn't left stranded in Reschedule. Returns an error string or null.
+  const relocate = async (current, scheduledAt) => {
+    const steps = moveSteps(current, scheduledAt);
+    for (let index = 0; index < steps.length; index += 1) {
+      const result = await updateAppointment(steps[index]);
+      if (typeof result === "string") {
+        if (index > 0) await updateAppointment({ ...current, status: current.status });
+        return result;
+      }
+    }
+    return null;
+  };
+
+  const refuseMove = (reason) => {
+    setDraggedId(null);
+    showError(reason);
+    setMessage(reason);
+  };
+
   const moveAppointment = async (dateKey, time = null) => {
     if (!draggedId) return;
     const current = appointments.find((appointment) => appointment.id === draggedId);
     if (!canReschedule) {
-      setDraggedId(null);
-      const refusal = "Rescheduling is handled by the office. Ask staff to move this visit.";
-      showError(refusal);
-      setMessage(refusal);
+      refuseMove("Rescheduling is handled by the office. Ask staff to move this visit.");
       return;
     }
     if (!current) {
@@ -270,45 +291,52 @@ function SchedulingPage() {
     }
     const keptTime = minutesToTimeValue(minutesOfDay(current.scheduledAt));
     const nextScheduledAt = `${dateKey}T${time || keptTime}:00`;
-    const movedAppointment = { ...current, scheduledAt: nextScheduledAt, status: "Confirmed" };
-    // Refused before anything is written: the Reschedule step below would
-    // otherwise land and strand the visit in that status (migration 047).
+    const movedAppointment = { ...current, scheduledAt: nextScheduledAt };
+    // Refused before anything is written: the Reschedule step would otherwise
+    // land and strand the visit in that status (migration 047).
     if (validateAppointmentStart(nextScheduledAt)) {
-      setDraggedId(null);
-      const pastRefusal = "Appointments cannot be moved into the past.";
-      showError(pastRefusal);
-      setMessage(pastRefusal);
+      refuseMove("Appointments cannot be moved into the past.");
       return;
     }
-    // Moving requires the Reschedule status first, so an appointment that cannot
-    // reach Reschedule cannot be dragged at all.
-    if (!canTransition(current.status, "Reschedule")) {
-      setDraggedId(null);
-      const blockedMessage = `A ${current.status.toLowerCase()} appointment cannot be moved.`;
-      showError(blockedMessage);
-      setMessage(blockedMessage);
+    // A finished or cancelled visit has no slot to move to, even though the
+    // status rules would let a cancelled one through Reschedule.
+    if (current.status === "Cancelled" || !canTransition(current.status, "Reschedule")) {
+      refuseMove(`A ${current.status.toLowerCase()} appointment cannot be moved.`);
       return;
     }
     const dropRefusal = describeSlotConflict(appointments, movedAppointment);
     if (dropRefusal) {
-      setDraggedId(null);
-      showError(dropRefusal);
-      setMessage(dropRefusal);
+      refuseMove(dropRefusal);
       return;
     }
-    if (current.status !== "Reschedule") {
-      const prepareResult = await updateAppointment({ ...current, status: "Reschedule" });
-      if (typeof prepareResult === "string") {
-        setDraggedId(null);
-        showError(prepareResult);
-        setMessage(prepareResult);
-        return;
-      }
-    }
-    const result = await updateAppointment(movedAppointment);
+    const failure = await relocate(current, nextScheduledAt);
     setDraggedId(null);
-    if (typeof result === "string") showError(result);
-    setMessage(typeof result === "string" ? result : `Moved appointment to ${formatDateTime(nextScheduledAt)}.`);
+    if (failure) {
+      showError(failure);
+      setMessage(failure);
+      return;
+    }
+
+    const moved = `Moved to ${formatDateTime(nextScheduledAt)}. Still ${current.status}.`;
+    setMessage(moved);
+    // Undo puts it back where it was — unless that slot is now in the past,
+    // which update_appointment would refuse.
+    const canUndo = !validateAppointmentStart(current.scheduledAt);
+    showSuccess(
+      moved,
+      canUndo
+        ? {
+            action: {
+              label: "Undo",
+              onClick: async () => {
+                const undoFailure = await relocate({ ...current, scheduledAt: nextScheduledAt }, current.scheduledAt);
+                if (undoFailure) showError(undoFailure);
+                setMessage(undoFailure || `Moved back to ${formatDateTime(current.scheduledAt)}.`);
+              },
+            },
+          }
+        : undefined
+    );
   };
 
   const navigateCalendar = (amount) => {
@@ -465,9 +493,9 @@ function SchedulingPage() {
     setPrintRequest({
       appointment,
       client,
-      technician: activeAccounts.find((account) => account.id === appointment.technicianId) || null,
+      technician: allAccounts.find((account) => account.id === appointment.technicianId) || null,
       technicians: crewOf(appointment)
-        .map((id) => activeAccounts.find((account) => account.id === id))
+        .map((id) => allAccounts.find((account) => account.id === id))
         .filter(Boolean),
       inventory,
     });
@@ -598,7 +626,7 @@ function SchedulingPage() {
           onNavigate={navigateCalendar}
           onToday={() => setAnchorDate(new Date())}
           isOnToday={isOnToday}
-          technicians={technicians}
+          technicians={activeTechnicians}
           technicianFilter={technicianFilter}
           onTechnicianFilterChange={setTechnicianFilter}
           countFor={jobsThisWeek}
@@ -624,7 +652,7 @@ function SchedulingPage() {
                 <Field label="Technician">
                   <Select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)}>
                     <option value="ALL">All technicians</option>
-                    {technicians.map((account) => (
+                    {activeTechnicians.map((account) => (
                       <option key={account.id} value={account.id}>{account.name || account.username}</option>
                     ))}
                   </Select>
@@ -667,14 +695,14 @@ function SchedulingPage() {
               <AppointmentListView
                 appointments={visibleAppointments}
                 clients={clients}
-                accounts={activeAccounts}
+                accounts={allAccounts}
                 onSelect={(id) => { setSelectedId(id); setTab("Overview"); }}
               />
             )}
 
             {mode === MODES.TECHNICIANS && (
               <TechnicianAvailability
-                accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : technicians}
+                accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : activeTechnicians}
                 appointments={visibleAppointments}
                 weekDays={weekDays}
                 clients={clients}
@@ -735,7 +763,7 @@ function SchedulingPage() {
           appointment={selected}
           client={selectedClient}
           appointments={appointments}
-          activeAccounts={technicians}
+          activeAccounts={bookableTechnicians(technicians, crewOf(selected))}
           ui={{ tab, setTab, onClose: () => setSelectedId(null) }}
           access={{
             canReschedule,
@@ -743,7 +771,7 @@ function SchedulingPage() {
             canUpload: can("clientDocuments", "create") && ownsAppointment(selected),
             canRemove: can("clientDocuments", "delete") && ownsAppointment(selected),
             assignedName: crewOf(selected)
-              .map((id) => activeAccounts.find((account) => account.id === id))
+              .map((id) => allAccounts.find((account) => account.id === id))
               .map((account) => account?.name || account?.username)
               .filter(Boolean)
               .join(", ") || "another technician",
@@ -778,7 +806,7 @@ function SchedulingPage() {
       {createOpen && (
         <NewAppointmentModal
           clients={clients}
-          activeAccounts={technicians}
+          activeAccounts={activeTechnicians}
           appointments={appointments}
           services={activeServices}
           initialClientId={createClientId}

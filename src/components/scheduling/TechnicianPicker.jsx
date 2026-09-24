@@ -68,6 +68,9 @@ function TechnicianPicker({ accounts, value = [], busyIds, onChange, disabled = 
             <span style={{ flex: 1, minWidth: 0 }}>
               {account.reference ? `${account.reference} — ` : ""}
               {account.name || account.username}
+              {account.status === "INACTIVE" && (
+                <span style={{ color: colors.muted, fontSize: "0.72rem" }}> (inactive)</span>
+              )}
               {isBusy && (
                 <span style={{ color: "#b45309", fontSize: "0.72rem" }}> — already booked</span>
               )}

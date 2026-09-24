@@ -11,7 +11,7 @@
 // record of what was actually collected, so revenue and margin cannot be
 // derived from it and nothing here tries to.
 
-import { crewOf, isAssignedTo } from "./scheduling";
+import { crewOf, endOf, isAssignedTo } from "./scheduling";
 
 const startOfDay = (date) => {
   const copy = new Date(date);
@@ -124,19 +124,60 @@ export function workloadToday(appointments, technicians) {
   return rows;
 }
 
-/** Service mix for the current month, ranked. */
-export function serviceMixThisMonth(appointments) {
-  const window = monthWindow();
+/**
+ * What a visit is filed under in a service breakdown: the service as booked
+ * (appointments.service_type, the catalog name snapshot from migration 047),
+ * never the pest concern — "Rodents" is a problem, not something we sell.
+ */
+export const serviceLabel = (entry) => entry.serviceType || "Unspecified service";
+
+/** Visits in a window, grouped by service and ranked. */
+export function serviceMix(appointments, window) {
   const counts = new Map();
   appointments
     .filter((entry) => live(entry) && within(entry.scheduledAt, window))
     .forEach((entry) => {
-      const label = entry.pestConcern || entry.serviceType || "Unspecified";
+      const label = serviceLabel(entry);
       counts.set(label, (counts.get(label) || 0) + 1);
     });
   return [...counts.entries()]
     .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+/** Service mix for the current month, ranked. */
+export function serviceMixThisMonth(appointments) {
+  return serviceMix(appointments, monthWindow());
+}
+
+/**
+ * A technician's reports that are actually due: visits this week that have
+ * ENDED and have no report. A visit later today or on Sunday is not "still
+ * to file" on a Friday — it hasn't happened yet.
+ */
+export function reportsDue(appointments, technicianId, now = new Date()) {
+  const window = weekWindow(now);
+  return appointments
+    .filter(
+      (entry) =>
+        live(entry) &&
+        isAssignedTo(entry, technicianId) &&
+        !entry.reportSubmitted &&
+        within(entry.scheduledAt, window) &&
+        endOf(entry) <= now.getTime()
+    )
+    .sort(byTime);
+}
+
+/**
+ * The customer-signature state of a visit's report. Signed means a signature
+ * image exists (signature_path) — a typed customer name on its own is not a
+ * signature, which is how "signed by Store Manager" once sat next to an
+ * UNSIGNED badge.
+ */
+export function signatureState(entry) {
+  if (!entry.reportSubmitted) return "Report due";
+  return entry.signaturePath ? "Signed" : "No signature";
 }
 
 export function recentlyCompleted(appointments, limit = 5) {

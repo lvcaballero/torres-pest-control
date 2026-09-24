@@ -11,6 +11,8 @@
 
 import {
   allowedNextStatuses,
+  bookableTechnicians,
+  moveSteps,
   appointmentsOverlap,
   busyTechnicianIds,
   canTransition,
@@ -288,5 +290,58 @@ describe("canTransition / allowedNextStatuses", () => {
 
   it("refuses a status it has never heard of", () => {
     expect(canTransition("Nonsense", "Confirmed")).toBe(false);
+  });
+});
+
+describe("moveSteps", () => {
+  const visit = { id: "a1", scheduledAt: "2026-09-25T09:00:00", status: "Pending" };
+
+  // The bug: a drop saved every visit as Confirmed.
+  it("keeps a pending visit pending after the move", () => {
+    const steps = moveSteps(visit, "2026-09-26T10:00:00");
+
+    expect(steps.map((step) => step.status)).toEqual(["Reschedule", "Pending"]);
+    expect(steps.at(-1).scheduledAt).toBe("2026-09-26T10:00:00");
+  });
+
+  it("keeps a confirmed visit confirmed", () => {
+    expect(moveSteps({ ...visit, status: "Confirmed" }, "2026-09-26T10:00:00").at(-1).status).toBe("Confirmed");
+  });
+
+  it("does not change the time on the Reschedule hop", () => {
+    expect(moveSteps(visit, "2026-09-26T10:00:00")[0].scheduledAt).toBe(visit.scheduledAt);
+  });
+
+  it("needs one write for a visit already in Reschedule", () => {
+    const steps = moveSteps({ ...visit, status: "Reschedule" }, "2026-09-26T10:00:00");
+    expect(steps).toHaveLength(1);
+    expect(steps[0].status).toBe("Reschedule");
+  });
+
+  it("only uses transitions the database allows", () => {
+    ["Pending", "Confirmed", "Reschedule"].forEach((status) => {
+      let from = status;
+      moveSteps({ ...visit, status }, "2026-09-26T10:00:00").forEach((step) => {
+        expect(canTransition(from, step.status)).toBe(true);
+        from = step.status;
+      });
+    });
+  });
+});
+
+describe("bookableTechnicians", () => {
+  const technicians = [
+    { id: "jun", status: "ACTIVE" },
+    { id: "ben", status: "INACTIVE" },
+    { id: "new", status: "PENDING" },
+  ];
+
+  it("never offers a deactivated technician for a new booking", () => {
+    expect(bookableTechnicians(technicians).map((account) => account.id)).toEqual(["jun", "new"]);
+  });
+
+  // Editing a visit a since-deactivated technician is on must not drop them.
+  it("keeps a deactivated technician who is already on the crew", () => {
+    expect(bookableTechnicians(technicians, ["ben"]).map((account) => account.id)).toEqual(["jun", "ben", "new"]);
   });
 });

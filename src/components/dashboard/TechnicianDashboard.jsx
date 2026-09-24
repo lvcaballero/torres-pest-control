@@ -12,18 +12,24 @@ import useAuth from "../../hooks/useAuth";
 import useClients from "../../hooks/useClients";
 import useInventory from "../../hooks/useInventory";
 import { useScheduling } from "../../context/SchedulingContext";
-import { colors, pageShell, primaryButton } from "../../styles/theme";
+import { colors, pageShell, quietButton } from "../../styles/theme";
 import { isAssignedTo } from "../../utils/scheduling";
 import {
   appointmentsThisWeek,
   completedToday,
   lowStockItems,
   remainingToday,
+  reportsDue,
   appointmentsToday,
   tomorrowsJobs,
 } from "../../utils/dashboardMetrics";
 import { greetingFor } from "../../utils/greetings";
-import { Chip, Empty, JobRow, Panel, StatTile, TileRow, timeLabel } from "./DashboardParts";
+import { plural } from "../../utils/formatters";
+import { Chip, Empty, JobRow, Panel, StatTile, TileRow, timeLabel, whenLabel } from "./DashboardParts";
+
+// Row actions are outlined, not filled: a column of six maroon "Open report"
+// buttons left no single primary action on the page.
+const rowAction = { ...quietButton, textDecoration: "none", padding: "0.4rem 0.65rem", fontSize: "0.75rem", whiteSpace: "nowrap", display: "inline-block" };
 
 function TechnicianDashboard() {
   const { currentUser } = useAuth();
@@ -46,7 +52,8 @@ function TechnicianDashboard() {
   const weeklyJobs = appointmentsThisWeek(appointments).filter((entry) => isAssignedTo(entry, me));
   const weeklyFiled = weeklyJobs.filter((entry) => entry.reportSubmitted).length;
   const tomorrowJobs = tomorrowsJobs(appointments, me, 4);
-  const reportsToFile = weeklyJobs.filter((entry) => !entry.reportSubmitted).sort((first, second) => new Date(first.scheduledAt) - new Date(second.scheduledAt));
+  // Only visits that have already ended: a later visit isn't overdue yet.
+  const reportsToFile = reportsDue(appointments, me);
   const signaturesToAdd = weeklyJobs.filter((entry) => entry.reportSubmitted && !entry.technicianSignaturePath).sort((first, second) => new Date(second.scheduledAt) - new Date(first.scheduledAt));
   const recentCompleted = appointments
     .filter((entry) => isAssignedTo(entry, me) && entry.reportSubmitted)
@@ -115,7 +122,7 @@ function TechnicianDashboard() {
           <TileRow min="145px">
             <StatTile label="Scheduled this week" value={loading ? "—" : weeklyJobs.length} note="Assigned visits" />
             <StatTile label="Reports filed" value={loading ? "—" : weeklyFiled} note="Completed reports" tone="done" />
-            <StatTile label="Reports to file" value={loading ? "—" : weeklyJobs.length - weeklyFiled} note="Visits still open" tone={weeklyJobs.length - weeklyFiled > 0 ? "attn" : "done"} />
+            <StatTile label="Reports to file" value={loading ? "—" : reportsToFile.length} note="Finished visits, no report" tone={reportsToFile.length > 0 ? "attn" : "done"} />
           </TileRow>
           {nextScheduled ? (
             <div style={{ padding: "0.8rem", borderRadius: "3.75px", background: "#faf0e2", border: "1px solid #fed7aa" }}>
@@ -128,26 +135,28 @@ function TechnicianDashboard() {
         </Panel>
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(280px, 1fr)", gap: "1rem", alignItems: "start" }}>
-          <Panel title="Needs attention" action={`${reportsToFile.length + signaturesToAdd.length} open items`}>
+          <Panel title="Needs attention" action={plural(reportsToFile.length + signaturesToAdd.length, "open item")}>
             {reportsToFile.length === 0 && signaturesToAdd.length === 0 && <Empty>Everything assigned this week is up to date.</Empty>}
             {reportsToFile.map((appointment, index) => (
               <JobRow
                 key={`report-${appointment.id}`}
                 first={index === 0}
-                when={timeLabel(appointment.scheduledAt)}
+                when={whenLabel(appointment.scheduledAt)}
+                whenWidth="96px"
                 title={nameOf(appointment)}
                 detail={["Report still to file", appointment.pestConcern].filter(Boolean).join(" · ")}
-                action={<Link to="/scheduling" style={{ ...primaryButton, textDecoration: "none", padding: "0.45rem 0.65rem", fontSize: "0.72rem", whiteSpace: "nowrap" }}>Open report</Link>}
+                action={<Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={rowAction}>Open report</Link>}
               />
             ))}
             {signaturesToAdd.map((appointment, index) => (
               <JobRow
                 key={`signature-${appointment.id}`}
                 first={reportsToFile.length === 0 && index === 0}
-                when={timeLabel(appointment.scheduledAt)}
+                when={whenLabel(appointment.scheduledAt)}
+                whenWidth="96px"
                 title={nameOf(appointment)}
                 detail="Technician signature still needed"
-                action={<Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={{ ...primaryButton, textDecoration: "none", padding: "0.45rem 0.65rem", fontSize: "0.72rem", whiteSpace: "nowrap" }}>Sign report</Link>}
+                action={<Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={rowAction}>Sign report</Link>}
               />
             ))}
           </Panel>
@@ -179,13 +188,13 @@ function TechnicianDashboard() {
               detail={[whereOf(appointment), appointment.pestConcern].filter(Boolean).join(" · ")}
               action={appointment.reportSubmitted
                 ? <Chip tone="done">Filed</Chip>
-                : <Link to="/scheduling" style={{ ...primaryButton, textDecoration: "none", padding: "0.55rem 0.8rem", fontSize: "0.78rem", whiteSpace: "nowrap" }}>File Report</Link>}
+                : <Link to={`/scheduling?appointment=${encodeURIComponent(appointment.id)}&tab=Report`} style={rowAction}>File report</Link>}
             />
           ))}
         </Panel>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
-          <Panel title="Tomorrow's route" action={tomorrowJobs.length ? `${tomorrowJobs.length} visits` : "No visits"}>
+          <Panel title="Tomorrow's route" action={tomorrowJobs.length ? plural(tomorrowJobs.length, "visit") : "No visits"}>
             {tomorrowJobs.length === 0 ? <Empty>No visits are assigned for tomorrow.</Empty> : tomorrowJobs.map((appointment, index) => (
               <JobRow
                 key={appointment.id}
@@ -203,7 +212,8 @@ function TechnicianDashboard() {
               <JobRow
                 key={appointment.id}
                 first={index === 0}
-                when={timeLabel(appointment.reportSubmittedAt || appointment.scheduledAt)}
+                when={whenLabel(appointment.reportSubmittedAt || appointment.scheduledAt)}
+                whenWidth="96px"
                 title={nameOf(appointment)}
                 detail={[appointment.treatmentMethods?.length ? `${appointment.treatmentMethods.length} treatment method${appointment.treatmentMethods.length === 1 ? "" : "s"}` : "Report filed", appointment.technicianSignaturePath ? "Signed" : "Signature pending"].join(" · ")}
                 action={appointment.technicianSignaturePath

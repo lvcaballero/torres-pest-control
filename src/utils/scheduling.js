@@ -4,7 +4,7 @@
 // in supabase/migrations/027-appointment-integrity.sql. The database is the
 // authority; these exist so the UI can hide moves the server would reject.
 
-import { APPOINTMENT_STATUS_TRANSITIONS } from "./constants";
+import { ACCOUNT_STATUS, APPOINTMENT_STATUS_TRANSITIONS } from "./constants";
 
 export const startOf = (appointment) => new Date(appointment.scheduledAt).getTime();
 export const endOf = (appointment) => startOf(appointment) + (appointment.durationMinutes || 60) * 60000;
@@ -207,4 +207,31 @@ export function canTransition(from, to) {
 /** The statuses a status select should offer, current status included. */
 export function allowedNextStatuses(from) {
   return [from, ...(APPOINTMENT_STATUS_TRANSITIONS[from] || [])];
+}
+
+/**
+ * The technicians a visit can be booked with: active accounts only. A
+ * deactivated technician already on `keepIds` (the crew of a visit being
+ * edited) stays listed so saving the form never silently drops them; the
+ * picker marks them inactive.
+ */
+export function bookableTechnicians(technicians, keepIds = []) {
+  const keep = new Set(keepIds);
+  return technicians.filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE || keep.has(account.id));
+}
+
+/**
+ * The writes that move a visit to `scheduledAt` without changing its status.
+ *
+ * update_appointment (migration 047) refuses a time change unless the row is
+ * already in Reschedule, so a Pending or Confirmed visit hops through
+ * Reschedule and is then saved at the new time with its ORIGINAL status —
+ * Reschedule -> Pending/Confirmed is allowed by migration 027. A visit that is
+ * already in Reschedule needs only the one write.
+ */
+export function moveSteps(appointment, scheduledAt) {
+  const steps = [];
+  if (appointment.status !== "Reschedule") steps.push({ ...appointment, status: "Reschedule" });
+  steps.push({ ...appointment, scheduledAt, status: appointment.status });
+  return steps;
 }

@@ -96,7 +96,7 @@ export function Empty({ children }) {
 }
 
 /** One appointment line: when, who, where, and the action it is waiting on. */
-export function JobRow({ when, title, detail, action, first = false }) {
+export function JobRow({ when, title, detail, action, first = false, whenWidth = "66px" }) {
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: "0.7rem",
@@ -104,7 +104,7 @@ export function JobRow({ when, title, detail, action, first = false }) {
       borderTop: first ? "none" : "1px solid #f3eaea",
     }}>
       <span style={{
-        flex: "none", width: "66px", fontSize: "0.78rem", fontWeight: 500,
+        flex: "none", width: whenWidth, fontSize: "0.78rem", fontWeight: 500,
         color: colors.ink, fontVariantNumeric: "tabular-nums", paddingTop: "0.1rem",
       }}>{when}</span>
       <span style={{ flex: 1, minWidth: 0, display: "grid", gap: "0.1rem" }}>
@@ -155,7 +155,7 @@ export function RankedBars({ rows, format = (value) => value }) {
 
 const PIE_COLORS = ["#a52a25", "#b8794f", "#d6b48a", "#7f1111", "#c08a62", "#8b5e3c", "#d9c3a5"];
 
-export function PieChart({ rows, format = (value) => value }) {
+export function PieChart({ rows, format = (value) => value, centerLabel = "total", caption = null }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   if (total === 0) return <Empty>Nothing scheduled yet.</Empty>;
 
@@ -167,10 +167,14 @@ export function PieChart({ rows, format = (value) => value }) {
   });
 
   return (
+    <div style={{ display: "grid", gap: "0.75rem" }}>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.85fr) minmax(0, 1.15fr)", gap: "1rem", alignItems: "center" }}>
       <div style={{ width: "min(150px, 100%)", aspectRatio: "1", margin: "0 auto", borderRadius: "50%", background: `conic-gradient(${stops.join(", ")})`, position: "relative" }}>
         <div style={{ position: "absolute", inset: "27%", borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", textAlign: "center", color: colors.ink, fontSize: "0.8rem", fontWeight: 500, lineHeight: 1.1 }}>
-          {total}<span style={{ display: "block", color: colors.muted, fontSize: "0.62rem", fontWeight: 500 }}>total</span>
+          <span>
+            {total}
+            <span style={{ display: "block", color: colors.muted, fontSize: "0.62rem", fontWeight: 500 }}>{centerLabel}</span>
+          </span>
         </div>
       </div>
       <div style={{ display: "grid", gap: "0.5rem" }}>
@@ -185,6 +189,8 @@ export function PieChart({ rows, format = (value) => value }) {
         ))}
       </div>
     </div>
+    {caption && <p style={{ margin: 0, color: colors.muted, fontSize: "0.72rem" }}>{caption}</p>}
+    </div>
   );
 }
 
@@ -193,3 +199,18 @@ export const timeLabel = (value) =>
 
 export const dateLabel = (value) =>
   new Date(value).toLocaleDateString([], { month: "short", day: "numeric" });
+
+/**
+ * "Today · 9:00 AM", "Yesterday · 4:30 PM" or "Sep 24 · 9:00 AM". A list that
+ * can span days needs the day on every row, or two 9:00s look mis-sorted.
+ */
+export function whenLabel(value, now = new Date()) {
+  const date = new Date(value);
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((day - today) / 86400000);
+  const dayPart = diff === 0 ? "Today" : diff === -1 ? "Yesterday" : diff === 1 ? "Tomorrow" : dateLabel(value);
+  return `${dayPart} · ${timeLabel(value)}`;
+}

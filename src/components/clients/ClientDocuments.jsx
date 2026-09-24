@@ -263,13 +263,15 @@ function ClientDocuments({
     }
   };
 
-  const actionStyle = (background, color, disabled) => ({
+  // Quiet, loam-edged buttons: Preview and Download are everyday actions and
+  // shouldn't read as coloured calls to action (Download used to be light blue).
+  const actionStyle = (background, color, disabled, borderColor = "#c7bcaf") => ({
     display: "inline-flex",
     alignItems: "center",
     gap: "0.35rem",
     background,
     color,
-    border: "none",
+    border: `1px solid ${borderColor}`,
     borderRadius: "3.75px",
     padding: compact ? "0.35rem 0.5rem" : "0.5rem 0.7rem",
     fontSize: compact ? "0.7rem" : "inherit",
@@ -370,7 +372,7 @@ function ClientDocuments({
             type="button"
             onClick={() => handlePreview(document)}
             disabled={busy}
-            style={actionStyle("#efe9e0", colors.body, busy)}
+            style={actionStyle("#ffffff", colors.ink, busy)}
           >
             Preview
           </button>
@@ -378,7 +380,7 @@ function ClientDocuments({
             type="button"
             onClick={() => handleOpen(document, true)}
             disabled={busy}
-            style={actionStyle("#eef2ff", colors.body, busy)}
+            style={actionStyle("#ffffff", colors.ink, busy)}
           >
             Download
           </button>
@@ -388,7 +390,7 @@ function ClientDocuments({
               onClick={() => handleRemove(document)}
               disabled={busy}
               aria-label={`Delete ${document.name}`}
-              style={actionStyle("#fee2e2", "#9a2d24", busy)}
+              style={actionStyle("#f9ecea", "#9a2d24", busy, "rgba(154, 45, 36, 0.35)")}
             >
               <Trash2 size={compact ? 12 : 14} />
               {!compact && " Delete"}

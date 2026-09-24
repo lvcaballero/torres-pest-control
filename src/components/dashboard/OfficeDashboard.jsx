@@ -21,6 +21,7 @@ import { ROLES } from "../../utils/constants";
 import { dashboardNote, greetingFor } from "../../utils/greetings";
 import { crewOf, isAssignedTo } from "../../utils/scheduling";
 import { colors, pageShell } from "../../styles/theme";
+import { plural } from "../../utils/formatters";
 import {
   appointmentsToday,
   averageMaterialCost,
@@ -32,6 +33,8 @@ import {
   pesoCompact,
   recentlyCompleted,
   reorderExposure,
+  serviceMix,
+  signatureState,
   spendBySupplier,
   spendThisMonth,
   stockOnHandValue,
@@ -40,6 +43,18 @@ import {
 import {
   Chip, Empty, JobRow, Panel, PieChart, RankedBars, StatTile, TileRow, dateLabel,
 } from "./DashboardParts";
+
+/**
+ * The detail line under a recently completed visit. "Signed by" only when a
+ * signature image exists: a typed customer name is not a signature.
+ */
+export function recentDetail(appointment, crewNames) {
+  const who = crewNames.join(", ") || "Unassigned";
+  if (signatureState(appointment) === "Signed") {
+    return `${who} · signed${appointment.customerName ? ` by ${appointment.customerName}` : ""}`;
+  }
+  return `${who} · no customer signature`;
+}
 
 function OfficeDashboard() {
   const { currentUser } = useAuth();
@@ -99,18 +114,11 @@ function OfficeDashboard() {
     if (unassigned > 0) rows.push({ label: "Unassigned", value: unassigned });
     return rows.filter((row) => row.value > 0).sort((first, second) => second.value - first.value);
   }, [appointments, currentWeek, technicians]);
-  const serviceMix = useMemo(() => {
-    const counts = new Map();
-    appointments
-      .filter((appointment) => appointment.status !== "Cancelled"
-        && new Date(appointment.scheduledAt) >= currentWeek.start
-        && new Date(appointment.scheduledAt) < currentWeek.end)
-      .forEach((appointment) => {
-        const label = appointment.pestConcern || appointment.serviceType || "Unspecified";
-        counts.set(label, (counts.get(label) || 0) + 1);
-      });
-    return [...counts.entries()].map(([label, value]) => ({ label, value })).sort((first, second) => second.value - first.value);
-  }, [appointments, currentWeek]);
+  // By service as booked, not by pest concern: see serviceLabel.
+  const serviceRows = useMemo(
+    () => serviceMix(appointments, currentWeek).map(({ label, count }) => ({ label, value: count })),
+    [appointments, currentWeek]
+  );
   const completed = recentlyCompleted(appointments);
 
   const monthSpend = spendThisMonth(movements);
@@ -193,11 +201,19 @@ function OfficeDashboard() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
           <Panel title="Who's where this week">
-            <PieChart rows={workload} format={(value) => `${value} ${value === 1 ? "job" : "jobs"}`} />
+            {/* Counts crew slots, not visits: a two-person visit is in two
+                technicians' weeks. Said on screen, so this total is not read
+                against the visit count above. */}
+            <PieChart
+              rows={workload}
+              format={(value) => plural(value, "visit")}
+              centerLabel="assignments"
+              caption={`A visit with a crew counts once per technician, so this can exceed the ${plural(scheduleTotal, "visit")} above.`}
+            />
           </Panel>
 
           <Panel title="Services this week">
-            <PieChart rows={serviceMix} />
+            <PieChart rows={serviceRows} centerLabel="visits" />
           </Panel>
         </div>
 
@@ -250,7 +266,7 @@ function OfficeDashboard() {
                 when={`${item.quantity} ${item.unit || ""}`.trim()}
                 title={item.name}
                 detail={`Reorder level ${item.reorderLevel}${item.supplier ? ` · ${item.supplier}` : ""}`}
-                action={<Chip tone="attn">Low</Chip>}
+                action={<Chip tone="crit">Low</Chip>}
               />
             ))}
           </Panel>
@@ -265,10 +281,10 @@ function OfficeDashboard() {
                 first={index === 0}
                 when={dateLabel(appointment.reportSubmittedAt || appointment.scheduledAt)}
                 title={`${nameOf(appointment)} — ${appointment.pestConcern || "Service"}`}
-                detail={`${crewOf(appointment).map((id) => techName(id)).join(", ") || "Unassigned"}${appointment.customerName ? ` · signed by ${appointment.customerName}` : " · no signature on file"}`}
-                action={appointment.signaturePath
+                detail={recentDetail(appointment, crewOf(appointment).map((id) => techName(id)))}
+                action={signatureState(appointment) === "Signed"
                   ? <Chip tone="done">Signed</Chip>
-                  : <Chip tone="attn">Unsigned</Chip>}
+                  : <Chip tone="attn">No signature</Chip>}
               />
             ))}
           </Panel>

@@ -4,32 +4,24 @@
 // toolbar and a row of colour-swatch pills under the calendar. They could
 // disagree visually, they cost ~40px of vertical space between them, and the
 // legend explaining the colours lived nowhere near the control that used
-// them. Now the swatches are inside the filter, so the legend IS the control.
+// them. Technicians are identified by initials now, as they are on the
+// cards, so each option carries the same avatar the calendar shows.
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Users } from "lucide-react";
-import { neutral, radius, surface, text, weight } from "../../styles/tokens";
+import { brand, neutral, radius, surface, text, weight } from "../../styles/tokens";
 import Button from "../ui/Button";
+import Avatar from "../ui/Avatar";
 
 /** The value meaning "no filter". Unassigned-only is the empty string. */
 export const ALL_TECHNICIANS = "ALL";
 export const UNASSIGNED_ONLY = "";
 
-function Swatch({ color }) {
-  return (
-    <span
-      aria-hidden="true"
-      style={{ width: "10px", height: "10px", borderRadius: "2px", background: color, flex: "none" }}
-    />
-  );
-}
 
 function TechnicianFilter({
   technicians,
   value,
   onChange,
-  colorFor,
-  unassignedColor,
   countFor = () => null,
   disabled = false,
 }) {
@@ -63,14 +55,14 @@ function TechnicianFilter({
         : selected?.name || selected?.username || "Technician";
 
   const options = [
-    { key: ALL_TECHNICIANS, label: "All technicians", color: null },
+    { key: ALL_TECHNICIANS, label: "All technicians", person: undefined },
     ...technicians.map((account) => ({
       key: account.id,
       label: account.name || account.username,
-      color: colorFor(account.id)?.bar,
+      person: account,
       count: countFor(account.id),
     })),
-    { key: UNASSIGNED_ONLY, label: "Unassigned", color: unassignedColor?.bar, count: countFor(null) },
+    { key: UNASSIGNED_ONLY, label: "Unassigned", person: null, count: countFor(null) },
   ];
 
   const choose = (key) => {
@@ -90,8 +82,8 @@ function TechnicianFilter({
         style={{
           // An active filter is a state the user must be able to see at a
           // glance, or they will wonder where their appointments went.
-          borderColor: value === ALL_TECHNICIANS ? undefined : "#7f1111",
-          color: value === ALL_TECHNICIANS ? undefined : "#8b1e1e",
+          borderColor: value === ALL_TECHNICIANS ? undefined : brand.base,
+          color: value === ALL_TECHNICIANS ? undefined : brand.base,
         }}
       >
         {label}
@@ -141,7 +133,11 @@ function TechnicianFilter({
                   fontWeight: isSelected ? weight.medium : weight.regular,
                 }}
               >
-                {option.color ? <Swatch color={option.color} /> : <span style={{ width: "10px" }} />}
+                {option.person === undefined ? (
+                  <span style={{ width: "22px", flex: "none" }} />
+                ) : (
+                  <Avatar user={option.person} size="sm" />
+                )}
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {option.label}
                 </span>

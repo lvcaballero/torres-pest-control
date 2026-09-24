@@ -43,8 +43,6 @@ function SchedulingToolbar({
   technicians,
   technicianFilter,
   onTechnicianFilterChange,
-  colorFor,
-  unassignedColor,
   countFor,
   isTechnician,
   canCreate,
@@ -104,8 +102,6 @@ function SchedulingToolbar({
               technicians={technicians}
               value={technicianFilter}
               onChange={onTechnicianFilterChange}
-              colorFor={colorFor}
-              unassignedColor={unassignedColor}
               countFor={countFor}
             />
           )}

@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SchedulingToolbar, { MODES, isCalendarMode } from "../SchedulingToolbar";
-import { TECHNICIAN_PALETTE, UNASSIGNED_COLOR } from "../appointmentTheme";
 
 const technicians = [
   { id: "t1", name: "Karl Hameed" },
@@ -18,8 +17,6 @@ const base = {
   technicians,
   technicianFilter: "ALL",
   onTechnicianFilterChange: jest.fn(),
-  colorFor: () => TECHNICIAN_PALETTE[0],
-  unassignedColor: UNASSIGNED_COLOR,
   countFor: () => 3,
   isTechnician: false,
   canCreate: true,

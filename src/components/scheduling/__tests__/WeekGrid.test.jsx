@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WeekGrid from "../WeekGrid";
 import { CalendarProvider } from "../CalendarContext";
-import { TECHNICIAN_PALETTE } from "../appointmentTheme";
 import { layoutDayAppointments } from "../../../utils/scheduling";
 import { addDays, localDateKey, startOfWeek } from "../../../utils/calendarDates";
 
@@ -48,7 +47,6 @@ function renderGrid({ appointments = [], window = { startHour: 9, endHour: 15 },
   const calendar = {
     clients: [client],
     accounts: [technician],
-    colorFor: () => TECHNICIAN_PALETTE[0],
     selectedId: null,
     draggedId: null,
     canReschedule: true,

@@ -1,108 +1,55 @@
 import {
-  HATCH_IMAGE,
+  LEGEND_STATUSES,
   STATUS_COLORS,
-  TECHNICIAN_PALETTE,
-  UNASSIGNED_COLOR,
   badgeStyle,
   contentTier,
   statusAccent,
   statusVisual,
-  technicianColorMap,
 } from "../appointmentTheme";
+import { brand, status, surface } from "../../../styles/tokens";
 
 const ALL_STATUSES = ["Pending", "Scheduled", "Confirmed", "Reschedule", "Completed", "Cancelled"];
 
-describe("technicianColorMap", () => {
-  const techs = (count) => Array.from({ length: count }, (_, i) => ({ id: `t${i}` }));
-
-  it("assigns a distinct colour to each technician", () => {
-    const map = technicianColorMap(techs(3));
-
-    expect(new Set([...map.values()].map((c) => c.fill)).size).toBe(3);
-  });
-
-  it("wraps around once the palette runs out", () => {
-    const map = technicianColorMap(techs(8));
-
-    expect(map.get("t6")).toEqual(map.get("t0"));
-    expect(map.get("t7")).toEqual(map.get("t1"));
-  });
-
-  // Colour is keyed off list order so it stays stable between renders and
-  // across the week rather than shuffling when the list re-fetches.
-  it("is stable for the same list", () => {
-    expect(technicianColorMap(techs(4)).get("t2")).toEqual(technicianColorMap(techs(4)).get("t2"));
-  });
-
-  it("handles an empty technician list", () => {
-    expect(technicianColorMap([]).size).toBe(0);
-  });
-
-  it("keeps unassigned visually outside the technician palette", () => {
-    expect(TECHNICIAN_PALETTE.map((c) => c.fill)).not.toContain(UNASSIGNED_COLOR.fill);
-  });
-});
-
+// The handoff's rule: status is the only colour on the calendar. These pin
+// the five treatments the legend documents.
 describe("statusVisual", () => {
   it("covers every status the app can produce", () => {
     ALL_STATUSES.forEach((status) => {
-      expect(statusVisual(status)).toBeDefined();
+      expect(statusVisual(status).edge).toBeTruthy();
     });
   });
 
-  // The whole point of the rewrite: one 1px border style was not enough to
-  // tell these apart on a small card.
-  it("gives every non-default status more than one distinguishing cue", () => {
-    ["Pending", "Reschedule", "Completed", "Cancelled"].forEach((status) => {
-      const visual = statusVisual(status);
-      const cues = [
-        visual.glyph,
-        visual.hatch,
-        visual.strike,
-        visual.mutedText,
-        visual.railColor,
-        visual.borderWidth > 1,
-        visual.tint,
-      ].filter(Boolean);
+  it("edges a confirmed visit in maroon on white", () => {
+    expect(statusVisual("Confirmed")).toMatchObject({ edge: brand.base, fill: surface.panel, borderStyle: "solid" });
+  });
 
-      expect(cues.length).toBeGreaterThanOrEqual(2);
+  it("dashes a pending visit, which is not agreed yet", () => {
+    expect(statusVisual("Pending").borderStyle).toBe("dashed");
+  });
+
+  // Pending and Reschedule used to be indistinguishable.
+  it("fills a reschedule with amber so it differs from pending", () => {
+    const pending = statusVisual("Pending");
+    const reschedule = statusVisual("Reschedule");
+
+    expect(reschedule.fill).not.toBe(pending.fill);
+    expect(reschedule.borderStyle).not.toBe(pending.borderStyle);
+  });
+
+  it("fills a completed visit green", () => {
+    expect(statusVisual("Completed")).toMatchObject({ edge: status.success, fill: status.successSurface });
+  });
+
+  it("strikes a cancelled visit and drops its fill", () => {
+    expect(statusVisual("Cancelled")).toMatchObject({ strike: true, fill: "transparent", muted: true });
+  });
+
+  it("gives every legend status a distinct treatment", () => {
+    const keys = LEGEND_STATUSES.map((entry) => {
+      const visual = statusVisual(entry);
+      return `${visual.edge}|${visual.fill}|${visual.borderStyle}|${visual.strike}`;
     });
-  });
-
-  it("strikes through a cancelled visit and fades it", () => {
-    const visual = statusVisual("Cancelled");
-
-    expect(visual.strike).toBe(true);
-    expect(visual.opacity).toBeLessThan(1);
-  });
-
-  // `filter: saturate(0.55)` read as a rendering fault rather than as "done".
-  it("tints a completed visit rather than desaturating it", () => {
-    const visual = statusVisual("Completed");
-
-    expect(visual.tint).toBeTruthy();
-    expect(visual.opacity).toBe(1);
-    expect(visual.strike).toBe(false);
-  });
-
-  it("hatches a pending visit, which reads at any size", () => {
-    expect(statusVisual("Pending").hatch).toBe(true);
-    expect(HATCH_IMAGE).toMatch(/repeating-linear-gradient/);
-  });
-
-  it("gives a reschedule a heavier border and its own glyph", () => {
-    const visual = statusVisual("Reschedule");
-
-    expect(visual.borderWidth).toBe(2);
-    expect(visual.glyph).toBe("reschedule");
-  });
-
-  it("leaves the confirmed baseline showing the technician's own rail", () => {
-    const visual = statusVisual("Confirmed");
-
-    expect(visual.railColor).toBeNull();
-    expect(visual.glyph).toBeNull();
-    expect(visual.opacity).toBe(1);
+    expect(new Set(keys).size).toBe(LEGEND_STATUSES.length);
   });
 
   it("falls back to the baseline for an unknown status", () => {
@@ -121,7 +68,7 @@ describe("badgeStyle and statusAccent", () => {
 
   it("falls back rather than returning undefined for an unknown status", () => {
     expect(badgeStyle("Nonsense")).toEqual(badgeStyle("Pending"));
-    expect(statusAccent("Nonsense")).toBe(statusAccent("Pending"));
+    expect(statusAccent("Nonsense")).toBe(statusAccent("Confirmed"));
   });
 });
 

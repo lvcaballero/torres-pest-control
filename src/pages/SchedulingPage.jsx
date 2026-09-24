@@ -37,12 +37,8 @@ import {
   startOfWeek,
   toDateTimeLocal,
 } from "../utils/calendarDates";
-import {
-  UNASSIGNED_COLOR,
-  badgeStyle,
-  statusAccent,
-  technicianColorMap,
-} from "../components/scheduling/appointmentTheme";
+import { badgeStyle, statusAccent } from "../components/scheduling/appointmentTheme";
+import CalendarLegend from "../components/scheduling/CalendarLegend";
 import { CalendarProvider } from "../components/scheduling/CalendarContext";
 import WeekGrid from "../components/scheduling/WeekGrid";
 import MonthGrid from "../components/scheduling/MonthGrid";
@@ -147,10 +143,9 @@ function SchedulingPage() {
     () => [...staff, ...technicians].filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE),
     [staff, technicians]
   );
-  // Colour is keyed off the technician list order so it stays stable between
-  // renders and across the week.
-  const technicianColors = useMemo(() => technicianColorMap(technicians), [technicians]);
-  const colorFor = (appointment) => technicianColors.get(appointment.technicianId) || UNASSIGNED_COLOR;
+  // Every account, inactive included, for resolving names on visits already
+  // booked. Booking itself only offers `bookableTechnicians`.
+  const allAccounts = useMemo(() => [...staff, ...technicians], [staff, technicians]);
 
   useEffect(() => {
     setTreatmentMethods(selected?.treatmentMethods || []);
@@ -544,8 +539,7 @@ function SchedulingPage() {
   const calendarValue = useMemo(
     () => ({
       clients,
-      accounts: activeAccounts,
-      colorFor,
+      accounts: allAccounts,
       selectedId,
       draggedId,
       canReschedule,
@@ -568,7 +562,7 @@ function SchedulingPage() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clients, activeAccounts, technicianColors, selectedId, draggedId, canReschedule]
+    [clients, allAccounts, selectedId, draggedId, canReschedule]
   );
 
   const appointmentsOnDay = (dateKey) =>
@@ -607,8 +601,6 @@ function SchedulingPage() {
           technicians={technicians}
           technicianFilter={technicianFilter}
           onTechnicianFilterChange={setTechnicianFilter}
-          colorFor={(id) => technicianColors.get(id)}
-          unassignedColor={UNASSIGNED_COLOR}
           countFor={jobsThisWeek}
           isTechnician={isTechnician}
           canCreate={!isTechnician}
@@ -714,7 +706,22 @@ function SchedulingPage() {
             )}
           </CalendarProvider>
 
-          <div style={{ display: "flex", gap: "1rem", color: colors.muted, fontSize: "0.72rem", marginTop: "0.6rem", alignItems: "center" }}>{canReschedule ? <><GripVertical size={14} /> Drag any appointment to reschedule it. Dropping it saves the new time as Confirmed.</> : <><Lock size={14} /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.</>}</div>
+          {(mode === MODES.WEEK || mode === MODES.MONTH) && (
+            <div style={{ marginTop: "12px" }}>
+              <CalendarLegend
+                note={canReschedule ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <GripVertical size={14} aria-hidden="true" /> Drag a visit to move it. Its status is kept, and you can undo.
+                  </span>
+                ) : null}
+              />
+            </div>
+          )}
+          {!canReschedule && (
+            <div style={{ display: "flex", gap: "8px", color: colors.muted, fontSize: "12.5px", marginTop: "10px", alignItems: "center" }}>
+              <Lock size={14} aria-hidden="true" /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.
+            </div>
+          )}
           {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 500, fontSize: "0.82rem" }}>Loading appointments...</div>}
           {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 500, fontSize: "0.82rem" }}>{error || message}</div>}
           {clients.length === 0 && <div style={{ padding: "2rem 1rem", textAlign: "center", color: colors.muted }}>Client profiles will appear here once they are loaded.</div>}

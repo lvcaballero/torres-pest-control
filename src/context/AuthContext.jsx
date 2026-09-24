@@ -28,20 +28,24 @@ export function AuthProvider({ children }) {
     authService.saveSession(session);
   }, [session]);
 
+  // Keyed on the token alone: the effect itself merges the validated profile
+  // into `session`, so depending on the whole object would re-run it forever.
+  const sessionToken = session?.token;
+
   useEffect(() => {
     let active = true;
 
     async function verify() {
-      if (!session) {
+      if (!sessionToken) {
         setSupabaseSessionToken(null);
         setSessionVerified(true);
         return;
       }
 
-      setSupabaseSessionToken(session.token);
+      setSupabaseSessionToken(sessionToken);
 
       setSessionVerified(false);
-      const result = await authService.validateSession(session.token);
+      const result = await authService.validateSession(sessionToken);
       if (!active) return;
 
       if (result.error) {
@@ -59,8 +63,8 @@ export function AuthProvider({ children }) {
 
     // Poll session validity every 3 seconds for near-instant deactivation kickoff
     const intervalId = setInterval(async () => {
-      if (session?.token) {
-        const result = await authService.validateSession(session.token);
+      if (sessionToken) {
+        const result = await authService.validateSession(sessionToken);
         if (result.error && active) {
            setSession(null);
            setSupabaseSessionToken(null);
@@ -72,7 +76,7 @@ export function AuthProvider({ children }) {
       active = false;
       clearInterval(intervalId);
     };
-  }, [session?.token]);
+  }, [sessionToken]);
 
   const accounts = useMemo(
     () => [...admins, ...staff, ...technicians],

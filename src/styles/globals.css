@@ -830,3 +830,18 @@ a {
 
   .delivery-note-grid > .dn-label { margin-top: 0.35rem; }
 }
+
+/* The Today dashboard's two columns: the work queue beside the week chart
+   and recent visits, stacking below 1000px. */
+.today-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .today-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

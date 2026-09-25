@@ -29,6 +29,7 @@ const COLUMNS = `
 const MOVEMENT_COLUMNS = `
   id, item_id, amount, quantity_delta, movement_date, reference, actor, intake_branch_or_station, movement_type, appointment_id, unit_cost, total_cost, created_at,
   entered_amount, entered_unit, conversion_factor, stock_out_reason, technician_id, note,
+  batch_number, expiration_date,
   inventory ( name, unit, cost )
 `;
 
@@ -128,8 +129,10 @@ function buildPayload(item) {
   // Only send the block that matches the type, so switching type doesn't leave
   // stale values from another sub-type behind.
   if (item.type === "CHEMICAL") {
+    // expiration_date is no longer sent: since migration 048 it is recorded
+    // per delivery on Stock In. Leaving it out of the payload also means an
+    // edit never wipes a legacy date still stored on the item.
     payload.chemical_type = nullIfBlank(item.chemicalType);
-    payload.expiration_date = nullIfBlank(item.expirationDate);
     payload.safety_level = nullIfBlank(item.safetyLevel);
     payload.hazard_rating = nullIfBlank(item.hazardRating);
     payload.date_received = nullIfBlank(item.dateReceived);
@@ -269,6 +272,9 @@ export async function stockInBatch(entries, { date, reference, intakeBranchOrSta
       conversion_factor: entry.conversionFactor === undefined || entry.conversionFactor === null
         ? 1
         : Number(entry.conversionFactor),
+      // Chemicals only (migration 048); the server refuses them on anything else.
+      expiration_date: nullIfBlank(entry.expirationDate),
+      batch_number: nullIfBlank(entry.batchNumber?.trim()),
     })),
     p_movement_date: date,
     p_reference: nullIfBlank(reference),
@@ -295,6 +301,10 @@ export async function stockInBatch(entries, { date, reference, intakeBranchOrSta
       totalCost: Number(row.total_cost) || 0,
       createdAt: row.created_at,
       newQuantity: Number(row.new_quantity),
+      // stock_in_batch() does not return these (its RETURNS TABLE is 040's);
+      // they are what was sent for the line.
+      expirationDate: entries.find((entry) => entry.itemId === row.item_id)?.expirationDate || "",
+      batchNumber: entries.find((entry) => entry.itemId === row.item_id)?.batchNumber?.trim() || "",
     })),
   };
 }
@@ -366,6 +376,8 @@ function mapMovementRow(row) {
     stockOutReason: row.stock_out_reason || "",
     technicianId: row.technician_id || "",
     note: row.note || "",
+    batchNumber: row.batch_number || "",
+    expirationDate: row.expiration_date || "",
     quantityDelta: row.quantity_delta === null || row.quantity_delta === undefined ? (row.movement_type === "OUT" ? -Number(row.amount) : Number(row.amount)) : Number(row.quantity_delta),
     appointmentId: row.appointment_id || null,
     actor: row.actor || "—",

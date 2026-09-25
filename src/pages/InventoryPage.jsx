@@ -21,6 +21,7 @@ import { INVENTORY_STATUS } from "../services/inventoryService";
 import { ACCOUNT_STATUS, LIMITS, STOCK_OUT_REASONS, STOCK_OUT_REASON_LABELS } from "../utils/constants";
 import { todayISO, validateMoney, validateMovementDate, validateQuantity } from "../utils/validators";
 import { LOSS_REASONS, REASON_FILTERS, countByReason, describeLosses, filterByReason, reasonOf, recentLossesByItem, summarizeLosses } from "../utils/stockMovements";
+import { describeExpiry, expiringItems, expiryStatus, lotsOnHand, nearestExpiryOnHand } from "../utils/expiry";
 import {
   conversionFactor,
   convertAmount,
@@ -41,7 +42,6 @@ const CREATE_FORM_DEFAULTS = {
   storageLocation: "",
   reorderLevel: "",
   chemicalType: "INSECTICIDE",
-  expirationDate: "",
   safetyLevel: "",
   hazardRating: "",
   dateReceived: "",
@@ -111,6 +111,26 @@ const REASON_TONES = {
   APPOINTMENT: { background: "#f4f1ec", border: "1px solid #efe9e0", color: "#50463c" },
 };
 
+// Expired stock is a stop; expiring soon is a nudge to use it first.
+const EXPIRY_TONES = {
+  EXPIRED: REASON_TONES.DAMAGED,
+  SOON: REASON_TONES.MISSING,
+  OK: { background: "#eef2ec", border: "1px solid #a7f3d0", color: "#4a6b4a" },
+};
+
+function ExpiryBadge({ date, status }) {
+  if (!date || !status) return null;
+  return (
+    <span
+      title={`Nearest expiry on hand: ${new Date(`${date}T00:00:00`).toLocaleDateString()}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", borderRadius: "999px", padding: "0.1rem 0.5rem", fontSize: "0.68rem", fontWeight: 500, whiteSpace: "nowrap", ...EXPIRY_TONES[status] }}
+    >
+      {status !== "OK" && <AlertTriangle size={11} aria-hidden="true" />}
+      {describeExpiry(date)}
+    </span>
+  );
+}
+
 function ReasonBadge({ reason }) {
   if (!reason) return <span style={{ color: "#96897b" }}>—</span>;
   return (
@@ -143,8 +163,8 @@ const itemCell = (movement) => (
 
 const HISTORY_COLUMNS = {
   IN: {
-    template: "110px 1.2fr 110px 120px 110px 130px 1.1fr 1.1fr 1fr",
-    minWidth: "1120px",
+    template: "110px 1.2fr 110px 120px 130px 110px 130px 1.1fr 1.1fr 1fr",
+    minWidth: "1250px",
     columns: [
       { label: "Date", render: (m) => <span style={{ color: "#50463c" }}>{new Date(m.movementDate).toLocaleDateString()}</span> },
       { label: "Item Name", render: itemCell },
@@ -157,6 +177,20 @@ const HISTORY_COLUMNS = {
           <span style={{ color: "#50463c" }}>
             {m.enteredAmount !== null && m.enteredUnit ? `${m.enteredAmount} ${m.enteredUnit}` : "—"}
           </span>
+        ),
+      },
+      // Chemicals only (migration 048): what was printed on the containers.
+      {
+        label: "Lot / Expiry",
+        render: (m) => (
+          <div style={{ color: "#50463c", fontSize: "0.85rem" }}>
+            <div>{m.batchNumber || "—"}</div>
+            {m.expirationDate && (
+              <div style={{ color: "#96897b", fontSize: "0.76rem" }}>
+                Exp. {new Date(`${String(m.expirationDate).slice(0, 10)}T00:00:00`).toLocaleDateString()}
+              </div>
+            )}
+          </div>
         ),
       },
       { label: "Unit Cost", render: (m) => <span style={{ color: "#50463c" }}>{peso(m.unitCost)}</span> },
@@ -297,6 +331,8 @@ function InventoryPage() {
 
   // Missing/damaged per item over the last 30 days, for the list badge.
   const recentLosses = useMemo(() => recentLossesByItem(movements), [movements]);
+  // Chemicals whose nearest on-hand delivery is expired or within 30 days.
+  const expiring = useMemo(() => expiringItems(inventory, movements), [inventory, movements]);
 
   const uniqueBranches = useMemo(() => {
     const set = new Set();
@@ -433,7 +469,6 @@ function InventoryPage() {
       ...previous,
       type: newType,
       chemicalType: "INSECTICIDE",
-      expirationDate: "",
       safetyLevel: "",
       hazardRating: "",
       dateReceived: "",
@@ -465,7 +500,6 @@ function InventoryPage() {
 
     if (form.type === "CHEMICAL") {
       newItem.chemicalType = form.chemicalType;
-      newItem.expirationDate = form.expirationDate || null;
       newItem.safetyLevel = form.safetyLevel || null;
       newItem.hazardRating = form.hazardRating || null;
       newItem.dateReceived = form.dateReceived || null;
@@ -595,7 +629,10 @@ function InventoryPage() {
 
               {form.type === "CHEMICAL" && (
                 <div style={{ marginBottom: "1.5rem", borderBottom: "2px solid #f0f0f0", paddingBottom: "1rem" }}>
-                  <h3 style={{ color: "#211b15", marginBottom: "1rem" }}>Chemical Details</h3>
+                  <h3 style={{ color: "#211b15", marginBottom: "0.35rem" }}>Chemical Details</h3>
+                  <p style={{ margin: "0 0 1rem", color: "#96897b", fontSize: "0.78rem" }}>
+                    Expiration dates and lot numbers are recorded per delivery, on Stock In.
+                  </p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
                     <Field label="Chemical Type *">
                       <select name="chemicalType" value={form.chemicalType} onChange={handleChange} style={inputStyle} required>
@@ -606,9 +643,6 @@ function InventoryPage() {
                         <option value="FUMIGANT">Fumigant</option>
                         <option value="OTHER">Other</option>
                       </select>
-                    </Field>
-                    <Field label="Expiration Date">
-                      <input name="expirationDate" type="date" value={form.expirationDate} onChange={handleChange} style={inputStyle} />
                     </Field>
                     <Field label="Safety Level *">
                       <select name="safetyLevel" value={form.safetyLevel} onChange={handleChange} style={inputStyle} required>
@@ -842,6 +876,7 @@ function InventoryPage() {
                           {describeLosses(recentLosses.get(item.id))}
                         </span>
                       )}
+                      {expiring.has(item.id) && <ExpiryBadge {...expiring.get(item.id)} />}
                     </div>
                     <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", color: "#96897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.supplier || item.storageLocation || "Inventory item"}
@@ -1186,7 +1221,7 @@ function InventoryPage() {
         </div>
       )}
 
-      {selectedItem && <InventoryDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
+      {selectedItem && <InventoryDetailModal item={selectedItem} movements={movements} onClose={() => setSelectedItem(null)} />}
 
       {editItem && (
         <EditItemModal
@@ -1348,7 +1383,6 @@ function EditItemModal({ item, onClose, onSave }) {
     storageLocation: item.storageLocation || "",
     reorderLevel: item.reorderLevel ?? "",
     chemicalType: item.chemicalType || "INSECTICIDE",
-    expirationDate: item.expirationDate || "",
     safetyLevel: item.safetyLevel || "",
     hazardRating: item.hazardRating || "",
     dateReceived: item.dateReceived || "",
@@ -1434,7 +1468,6 @@ function EditItemModal({ item, onClose, onSave }) {
                   <option value="INSECTICIDE">Insecticide</option><option value="FUNGICIDE">Fungicide</option><option value="RODENTICIDE">Rodenticide</option><option value="HERBICIDE">Herbicide</option><option value="FUMIGANT">Fumigant</option><option value="OTHER">Other</option>
                 </select>
               </Field>
-              <Field label="Expiration Date"><input name="expirationDate" type="date" value={values.expirationDate} onChange={handleChange} style={inputStyle} /></Field>
               <Field label="Safety Level *">
                 <select name="safetyLevel" value={values.safetyLevel} onChange={handleChange} style={inputStyle} required>
                   <option value="">Select safety level</option>
@@ -1554,6 +1587,9 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       // gets exactly the old behaviour with no conversion applied.
       enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
       unitCost: item?.cost ?? "",
+      // Chemicals only: read off the containers in this delivery (migration 048).
+      batchNumber: "",
+      expirationDate: "",
     };
   };
 
@@ -1582,6 +1618,8 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       itemId,
       enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
       unitCost: item?.cost ?? "",
+      batchNumber: "",
+      expirationDate: "",
     });
   };
 
@@ -1637,6 +1675,11 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
         setValidationError(limitError);
         return;
       }
+      const isChemical = item.type === "CHEMICAL";
+      if (isChemical && row.expirationDate && row.expirationDate < date) {
+        setValidationError(`The expiration date for ${item.name} is before the delivery date.`);
+        return;
+      }
       const converted = normalizeUnit(row.enteredUnit) !== normalizeUnit(item.unit)
         && Boolean(normalizeUnit(row.enteredUnit))
         && Boolean(normalizeUnit(item.unit));
@@ -1647,6 +1690,8 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
         enteredAmount: converted ? Number(row.amount) : null,
         enteredUnit: converted ? row.enteredUnit : null,
         conversionFactor: converted ? conversionFactor(row.enteredUnit, item.unit) : 1,
+        expirationDate: isChemical ? row.expirationDate || null : null,
+        batchNumber: isChemical ? row.batchNumber.trim() || null : null,
       });
     }
 
@@ -1805,6 +1850,30 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
                   )}
                 </div>
 
+                {item?.type === "CHEMICAL" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.45rem" }}>
+                    <Field label="Lot / batch no.">
+                      <input
+                        aria-label="Lot number"
+                        value={row.batchNumber}
+                        maxLength={LIMITS.SHORT_TEXT_MAX}
+                        onChange={(event) => updateRow(row.key, { batchNumber: event.target.value })}
+                        style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                        placeholder="e.g. L25-0142"
+                      />
+                    </Field>
+                    <Field label="Expiration date">
+                      <input
+                        aria-label="Expiration date"
+                        type="date"
+                        min={date || undefined}
+                        value={row.expirationDate}
+                        onChange={(event) => updateRow(row.key, { expirationDate: event.target.value })}
+                        style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                      />
+                    </Field>
+                  </div>
+                )}
                 {conversionNote && (
                   <div style={{ color: "#4a6b4a", fontSize: "0.74rem" }}>
                     Converted: <strong>{conversionNote}</strong> — stock moves by the {item.unit} figure.
@@ -2077,7 +2146,9 @@ function ModalShell({ title, subtitle, onClose, children, maxWidth = "28rem" }) 
   );
 }
 
-function InventoryDetailModal({ item, onClose }) {
+function InventoryDetailModal({ item, movements = [], onClose }) {
+  const nearestExpiry = item.type === "CHEMICAL" ? nearestExpiryOnHand(item, movements) : null;
+  const onHand = item.type === "CHEMICAL" ? lotsOnHand(item, movements) : { lots: [], unaccounted: 0 };
   const typeLabel = item.type === "CHEMICAL" ? "Chemical" : item.type === "EQUIPMENT" ? "Equipment" : "Material";
 
   return (
@@ -2106,11 +2177,51 @@ function InventoryDetailModal({ item, onClose }) {
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <DetailRow label="Chemical Type" value={item.chemicalType} />
-            {item.expirationDate && <DetailRow label="Expiration Date" value={new Date(item.expirationDate).toLocaleDateString()} />}
+            <div>
+              <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "#50463c", marginBottom: "0.25rem" }}>Nearest Expiry on Hand</div>
+              {nearestExpiry ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap", color: "#211b15" }}>
+                  {new Date(`${nearestExpiry.date}T00:00:00`).toLocaleDateString()}
+                  <ExpiryBadge date={nearestExpiry.date} status={expiryStatus(nearestExpiry.date)} />
+                </div>
+              ) : (
+                <div style={{ color: "#96897b" }}>—</div>
+              )}
+              {nearestExpiry?.legacy && (
+                <div style={{ color: "#96897b", fontSize: "0.72rem", marginTop: "0.2rem" }}>Entered on the item before per-delivery tracking.</div>
+              )}
+            </div>
             {item.safetyLevel && <DetailRow label="Safety Level" value={item.safetyLevel} />}
               {item.hazardRating && <DetailRow label="Hazard Note" value={item.hazardRating} />}
             {item.dateReceived && <DetailRow label="Date Received" value={new Date(item.dateReceived).toLocaleDateString()} />}
           </div>
+          {onHand.lots.length > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "#50463c", marginBottom: "0.4rem" }}>Deliveries on hand</div>
+              <div style={{ border: "1px solid #efe9e0", borderRadius: "3.75px", overflowX: "auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 0.8fr", gap: "0.5rem", padding: "0.45rem 0.6rem", background: "#f4f1ec", fontSize: "0.72rem", fontWeight: 500, color: "#50463c", minWidth: "380px" }}>
+                  <span>Received</span><span>Lot</span><span>Expires</span><span style={{ textAlign: "right" }}>On hand</span>
+                </div>
+                {onHand.lots.map((lot) => {
+                  const status = lot.expirationDate ? expiryStatus(lot.expirationDate) : "";
+                  return (
+                    <div key={lot.movementId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 0.8fr", gap: "0.5rem", padding: "0.45rem 0.6rem", borderTop: "1px solid #efe9e0", fontSize: "0.8rem", color: "#211b15", minWidth: "380px" }}>
+                      <span>{new Date(`${lot.receivedOn}T00:00:00`).toLocaleDateString()}</span>
+                      <span style={{ overflowWrap: "anywhere" }}>{lot.batchNumber || "—"}</span>
+                      <span style={{ color: status === "EXPIRED" ? "#9a2d24" : status === "SOON" ? "#b45309" : "#211b15" }}>
+                        {lot.expirationDate ? new Date(`${lot.expirationDate}T00:00:00`).toLocaleDateString() : "—"}
+                      </span>
+                      <span style={{ textAlign: "right" }}>{lot.quantity} {item.unit}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ color: "#96897b", fontSize: "0.72rem", marginTop: "0.35rem" }}>
+                Estimated assuming the oldest stock is used first.
+                {onHand.unaccounted > 0 && ` ${onHand.unaccounted} ${item.unit} is not linked to a recorded delivery.`}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

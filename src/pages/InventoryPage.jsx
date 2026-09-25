@@ -493,7 +493,7 @@ function InventoryPage() {
 
     if (form.type === "CHEMICAL") {
       newItem.chemicalType = form.chemicalType;
-      newItem.expirationDate = form.expirationDate || null;
+      // No expiry here: it is printed on each delivery, so Stock In sets it.
       newItem.safetyLevel = form.safetyLevel || null;
       newItem.hazardRating = form.hazardRating || null;
       newItem.dateReceived = form.dateReceived || null;
@@ -616,9 +616,6 @@ function InventoryPage() {
                         <option value="FUMIGANT">Fumigant</option>
                         <option value="OTHER">Other</option>
                       </select>
-                    </Field>
-                    <Field label="Expiration Date">
-                      <input name="expirationDate" type="date" value={form.expirationDate} onChange={handleChange} style={inputStyle} />
                     </Field>
                     <Field label="Safety Level *">
                       <select name="safetyLevel" value={form.safetyLevel} onChange={handleChange} style={inputStyle} required>
@@ -1525,6 +1522,24 @@ function DeliveryNoteHeader({ fields }) {
   );
 }
 
+const EXPIRY_WARNING_DAYS = 30;
+
+/**
+ * The line under a Stock In expiry field: what happens to the item's date, or
+ * a warning when this delivery is already close to expiring.
+ */
+export function expiryHint(expiry, deliveryDate, currentExpiry) {
+  if (!expiry) {
+    return currentExpiry
+      ? `Printed on the container. Leave blank to keep ${formatDate(currentExpiry)}.`
+      : "Printed on the container.";
+  }
+  const days = Math.round((new Date(`${expiry}T00:00:00`) - new Date(`${deliveryDate || todayISO()}T00:00:00`)) / 86400000);
+  if (days < 0) return "Before the delivery date: this stock has already expired.";
+  if (days <= EXPIRY_WARNING_DAYS) return `Expires ${days === 0 ? "on the delivery date" : `${days} day${days === 1 ? "" : "s"} after delivery`}.`;
+  return "Replaces the item's expiry date.";
+}
+
 export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSubmit }) {
   const stockableItems = useMemo(
     () => inventory.filter((item) => item.status !== INVENTORY_STATUS.DISABLED),
@@ -1542,6 +1557,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       // gets exactly the old behaviour with no conversion applied.
       enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
       unitCost: item?.cost ?? "",
+      expirationDate: "",
     };
   };
 
@@ -1570,6 +1586,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
       itemId,
       enteredUnit: item ? normalizeUnit(item.unit) || item.unit : "",
       unitCost: item?.cost ?? "",
+      expirationDate: "",
     });
   };
 
@@ -1625,6 +1642,11 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
         setValidationError(limitError);
         return;
       }
+      const expiry = item.type === "CHEMICAL" ? row.expirationDate : "";
+      if (expiry && expiry < date) {
+        setValidationError(`${item.name} has already expired: its expiry date is before the delivery date.`);
+        return;
+      }
       const converted = normalizeUnit(row.enteredUnit) !== normalizeUnit(item.unit)
         && Boolean(normalizeUnit(row.enteredUnit))
         && Boolean(normalizeUnit(item.unit));
@@ -1635,6 +1657,7 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
         enteredAmount: converted ? Number(row.amount) : null,
         enteredUnit: converted ? row.enteredUnit : null,
         conversionFactor: converted ? conversionFactor(row.enteredUnit, item.unit) : 1,
+        expirationDate: expiry || null,
       });
     }
 
@@ -1792,6 +1815,24 @@ export function BulkStockInModal({ inventory, initialItemId = "", onClose, onSub
                     </button>
                   )}
                 </div>
+
+                {item?.type === "CHEMICAL" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 12rem)", gap: "0.45rem" }}>
+                    <Field
+                      label="Expiry date"
+                      hint={expiryHint(row.expirationDate, date, item.expirationDate)}
+                    >
+                      <input
+                        aria-label="Expiry date"
+                        type="date"
+                        min={date || undefined}
+                        value={row.expirationDate}
+                        onChange={(event) => updateRow(row.key, { expirationDate: event.target.value })}
+                        style={{ ...inputStyle, padding: "0.6rem 0.55rem", fontSize: "0.82rem" }}
+                      />
+                    </Field>
+                  </div>
+                )}
 
                 {conversionNote && (
                   <div style={{ color: "#4a6b4a", fontSize: "0.74rem" }}>

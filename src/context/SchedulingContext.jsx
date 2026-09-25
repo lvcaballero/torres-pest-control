@@ -93,6 +93,16 @@ export function SchedulingProvider({ children }) {
     return result.report;
   }, []);
 
+  // A technician starting a visit on site: status In progress, started_at set.
+  const startVisit = useCallback(async (appointmentId) => {
+    const result = await appointmentService.startVisit(appointmentId);
+    if (result.error) return result.error;
+    setAppointments((current) => current.map((entry) => entry.id === appointmentId
+      ? { ...entry, status: result.status, startedAt: result.startedAt }
+      : entry));
+    return true;
+  }, []);
+
   const addAttachment = useCallback(async (appointmentId, file, category) => {
     const result = await appointmentService.uploadAttachment(appointmentId, file, category);
     if (result.error) return result.error;
@@ -118,8 +128,8 @@ export function SchedulingProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ appointments, loading, error, refresh, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl: appointmentService.getAttachmentUrl, uploadSignature: appointmentService.uploadSignature, getSignatureUrl: appointmentService.getSignatureUrl }),
-    [appointments, loading, error, refresh, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment]
+    () => ({ appointments, loading, error, refresh, createAppointment, updateAppointment, startVisit, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl: appointmentService.getAttachmentUrl, uploadSignature: appointmentService.uploadSignature, getSignatureUrl: appointmentService.getSignatureUrl }),
+    [appointments, loading, error, refresh, createAppointment, updateAppointment, startVisit, submitReport, addStockUsed, addAttachment, removeAttachment]
   );
   return <SchedulingContext.Provider value={value}>{children}</SchedulingContext.Provider>;
 }

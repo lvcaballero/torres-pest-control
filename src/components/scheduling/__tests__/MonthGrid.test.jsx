@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import MonthGrid from "../MonthGrid";
 import { CalendarProvider } from "../CalendarContext";
-import { TECHNICIAN_PALETTE } from "../appointmentTheme";
 import { localDateKey } from "../../../utils/calendarDates";
 
 const ANCHOR = new Date(2026, 8, 15); // September 2026
@@ -25,7 +24,6 @@ function renderMonth({ onDropAt = jest.fn(), appointments = [appointment] } = {}
       value={{
         clients: [client],
         accounts: [{ id: "t1", name: "Karl Hameed" }],
-        colorFor: () => TECHNICIAN_PALETTE[0],
         selectedId: null,
         draggedId: null,
         canReschedule: true,

@@ -7,7 +7,7 @@ const ATTACHMENT_BUCKET = "report-attachments";
 const ATTACHMENT_COLUMNS = "id, appointment_id, name, mime_type, size_bytes, storage_path, category, uploaded_at";
 const SIGNED_URL_TTL_SECONDS = 60;
 
-const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, service_frequency, price, service_id, created_at, updated_at";
+const APPOINTMENT_COLUMNS = "id, client_id, scheduled_at, duration_minutes, pest_concern, service_type, service_location, cancellation_reason, technician_id, status, notes, created_by, service_frequency, price, service_id, started_at, created_at, updated_at";
 const REPORT_COLUMNS = "appointment_id, findings, treatment_performed, recommendations, follow_up_date, submitted_by, submitted_at, customer_name, signature_path, signed_at, completion_note, technician_signature_path, technician_signed_at, treatment_methods";
 
 function describeError(error) {
@@ -36,6 +36,8 @@ export function mapAppointmentRow(row, report = null) {
       ? row.technicianIds
       : (row.technician_id ? [row.technician_id] : []),
     status: row.status,
+    // When a technician started the visit on site (migration 048).
+    startedAt: row.started_at || "",
     notes: row.notes || "",
     serviceFrequency: row.service_frequency || "",
     price: row.price === null || row.price === undefined ? "" : Number(row.price),
@@ -59,9 +61,22 @@ export function mapAppointmentRow(row, report = null) {
   };
 }
 
+// Before migration 048 there is no started_at column, and PostgREST refuses a
+// select naming a column that doesn't exist. Rather than blank the whole
+// schedule when the app is deployed ahead of the migration, retry without it.
+const PRE_048_COLUMNS = APPOINTMENT_COLUMNS.replace("started_at, ", "");
+
+async function selectAppointments() {
+  const result = await supabase.from("appointments").select(APPOINTMENT_COLUMNS).order("scheduled_at", { ascending: true });
+  if (result.error && /started_at/.test(`${result.error.message || ""} ${result.error.details || ""}`)) {
+    return supabase.from("appointments").select(PRE_048_COLUMNS).order("scheduled_at", { ascending: true });
+  }
+  return result;
+}
+
 export async function fetchAppointments() {
   const [appointmentsResult, reportsResult, stockResult, attachmentsResult, crewResult] = await Promise.all([
-    supabase.from("appointments").select(APPOINTMENT_COLUMNS).order("scheduled_at", { ascending: true }),
+    selectAppointments(),
     supabase.from("appointment_reports").select(REPORT_COLUMNS),
     supabase.from("inventory_movements").select("item_id, appointment_id, amount, movement_date, batch_number, inventory(name, unit)").eq("movement_type", "OUT").not("appointment_id", "is", null),
     supabase.from("appointment_report_attachments").select(ATTACHMENT_COLUMNS).order("uploaded_at", { ascending: false }),
@@ -194,6 +209,14 @@ export async function getSignatureUrl(storagePath) {
     .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
   if (error) return { error: describeError(error) };
   return { url: data.signedUrl };
+}
+
+/** Mark a visit In progress (migration 048's start_visit). */
+export async function startVisit(appointmentId) {
+  const { data, error } = await supabase.rpc("start_visit", { p_appointment_id: appointmentId });
+  if (error) return { error: describeError(error) };
+  const row = Array.isArray(data) ? data[0] : data;
+  return { status: row?.status || "In progress", startedAt: row?.started_at || new Date().toISOString() };
 }
 
 export async function submitReport(appointmentId, { findings, treatmentPerformed, treatmentMethods, recommendations, followUpDate, customerName, signaturePath, completionNote, technicianSignaturePath }) {

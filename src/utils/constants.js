@@ -117,18 +117,27 @@ export const APPOINTMENT_STATUSES = [
   "Pending",
   "Confirmed",
   "Reschedule",
+  "In progress",
   "Completed",
   "Cancelled",
 ];
+
+/** Set only by start_visit() (migration 048), never picked from a status select. */
+export const IN_PROGRESS = "In progress";
 
 // Follows the appointments_enforce_status_transition trigger in
 // supabase/migrations/027-appointment-integrity.sql, except that the UI no
 // longer offers "Scheduled" (the trigger still allows it). Completed is final
 // and Cancelled only reopens as Reschedule; keep both in sync.
+//
+// "In progress" (migration 048) is entered only through start_visit(), when a
+// technician starts the visit on site, so no status offers it as a target.
+// From it the office can still confirm, reschedule, complete or cancel.
 export const APPOINTMENT_STATUS_TRANSITIONS = {
   Pending: ["Confirmed", "Reschedule", "Completed", "Cancelled"],
   Confirmed: ["Pending", "Reschedule", "Completed", "Cancelled"],
   Reschedule: ["Pending", "Confirmed", "Completed", "Cancelled"],
+  "In progress": ["Confirmed", "Reschedule", "Completed", "Cancelled"],
   Completed: [],
   Cancelled: ["Reschedule"],
   // Retired: "Scheduled" can no longer be chosen. The database still accepts it,

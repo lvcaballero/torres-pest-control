@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AppointmentCard from "../AppointmentCard";
 import { CalendarProvider } from "../CalendarContext";
-import { TECHNICIAN_PALETTE, UNASSIGNED_COLOR } from "../appointmentTheme";
 
 const client = { id: "c1", name: "Clizfel Testaclizfel", address: "12 Mabini St" };
 const technician = { id: "t1", name: "Karl Hameed" };
@@ -21,7 +20,6 @@ function renderCard({ value = {}, ...props } = {}) {
   const calendar = {
     clients: [client],
     accounts: [technician],
-    colorFor: () => TECHNICIAN_PALETTE[0],
     selectedId: null,
     draggedId: null,
     canReschedule: true,
@@ -47,7 +45,6 @@ describe("AppointmentCard", () => {
         value={{
           clients: [],
           accounts: [],
-          colorFor: () => UNASSIGNED_COLOR,
           selectedId: null,
           draggedId: null,
           canReschedule: true,
@@ -78,17 +75,20 @@ describe("AppointmentCard", () => {
   });
 
   describe("content tiers", () => {
-    it("shows technician and pest concern only when there is room", () => {
+    // Technicians are initials now, never a colour; the full name is the
+    // avatar's accessible label.
+    it("shows the crew's initials and the pest concern only when there is room", () => {
       renderCard({ height: 90 });
 
-      expect(screen.getByText(/Karl Hameed/)).toBeInTheDocument();
+      expect(screen.getByText("KH")).toBeInTheDocument();
+      expect(screen.getByLabelText("Karl Hameed")).toBeInTheDocument();
       expect(screen.getByText(/Termites/)).toBeInTheDocument();
     });
 
     it("drops the technician line at medium height", () => {
       renderCard({ height: 60 });
 
-      expect(screen.queryByText(/Karl Hameed/)).not.toBeInTheDocument();
+      expect(screen.queryByText("KH")).not.toBeInTheDocument();
       expect(screen.getByText(/9:00/)).toBeInTheDocument();
     });
 
@@ -122,7 +122,6 @@ describe("AppointmentCard", () => {
           value={{
             clients: [client],
             accounts: [technician],
-            colorFor: () => TECHNICIAN_PALETTE[0],
             selectedId: null,
             draggedId: null,
             canReschedule: true,
@@ -198,5 +197,59 @@ describe("AppointmentCard", () => {
     );
 
     spy.mockRestore();
+  });
+
+  describe("status edge", () => {
+    it.each([
+      ["Confirmed", "solid"],
+      ["Pending", "dashed"],
+      ["Completed", "solid"],
+    ])("draws %s with its own left edge and a %s border", (status, borderStyle) => {
+      render(
+        <CalendarProvider
+          value={{
+            clients: [client],
+            accounts: [technician],
+            selectedId: null,
+            draggedId: null,
+            canReschedule: true,
+            onSelect: jest.fn(),
+            onDragStart: jest.fn(),
+            onDragEnd: jest.fn(),
+          }}
+        >
+          <AppointmentCard appointment={{ ...appointment, status }} height={60} />
+        </CalendarProvider>
+      );
+
+      const card = screen.getByRole("button");
+      expect(card).toHaveStyle({ borderLeftWidth: "3px", borderStyle });
+      expect(card.style.borderLeftColor).not.toBe("");
+    });
+
+    // A cancelled or finished visit has nowhere to be moved to.
+    it("can drag a live visit but not a cancelled one", () => {
+      const { unmount } = renderCard({ height: 60 });
+      expect(screen.getByRole("button")).toHaveAttribute("draggable", "true");
+      unmount();
+
+      render(
+        <CalendarProvider
+          value={{
+            clients: [client],
+            accounts: [technician],
+            selectedId: null,
+            draggedId: null,
+            canReschedule: true,
+            onSelect: jest.fn(),
+            onDragStart: jest.fn(),
+            onDragEnd: jest.fn(),
+          }}
+        >
+          <AppointmentCard appointment={{ ...appointment, status: "Cancelled" }} height={60} />
+        </CalendarProvider>
+      );
+      expect(screen.getByRole("button")).toHaveAttribute("draggable", "false");
+    });
   });
 });

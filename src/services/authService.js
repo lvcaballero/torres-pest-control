@@ -8,18 +8,10 @@ import { supabase } from "./supabaseClient";
 import { STORAGE_KEYS } from "../utils/constants";
 
 function describeLoginError(error) {
-  if (!error) return "Login service is unavailable.";
-  // Show the real error so we can diagnose connection / schema issues.
-  const detail = [
-    error.message || "Unknown error",
-    error.code ? ` [code: ${error.code}]` : "",
-    error.details ? ` — ${error.details}` : "",
-    error.hint ? ` (hint: ${error.hint})` : "",
-  ].join("");
-  if (error.code === "PGRST202" || error.code === "42883") {
-    return `check_login not found: ${detail}. Run supabase/schema-v2.sql in Supabase SQL Editor.`;
-  }
-  return detail || "Login service is unavailable.";
+  // The full error goes to the console for whoever is debugging; the person
+  // at the sign-in form gets a message that names no table, code or file.
+  if (error) console.error("check_login failed:", error);
+  return "Can't reach the sign-in service. Try again in a moment, or contact your administrator.";
 }
 
 async function checkLogin(email, password) {
@@ -57,17 +49,14 @@ async function checkLogin(email, password) {
 export async function login(email, password) {
   const { data, error } = await checkLogin(email, password);
 
-  if (error) {
-    console.error("Login error:", error);
-    return { error: describeLoginError(error) };
-  }
+  if (error) return { error: describeLoginError(error) };
 
   const match = (data || [])[0];
   if (!match) return { error: "Invalid email or password." };
   if (!match.token) {
-    return {
-      error: "The database is using the old login function. Apply schema-v2.sql and migration 008, then try again.",
-    };
+    // An old check_login() that issues no session token (pre migration 008).
+    console.error("check_login returned no session token; apply schema-v2.sql and migration 008.");
+    return { error: describeLoginError(null) };
   }
 
   return {
@@ -118,20 +107,33 @@ export async function logout(token) {
   await supabase.rpc("logout", { session_token: token });
 }
 
+/**
+ * The session lives in localStorage when the user ticked "keep me signed
+ * in", and in sessionStorage otherwise — so on a shared PC it dies with the
+ * browser window. Reading checks both.
+ */
 export function loadSession() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.SESSION);
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
+  for (const store of [localStorage, sessionStorage]) {
+    try {
+      const saved = store.getItem(STORAGE_KEYS.SESSION);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Unreadable or blocked storage: try the next one.
+    }
   }
+  return null;
 }
 
 export function saveSession(session) {
-  if (session) {
-    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-  } else {
+  try {
     localStorage.removeItem(STORAGE_KEYS.SESSION);
+    sessionStorage.removeItem(STORAGE_KEYS.SESSION);
+    if (session) {
+      const store = session.remember === false ? sessionStorage : localStorage;
+      store.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+    }
+  } catch {
+    // Storage blocked (private mode): the session lasts for this page only.
   }
 }
 

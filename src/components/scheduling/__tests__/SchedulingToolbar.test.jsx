@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SchedulingToolbar, { MODES, isCalendarMode } from "../SchedulingToolbar";
-import { TECHNICIAN_PALETTE, UNASSIGNED_COLOR } from "../appointmentTheme";
 
 const technicians = [
   { id: "t1", name: "Karl Hameed" },
@@ -18,12 +17,8 @@ const base = {
   technicians,
   technicianFilter: "ALL",
   onTechnicianFilterChange: jest.fn(),
-  colorFor: () => TECHNICIAN_PALETTE[0],
-  unassignedColor: UNASSIGNED_COLOR,
   countFor: () => 3,
   isTechnician: false,
-  canCreate: true,
-  onCreate: jest.fn(),
 };
 
 const renderToolbar = (props = {}) => {
@@ -35,8 +30,8 @@ describe("isCalendarMode", () => {
   it("treats week and month as calendar modes", () => {
     expect(isCalendarMode(MODES.WEEK)).toBe(true);
     expect(isCalendarMode(MODES.MONTH)).toBe(true);
+    expect(isCalendarMode(MODES.DAY)).toBe(true);
     expect(isCalendarMode(MODES.LIST)).toBe(false);
-    expect(isCalendarMode(MODES.TECHNICIANS)).toBe(false);
   });
 });
 
@@ -44,13 +39,11 @@ describe("SchedulingToolbar", () => {
   // The merge that removed a whole control: `view` (week/month) and
   // `scheduleTab` (calendar/list/technicians) were two segmented controls
   // for what is really one choice.
-  it("offers all four views in a single control", () => {
+  it("offers Day, Week, Month and List in a single control", () => {
     renderToolbar();
 
     const group = screen.getByRole("radiogroup", { name: "Scheduling view" });
-    ["Week", "Month", "List", "Technicians"].forEach((label) => {
-      expect(screen.getByRole("radio", { name: new RegExp(label) })).toBeInTheDocument();
-    });
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Day", "Week", "Month", "List"]);
     expect(group).toBeInTheDocument();
   });
 
@@ -148,7 +141,7 @@ describe("SchedulingToolbar", () => {
     it("names the active filter on the trigger, so a filtered week is obvious", () => {
       renderToolbar({ technicianFilter: "t1" });
 
-      expect(screen.getByRole("button", { name: /Karl Hameed/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Karl Hameed", expanded: false })).toBeInTheDocument();
     });
 
     it("closes on Escape", async () => {
@@ -161,19 +154,37 @@ describe("SchedulingToolbar", () => {
     });
   });
 
-  describe("create", () => {
-    it("offers the action next to the calendar it acts on", async () => {
+  describe("technician chips", () => {
+    it("shows each technician by initials and first name, plus Unassigned", () => {
       renderToolbar();
 
-      await userEvent.click(screen.getByRole("button", { name: /New appointment/ }));
-
-      expect(base.onCreate).toHaveBeenCalledTimes(1);
+      const chips = screen.getByRole("group", { name: "Filter by technician" });
+      expect(chips).toHaveTextContent("KH");
+      expect(chips).toHaveTextContent("Karl");
+      expect(screen.getByRole("button", { name: /^Unassigned, 3 visits/ })).toBeInTheDocument();
     });
 
-    it("hides it from someone who may not create", () => {
-      renderToolbar({ canCreate: false });
+    it("filters to a technician and clears when clicked again", async () => {
+      renderToolbar();
+      await userEvent.click(screen.getByRole("button", { name: /^Karl Hameed, 3 visits/ }));
+      expect(base.onTechnicianFilterChange).toHaveBeenLastCalledWith("t1");
 
-      expect(screen.queryByRole("button", { name: /New appointment/ })).not.toBeInTheDocument();
+      renderToolbar({ technicianFilter: "t2" });
+      await userEvent.click(screen.getAllByRole("button", { name: /^Bruce Banner, 3 visits/ }).at(-1));
+      expect(base.onTechnicianFilterChange).toHaveBeenLastCalledWith("ALL");
     });
+
+    it("marks the selected chip", () => {
+      renderToolbar({ technicianFilter: "" });
+
+      expect(screen.getByRole("button", { name: /^Unassigned, 3 visits/ })).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
+  // The top bar's New visit is the page's one primary action now.
+  it("carries no create button of its own", () => {
+    renderToolbar();
+
+    expect(screen.queryByRole("button", { name: /New appointment/ })).not.toBeInTheDocument();
   });
 });

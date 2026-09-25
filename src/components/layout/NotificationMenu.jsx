@@ -1,7 +1,7 @@
 // The bell and its dropdown.
 
 import { Bell } from "lucide-react";
-import { neutral, radius, status, surface, text, weight } from "../../styles/tokens";
+import { brand, neutral, radius, surface, text, weight } from "../../styles/tokens";
 import { formatDateTime } from "../../utils/formatters";
 import Button from "../ui/Button";
 
@@ -24,13 +24,14 @@ function NotificationMenu({ notifications, unreadCount, open, onToggle, onOpenNo
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
       <Button
         size="icon"
+        variant="quiet"
         onClick={onToggle}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-        style={{ position: "relative", borderRadius: radius.pill, padding: "8px" }}
+        style={{ position: "relative", borderColor: "#e6dfd3", color: neutral.saddle }}
       >
-        <Bell size={16} strokeWidth={1.75} />
+        <Bell size={16} strokeWidth={1.6} />
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
@@ -42,7 +43,7 @@ function NotificationMenu({ notifications, unreadCount, open, onToggle, onOpenNo
               height: "16px",
               padding: "0 4px",
               borderRadius: radius.pill,
-              background: status.danger,
+              background: brand.base,
               color: surface.canvas,
               fontSize: "10px",
               fontWeight: weight.medium,

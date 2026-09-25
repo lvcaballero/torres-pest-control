@@ -1,12 +1,17 @@
 // A single toast. Rendered by ToastProvider, not used directly.
+//
+// An optional `action` ({ label, onClick }) adds one button — "Undo" after a
+// drag on the calendar. Clicking it runs the action and dismisses the toast.
+
+import { neutral, status } from "../../styles/tokens";
 
 const TONES = {
-  success: { background: "#eef2ec", border: "#bbf7d0", color: "#4a6b4a" },
-  error: { background: "#f9ecea", border: "#fecaca", color: "#9a2d24" },
-  info: { background: "#efe9e0", border: "#efe9e0", color: "#50463c" },
+  success: { background: status.successSurface, border: "rgba(74, 107, 74, 0.28)", color: status.success },
+  error: { background: status.dangerSurface, border: "rgba(154, 45, 36, 0.28)", color: status.danger },
+  info: { background: "#ffffff", border: neutral.loam, color: neutral.saddle },
 };
 
-function Toast({ message, tone = "success", onDismiss }) {
+function Toast({ message, tone = "success", action = null, onDismiss }) {
   const palette = TONES[tone] || TONES.info;
 
   return (
@@ -14,19 +19,41 @@ function Toast({ message, tone = "success", onDismiss }) {
       role="status"
       style={{
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         gap: "0.75rem",
         background: palette.background,
         border: `1px solid ${palette.border}`,
         color: palette.color,
         borderRadius: "7.5px",
-        padding: "0.85rem 1rem",
+        padding: "0.75rem 0.9rem",
         fontWeight: 500,
-        fontSize: "0.9rem",
+        fontSize: "0.875rem",
         boxShadow: "none",
       }}
     >
       <span style={{ flex: 1, lineHeight: 1.45 }}>{message}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={() => {
+            action.onClick();
+            onDismiss();
+          }}
+          style={{
+            border: `1px solid ${neutral.ink}`,
+            background: "transparent",
+            color: neutral.ink,
+            borderRadius: "3.75px",
+            padding: "4px 10px",
+            fontWeight: 500,
+            fontSize: "0.8rem",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {action.label}
+        </button>
+      )}
       <button
         type="button"
         onClick={onDismiss}

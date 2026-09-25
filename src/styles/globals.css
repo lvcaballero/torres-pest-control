@@ -11,8 +11,39 @@
  */
 
 /* Inter substitutes for Lateral, Source Serif for Lateral Display. Both are
-   named in the style reference as the intended fallbacks. */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap");
+   named in the style reference as the intended fallbacks. They are bundled
+   (latin subset, from fontsource) rather than fetched from Google Fonts, so
+   the app renders in its own type on a site network that blocks it. */
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("./fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/source-serif-4-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("./fonts/source-serif-4-latin-500-normal.woff2") format("woff2");
+}
 
 :root {
   /* Brand — fixed. */
@@ -25,24 +56,29 @@
   --canvas: #fcfaf1;
   --panel: #ffffff;
   --sunken: #efe9e0;
-  --rail: #e8dcd7;
+  --rail: #efe9e0;
   --inverted: #252a23;
 
   /* Warm neutrals. */
   --loam: #c7bcaf;
-  --bark: #96897b;
+  --bark: #8a7d70;
   --saddle: #50463c;
   --ink: #211b15;
 
   /* Text roles. */
   --body: var(--saddle);
   --muted: var(--bark);
-  --line: var(--sunken);
+  --line: #e6dfd3;
 
   /* Semantic. */
   --success: #4a6b4a;
-  --warning: #a06a24;
+  --warning: #9a6420;
   --danger: #9a2d24;
+  --success-bg: #eef2ec;
+  --warning-bg: #faf0e2;
+  --danger-bg: #f9ecea;
+  --amber: #e8b672;
+  --wheat: #f0c891;
 
   /* Shape. */
   --radius: 3.75px;
@@ -72,8 +108,8 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.71;
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--body);
@@ -140,33 +176,292 @@ a[href] {
   border-radius: var(--radius);
 }
 
-/* The rail is a light tinted bone, not maroon. These three rules were written
-   for a maroon background: a cream hover wash and a cream focus ring are both
-   invisible on it. The `outline: none` stays — it suppresses the UA border — but the
-   border reset must not, because the active item's 3px maroon marker IS a
-   border-left and a blanket `border: none` would erase it. */
+/* ---------------------------------------------------------------------
+ * App shell: rail + top bar + content.
+ *
+ * Wide: a two-column grid, the rail sticky and full height. Below 860px
+ * (layout.drawerBreakpoint in tokens.js) the rail leaves the grid and slides
+ * in over a scrim when [data-drawer="open"]. There is no horizontal page
+ * scroll at any width: the content column is minmax(0, 1fr), so a wide table
+ * scrolls inside its own .scroll-x rather than pushing the page sideways.
+ * ------------------------------------------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--rail);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px 14px;
+  overflow: hidden;
+  z-index: 30;
+}
+
 .sidebar-nav-link,
 .sidebar-nav-link:link,
 .sidebar-nav-link:visited {
   outline: none;
 }
 
-.sidebar-nav-link:hover {
-  background: var(--brand-wash);
+.sidebar-nav-link:not([aria-current="page"]):hover {
+  background: rgba(255, 255, 255, 0.55);
   color: var(--ink);
 }
 
-/* No bespoke ring: the global :focus-visible rule already paints the brand
-   ring, and it reads clearly against bone where the cream one would not. */
-
-.app-shell {
-  min-height: 100vh;
+.app-scrim {
+  display: none;
 }
 
-/* Must stay in sync with Sidebar's inline width. */
+.app-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.app-menu-button {
+  display: none !important;
+}
+
 .app-content {
-  min-height: 100vh;
-  margin-left: 264px;
+  flex: 1;
+  min-width: 0;
+  padding: 28px 32px 48px;
+}
+
+/* Pages lay out with inline `display: grid`. A grid item's min-width is
+   `auto` by default, so one wide child (the week calendar, a table) stretches
+   the whole track and every sibling with it, and the page scrolls sideways
+   at phone width. Letting items shrink hands that overflow back to the child
+   that owns a scroller. */
+.app-content [style*="display: grid"] > * {
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 86vw);
+    height: 100%;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    z-index: 70;
+  }
+
+  .app-shell[data-drawer="open"] .app-rail {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+
+  .app-shell[data-drawer="open"] .app-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(33, 27, 21, 0.32);
+    z-index: 60;
+  }
+
+  .app-menu-button {
+    display: inline-flex !important;
+    flex-shrink: 0;
+  }
+
+  .app-topbar {
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .app-topbar-date,
+  .global-search-kbd {
+    display: none;
+  }
+
+  .app-content {
+    padding: 20px 16px 40px;
+  }
+}
+
+/* Inventory items: one grid shared by the header and every row. Below
+   900px the table scrolls inside itself rather than squeezing columns. */
+.inventory-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2.2fr) 0.9fr 1.5fr 1.5fr 0.9fr 0.9fr 118px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  font-size: 13.5px;
+}
+
+.inventory-head {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.inventory-scroll {
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .inventory-scroll {
+    overflow-x: auto;
+  }
+
+  .inventory-row {
+    min-width: 900px;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Client profile: a 320px facts column beside the history tabs. */
+.client-columns {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .client-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Scheduling: the grid beside a 250px side panel, stacking when narrow. */
+.schedule-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .schedule-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Scheduling: technician chips on wide screens, a dropdown on narrow ones. */
+.tech-dropdown {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .tech-chips {
+    display: none !important;
+  }
+
+  .tech-dropdown {
+    display: block;
+  }
+}
+
+/* Technician phone tab bar. */
+.bottom-tabs {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app-shell[data-tabs="on"] .bottom-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-tabs a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 9px 0 10px;
+    font-size: 11px;
+    color: var(--bark);
+    text-decoration: none;
+  }
+
+  .bottom-tabs a.on {
+    color: var(--brand);
+    font-weight: 500;
+  }
+
+  .app-shell[data-tabs="on"] .app-content {
+    padding-bottom: 96px;
+  }
+
+  /* A visit is the whole screen: no top bar. */
+  .app-shell[data-focus="visit"] .app-topbar {
+    display: none;
+  }
+}
+
+/* The visit's footer: saved state and the one primary action. */
+.visit-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: var(--canvas);
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 861px) {
+  .visit-footer {
+    left: 232px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* The New visit button keeps its icon and its aria-label. */
+  .app-topbar-label {
+    display: none;
+  }
 }
 
 a {
@@ -180,434 +475,301 @@ a {
   max-width: 100%;
 }
 
-.standalone-login-page {
-  min-height: 100vh;
+/* ---------------------------------------------------------------------------
+ * Sign-in and password reset.
+ *
+ * Split screen: the form on parchment, a dark olive panel with a line drawing
+ * on the right. Flat surfaces only — the old red radial gradient and the
+ * curved cream shape are gone. The olive panel is decoration, so it drops
+ * away below 860px rather than squeezing the form.
+ * ------------------------------------------------------------------------- */
+
+.auth-page {
   display: grid;
-  place-items: stretch;
-  padding: 0;
-  background: #f2ecea;
-}
-
-.standalone-login-card {
-  position: relative;
-  /* Full bleed, and sized in viewport units rather than with a transform.
-     A `scale()` here painted the card larger than the box the page reserved
-     for it, which ran the card past both edges while its own height stayed
-     short — `overflow: hidden` then cut off the logo at the top and the Sign
-     in button at the bottom. 100% and 100vh are measured against the viewport,
-     so the login also keeps filling the screen at any ctrl+wheel zoom level. */
-  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   min-height: 100vh;
-  border-radius: 0;
-  overflow: hidden;
-  background: radial-gradient(circle at 90% 20%, #c9443b 0%, #a52a25 22%, #6f1416 55%, #4a0a0d 100%);
+  background: var(--canvas);
+  color: var(--ink);
 }
 
-.standalone-form-panel {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 62%;
-  background: #faf6f2;
-  border-radius: 0 97px 97px 0 / 0 50% 50% 0;
+.auth-form-side {
+  display: flex;
+  flex-direction: column;
+  padding: 36px 64px;
+  min-width: 0;
+}
+
+.auth-brand {
   display: flex;
   align-items: center;
-  padding: 40px 0 36px clamp(40px, 7vw, 150px);
-  overflow-y: auto;
-  z-index: 1;
-}
-
-.standalone-form-inner {
-  width: min(480px, 100%);
-}
-
-.accent-bar {
-  position: absolute;
-  top: 11px;
-  left: 40px;
-  width: 43px;
-  height: 3px;
-  background: #a51c22;
-}
-
-.tp-logo {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  display: block;
-  margin-bottom: 15px;
-  overflow: visible;
-}
-
-.tp-logo-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.standalone-form-inner h1 {
-  margin: 0;
-  font-family: "Fraunces", Georgia, "Times New Roman", serif;
-  font-weight: 600;
-  font-size: 2rem;
-  line-height: 1.15;
-  letter-spacing: -0.005em;
-  color: #22161a;
-}
-
-.sub {
-  margin: 4px 0 18px;
-  color: #574749;
-  font-size: 1rem;
-  line-height: 1.45;
-}
-
-.standalone-login-form {
-  width: min(100%, 420px);
-}
-
-.field {
-  margin-bottom: 18px;
-}
-
-.lbl {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #22161a;
-}
-
-.input {
-  width: 100%;
-  height: 48px;
-  padding: 0 15px;
-  font: inherit;
-  font-size: 1rem;
-  color: #22161a;
-  background: #fff;
-  border: 1.5px solid #ebdfd9;
-  border-radius: 14px;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.input::placeholder {
-  color: #c3b4b0;
-}
-
-.input:focus {
-  border-color: #a51c22;
-  box-shadow: 0 0 0 4px rgba(165, 28, 34, 0.22);
-}
-
-.input[aria-invalid="true"] {
-  border-color: #b3261e;
-}
-
-.input-wrap {
-  position: relative;
-  overflow: hidden;
-  border-radius: 14px;
-}
-
-.input-wrap .input {
-  padding-right: 54px;
-}
-
-.toggle-pw {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  margin-top: -19px;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  margin-left: 0;
-  margin-right: 0;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #574749;
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-  box-sizing: border-box;
-  line-height: 0;
-}
-
-.toggle-pw:hover,
-.toggle-pw:focus-visible,
-.toggle-pw:active {
-  color: #a51c22;
-  background: rgba(165, 28, 34, 0.07);
-  margin-top: -19px;
-}
-
-.toggle-pw:focus-visible {
-  outline: 3px solid rgba(165, 28, 34, 0.22);
-  outline-offset: 0;
-}
-
-.toggle-pw svg {
-  display: block;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  transform: none;
-  position: relative;
-  top: 0;
-}
-
-.toggle-pw svg[hidden] {
-  display: none;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 18px;
-}
-
-/* The sign-in page puts .row above its button; the reset page puts its
-   "Back to sign in" link below one, so it needs the spacing the other way. */
-.row-back {
-  margin: 20px 0 0;
-}
-
-.check {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: #574749;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.check input {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 21px;
-  height: 21px;
-  margin: 0;
-  border: 1.5px solid #574749;
-  border-radius: 7px;
-  background: transparent;
-  display: grid;
-  place-content: center;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.check input::after {
-  content: "";
-  width: 10px;
-  height: 5px;
-  border-left: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-  transform: rotate(-45deg) translate(1px, -1px);
-  opacity: 0;
-}
-
-.check input:checked {
-  background: #a51c22;
-  border-color: #a51c22;
-}
-
-.check input:checked::after {
-  opacity: 1;
-}
-
-.check input:focus-visible {
-  outline: 3px solid rgba(165, 28, 34, 0.22);
-  outline-offset: 2px;
-}
-
-.link {
-  color: #8f1a1f;
-  font-weight: 600;
-  font-size: 1rem;
+  gap: 10px;
+  color: var(--ink);
   text-decoration: none;
 }
 
-.link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.auth-brand img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
 }
 
-.link:focus-visible {
-  outline: 3px solid rgba(165, 28, 34, 0.22);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-.btn-primary {
-  width: 100%;
-  height: 50px;
-  border: 0;
-  border-radius: 14px;
-  background: #a51c22;
-  color: #fff;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
-}
-
-.btn-primary:hover {
-  background: #8a1519;
-}
-
-.btn-primary:active {
-  transform: translateY(1px);
-}
-
-.btn-primary:focus-visible {
-  outline: 3px solid rgba(165, 28, 34, 0.22);
-  outline-offset: 3px;
-}
-
-.btn-primary[disabled] {
-  opacity: 0.75;
-  cursor: progress;
-}
-
-.err,
-.status {
-  margin: 10px 2px 0;
-  font-size: 0.9rem;
-}
-
-.err {
-  color: #b3261e;
-}
-
-.status {
-  color: #574749;
-}
-
-.err:empty,
-.status:empty {
-  display: none;
-}
-
-.hero-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.hero-layer.on-red {
-  z-index: 0;
-}
-
-.hero-layer.on-cream {
-  z-index: 2;
-  clip-path: inset(0 38% 0 0 round 0 97px 97px 0 / 0 50% 50% 0);
-}
-
-.hero {
-  position: absolute;
-  left: 67%;
-  top: 50%;
-  transform: translateY(-50%);
-  width: min(300px, 29%);
-  color: #f7d9d0;
-}
-
-.hero .bar {
-  width: 43px;
-  height: 3px;
-  background: #f1c4b8;
-  margin-bottom: 24px;
-}
-
-.hero h2 {
-  margin: 0;
-  max-width: 14ch;
-  font-family: "Fraunces", Georgia, "Times New Roman", serif;
-  font-weight: 600;
-  font-size: 2.8rem;
-  line-height: 1.1;
-  color: inherit;
-}
-
-.hero p {
+.auth-brand-name {
   display: block;
-  max-width: 29ch;
-  margin: 18px 0 0;
-  color: #f1c4b8;
-  font-size: 1.05rem;
-  line-height: 1.55;
+  font: 500 17px/1.1 var(--font-display);
 }
 
-.on-cream .hero {
-  color: #a51c22;
+.auth-brand-sub {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--saddle);
 }
 
-.on-cream .hero .bar {
-  background: #a51c22;
+.auth-form {
+  margin: auto 0;
+  align-self: center;
+  width: 100%;
+  max-width: 380px;
+  padding: 40px 0;
 }
 
-.on-cream .hero p {
-  color: #a51c22;
+.auth-eyebrow {
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--saddle);
+}
+
+.auth-form h1 {
+  margin: 18px 0 6px;
+  font: 500 34px/1.15 var(--font-display);
+  letter-spacing: -0.4px;
+  color: var(--ink);
+}
+
+.auth-lede {
+  margin: 0;
+  color: var(--saddle);
+}
+
+.auth-label {
+  display: flex;
+  align-items: baseline;
+  margin: 18px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.auth-label a {
+  margin-left: auto;
+}
+
+.auth-input-wrap {
+  position: relative;
+}
+
+.auth-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--loam);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.auth-input-wrap .auth-input {
+  padding-right: 44px;
+}
+
+.auth-input::placeholder {
+  color: var(--bark);
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: var(--focus-ring);
+}
+
+.auth-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.auth-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--saddle);
+}
+
+.auth-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.auth-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 20px;
+  font-size: 13px;
+  color: var(--saddle);
+  cursor: pointer;
+}
+
+.auth-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand);
+}
+
+.auth-link {
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-submit {
+  width: 100%;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: var(--canvas);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.auth-submit:not(:disabled):hover {
+  background: #661010;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.auth-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--bark);
+}
+
+.auth-error,
+.auth-status {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.auth-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.auth-status {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.auth-footer {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--bark);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 56px 64px;
+  background: var(--inverted);
+  color: var(--canvas);
+  overflow: hidden;
+}
+
+.auth-panel-eyebrow {
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--wheat);
+}
+
+.auth-panel h2 {
+  margin: 14px 0 0;
+  max-width: 440px;
+  font: 500 38px/1.14 var(--font-display);
+  letter-spacing: -0.42px;
+  color: var(--canvas);
+}
+
+.auth-art {
+  width: 100%;
+  max-width: 460px;
+  margin-top: auto;
+  opacity: 0.9;
+}
+
+.auth-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: rgba(252, 250, 241, 0.75);
+}
+
+.auth-trust li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 @media (max-width: 860px) {
-  .standalone-login-card {
-    min-height: 0;
-    width: 100%;
+  .auth-page {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .standalone-form-panel {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    padding: 48px 28px 64px;
-    border-radius: 0 0 50% 50% / 0 0 56px 56px;
-  }
-
-  .accent-bar {
-    left: 28px;
-    top: 0;
-  }
-
-  .standalone-form-inner {
-    width: 100%;
-    max-width: 504px;
-    margin: 0 auto;
-  }
-
-  .hero-layer.on-cream {
+  .auth-panel {
     display: none;
   }
 
-  .hero-layer {
-    position: static;
+  .auth-form-side {
+    padding: 24px 20px;
+    min-height: 100vh;
   }
 
-  .hero {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-    width: 100%;
-    padding: 40px 28px 48px;
-  }
-}
-
-@media (max-width: 420px) {
-  .standalone-form-inner h1 {
-    font-size: 1.8rem;
-  }
-}
-
-@media (max-width: 900px) {
-  .standalone-login-page {
-    padding: 16px;
+  .auth-form h1 {
+    font-size: 30px;
   }
 }
 
@@ -816,4 +978,19 @@ a {
   }
 
   .delivery-note-grid > .dn-label { margin-top: 0.35rem; }
+}
+
+/* The Today dashboard's two columns: the work queue beside the week chart
+   and recent visits, stacking below 1000px. */
+.today-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .today-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

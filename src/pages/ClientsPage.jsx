@@ -1,67 +1,151 @@
 // Client list + search route.
+//
+// A real table rather than padded card rows: name and reference, address,
+// last and next visit, pest concern and status, every column sortable and
+// 50 rows a page. The old rows fit about eleven clients on a screen.
 
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
 import ClientSearch from "../components/clients/ClientSearch";
-import ClientList from "../components/clients/ClientList";
-import EmptyState from "../components/common/EmptyState";
+import Button from "../components/ui/Button";
+import DataTable from "../components/ui/DataTable";
+import StatusPill from "../components/ui/StatusPill";
 import useAuth from "../hooks/useAuth";
 import useClients from "../hooks/useClients";
+import { useScheduling } from "../context/SchedulingContext";
 import { SUBSYSTEMS } from "../utils/permissions";
-import { colors, pageShell, primaryButton } from "../styles/theme";
+import { visitDatesByClient } from "../utils/clientTimeline";
+import { humanizeEnum } from "../utils/formatters";
+import { neutral, radius, surface, weight } from "../styles/tokens";
+import { colors, pageShell } from "../styles/theme";
+
+export const CLIENT_PAGE_SIZE = 50;
+
+const dateCell = (value, empty) =>
+  value ? (
+    <span style={{ whiteSpace: "nowrap" }}>{new Date(value).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>
+  ) : (
+    <span style={{ color: neutral.bark }}>{empty}</span>
+  );
 
 function ClientsPage() {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const { clients, filter, loading, error } = useClients();
+  const { appointments } = useScheduling();
   const [searchTerm, setSearchTerm] = useState("");
   const [classification, setClassification] = useState("ALL");
   // Archived clients are kept out of the default view (they're inactive
-  // records, not deleted ones) but stay one dropdown away for anyone who
-  // needs to find or restore one.
+  // records, not deleted ones) but stay one dropdown away.
   const [status, setStatus] = useState("ACTIVE");
+  const [limit, setLimit] = useState(CLIENT_PAGE_SIZE);
 
-  // Filtering is a pure function in clientService, so an empty result is
-  // genuinely empty. The old page fell back to `|| clients[0]`, which made
-  // the "no match" state unreachable and showed an unrelated client instead.
   const visibleClients = filter({ searchTerm, classification, status });
+  const dates = useMemo(() => visitDatesByClient(appointments), [appointments]);
+  const rows = visibleClients.map((client) => ({ ...client, lastVisit: dates.get(client.id)?.last || null, nextVisit: dates.get(client.id)?.next || null }));
+  const shown = rows.slice(0, limit);
+
+  const columns = [
+    {
+      key: "name",
+      label: "Client",
+      sortable: true,
+      render: (row) => (
+        <span>
+          <Link to={`/clients/${row.id}`} onClick={(event) => event.stopPropagation()} style={{ color: neutral.ink, fontWeight: weight.medium, textDecoration: "none" }}>
+            {row.name}
+          </Link>
+          <span style={{ display: "block", fontSize: "12px", color: neutral.bark }}>
+            {[row.reference, row.classification && (row.classification === "OTHER" && row.classificationOther ? row.classificationOther : humanizeEnum(row.classification))]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </span>
+      ),
+    },
+    { key: "address", label: "Address", sortable: true, render: (row) => <span style={{ color: neutral.saddle }}>{row.address || "—"}</span> },
+    { key: "lastVisit", label: "Last visit", sortable: true, render: (row) => dateCell(row.lastVisit, "Never") },
+    { key: "nextVisit", label: "Next visit", sortable: true, render: (row) => dateCell(row.nextVisit, "Not booked") },
+    { key: "pestConcern", label: "Pest concern", sortable: true, render: (row) => row.pestConcern || <span style={{ color: neutral.bark }}>—</span> },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (row) => <StatusPill tone={row.status === "ARCHIVED" ? "neutral" : "success"}>{row.status === "ARCHIVED" ? "Archived" : "Active"}</StatusPill>,
+    },
+  ];
 
   return (
     <div style={pageShell}>
       <PageHeader
-        eyebrow="Client Management"
-        title="Client Profiles"
+        eyebrow="Operations"
+        title="Clients"
+        description={`${clients.length} ${clients.length === 1 ? "client" : "clients"}`}
         actions={
           can(SUBSYSTEMS.CLIENTS, "create") && (
-            <Link to="/clients/new" style={{ ...primaryButton, textDecoration: "none", display: "inline-block" }}>
-              Create Client Profile
+            <Link
+              to="/clients/new"
+              className="ui-interactive"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                minHeight: "34px",
+                padding: "0 14px",
+                borderRadius: radius.control,
+                border: `1px solid ${neutral.ink}`,
+                color: neutral.ink,
+                textDecoration: "none",
+                fontSize: "13.5px",
+                fontWeight: weight.medium,
+              }}
+            >
+              <Plus size={15} aria-hidden="true" /> Add client
             </Link>
           )
         }
       />
 
-      <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", marginBottom: "1rem", overflow: "hidden" }}>
+      <section style={{ background: surface.panel, border: `1px solid ${colors.line}`, borderRadius: radius.card, overflow: "hidden" }}>
         <ClientSearch
           searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={(value) => {
+            setSearchTerm(value);
+            setLimit(CLIENT_PAGE_SIZE);
+          }}
           classification={classification}
           onClassificationChange={setClassification}
           status={status}
           onStatusChange={setStatus}
         />
-        <div style={{ padding: "0.7rem 1.25rem", borderTop: "1px solid #efe9e0", background: "#efe9e0", color: colors.muted, fontSize: "0.78rem" }}>
-          Showing {visibleClients.length} of {clients.length} client
-          {clients.length === 1 ? "" : "s"}.
-        </div>
-      </div>
 
-      {error ? (
-        <EmptyState message={`Could not load clients — ${error}`} />
-      ) : loading ? (
-        <EmptyState message="Loading clients…" />
-      ) : (
-        <ClientList clients={visibleClients} />
-      )}
+        {error ? (
+          <p style={{ margin: 0, padding: "16px 18px", color: colors.danger }}>Could not load clients — {error}</p>
+        ) : loading && clients.length === 0 ? (
+          <p style={{ margin: 0, padding: "16px 18px", color: neutral.bark }}>Loading clients…</p>
+        ) : (
+          <DataTable
+            caption="Clients"
+            columns={columns}
+            rows={shown}
+            initialSort={{ key: "name", direction: "asc" }}
+            onRowClick={(row) => navigate(`/clients/${row.id}`)}
+            empty="No clients match these filters."
+          />
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 18px", borderTop: `1px solid ${colors.line}`, color: neutral.bark, fontSize: "12.5px" }}>
+          Showing {shown.length} of {rows.length}
+          {rows.length !== clients.length ? ` (filtered from ${clients.length})` : ""}
+          {shown.length < rows.length && (
+            <Button size="sm" variant="quiet" onClick={() => setLimit((value) => value + CLIENT_PAGE_SIZE)}>
+              Show {Math.min(CLIENT_PAGE_SIZE, rows.length - shown.length)} more
+            </Button>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

@@ -8,6 +8,7 @@
 // whose 3px left edge — plus fill, border style and strike — says its status:
 //
 //   Confirmed   maroon edge, white
+//   In progress maroon edge, maroon wash           (on site now)
 //   Pending     amber edge, white, dashed border   (not yet agreed)
 //   Reschedule  amber edge, amber wash             (needs a new slot)
 //   Completed   green edge, green wash
@@ -20,13 +21,15 @@ import { brand, neutral, status as semantic, surface } from "../../styles/tokens
 const VISUALS = {
   Confirmed: { label: "Confirmed", edge: brand.base, fill: surface.panel, borderStyle: "solid", strike: false, muted: false },
   Pending: { label: "Pending", edge: semantic.warning, fill: surface.panel, borderStyle: "dashed", strike: false, muted: false },
+  // Migration 048: a technician has started the visit on site.
+  "In progress": { label: "In progress", edge: brand.base, fill: "rgba(127, 17, 17, 0.07)", borderStyle: "solid", strike: false, muted: false },
   Reschedule: { label: "Reschedule", edge: semantic.warning, fill: semantic.warningSurface, borderStyle: "solid", strike: false, muted: false },
   Completed: { label: "Completed", edge: semantic.success, fill: semantic.successSurface, borderStyle: "solid", strike: false, muted: false },
   Cancelled: { label: "Cancelled", edge: neutral.loam, fill: "transparent", borderStyle: "solid", strike: true, muted: true },
 };
 
 /** The statuses the legend explains, in the order it lists them. */
-export const LEGEND_STATUSES = ["Confirmed", "Pending", "Reschedule", "Completed", "Cancelled"];
+export const LEGEND_STATUSES = ["Confirmed", "In progress", "Pending", "Reschedule", "Completed", "Cancelled"];
 
 /**
  * The visual treatment for one status: `{ edge, fill, borderStyle, strike,
@@ -42,6 +45,7 @@ export const STATUS_COLORS = {
   Scheduled: [semantic.infoSurface, semantic.info],
   Confirmed: ["rgba(127, 17, 17, 0.07)", brand.base],
   Reschedule: [semantic.warningSurface, semantic.warning],
+  "In progress": ["rgba(127, 17, 17, 0.07)", brand.base],
   Completed: [semantic.successSurface, semantic.success],
   Cancelled: [surface.sunken, neutral.saddle],
 };

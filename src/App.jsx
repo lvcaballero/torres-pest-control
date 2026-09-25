@@ -21,6 +21,7 @@ import AccountsGate from "./components/auth/AccountsGate";
 import LoginPage from "./pages/LoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ActivityLogPage from "./pages/ActivityLogPage";
+import VisitPage from "./pages/VisitPage";
 import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
 import CreateUserPage from "./pages/CreateUserPage";
@@ -124,6 +125,10 @@ function App() {
                 <Route
                   path="/services"
                   element={<Guarded subsystem={SUBSYSTEMS.SETTINGS} action="view"><ServicesPage /></Guarded>}
+                />
+                <Route
+                  path="/visit/:id"
+                  element={<Guarded subsystem={SUBSYSTEMS.SCHEDULING} action="view"><VisitPage /></Guarded>}
                 />
                 <Route
                   path="/activity"

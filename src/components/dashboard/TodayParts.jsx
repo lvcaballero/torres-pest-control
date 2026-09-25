@@ -77,6 +77,7 @@ const trackGrid = `repeating-linear-gradient(90deg, transparent 0 calc(100% / ${
 /** Where a job is in its day: done, on site now, or just its status. */
 function jobState(appointment, now) {
   if (appointment.status === "Completed" || appointment.reportSubmitted) return "done";
+  if (appointment.status === "In progress") return "onsite";
   if (appointment.status === "Confirmed" && startOf(appointment) <= now.getTime() && endOf(appointment) > now.getTime()) return "onsite";
   return appointment.status;
 }

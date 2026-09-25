@@ -1,25 +1,16 @@
 {
-  "short_name": "TorresPestControl",
-  "name": "TorresPestControl System",
+  "short_name": "Torres",
+  "name": "Torres Pest Control",
+  "description": "Schedule, service reports and stock for Torres Pest Control.",
   "icons": [
-    {
-      "src": "login-logo.png",
-      "sizes": "466x466",
-      "type": "image/png"
-    },
-    {
-      "src": "login-logo.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "login-logo.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#fcfaf1",
+  "background_color": "#fcfaf1"
 }

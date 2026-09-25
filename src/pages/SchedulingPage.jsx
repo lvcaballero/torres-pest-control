@@ -330,6 +330,11 @@ function SchedulingPage() {
     }
     // A finished or cancelled visit has no slot to move to, even though the
     // status rules would let a cancelled one through Reschedule.
+    // A visit being worked on right now stays where it is.
+    if (current.status === "In progress") {
+      refuseMove("This visit is in progress on site and can't be moved.");
+      return;
+    }
     if (current.status === "Cancelled" || !canTransition(current.status, "Reschedule")) {
       refuseMove(`A ${current.status.toLowerCase()} appointment cannot be moved.`);
       return;

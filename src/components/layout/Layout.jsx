@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import BottomTabs from "./BottomTabs";
+import { ROLES } from "../../utils/constants";
 import useAuth from "../../hooks/useAuth";
 import useInventory from "../../hooks/useInventory";
 import { useScheduling } from "../../context/SchedulingContext";
@@ -33,7 +35,11 @@ export function navBadges({ appointments, inventory, canSchedule, canStock }) {
 
 function Layout({ children }) {
   const location = useLocation();
-  const { can } = useAuth();
+  const { can, currentUser } = useAuth();
+  // A technician on a phone gets bottom tabs; during a visit the screen is
+  // the visit alone (its own header and footer, no tabs, no top bar).
+  const isTechnician = currentUser?.role === ROLES.TECHNICIAN;
+  const inVisit = location.pathname.startsWith("/visit/");
   const { appointments } = useScheduling();
   const { inventory } = useInventory();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -72,7 +78,13 @@ function Layout({ children }) {
   }, [drawerOpen, closeDrawer]);
 
   return (
-    <div className="app-shell" data-drawer={drawerOpen ? "open" : "closed"} style={{ background: appBackground }}>
+    <div
+      className="app-shell"
+      data-drawer={drawerOpen ? "open" : "closed"}
+      data-focus={inVisit ? "visit" : undefined}
+      data-tabs={isTechnician && !inVisit ? "on" : undefined}
+      style={{ background: appBackground }}
+    >
       <Sidebar badges={badges} open={drawerOpen} onClose={closeDrawer} />
       <div className="app-scrim" aria-hidden="true" onClick={closeDrawer} />
 
@@ -86,6 +98,7 @@ function Layout({ children }) {
         >
           <div style={{ maxWidth: layout.pageMaxWidth }}>{children || <Outlet />}</div>
         </div>
+        {isTechnician && !inVisit && <BottomTabs />}
       </div>
     </div>
   );

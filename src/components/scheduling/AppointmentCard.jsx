@@ -82,7 +82,7 @@ function AppointmentCard({ appointment, height = null, columns = 1, placement = 
   return (
     <button
       type="button"
-      draggable={canReschedule && appointment.status !== "Cancelled" && appointment.status !== "Completed"}
+      draggable={canReschedule && !["Cancelled", "Completed", "In progress"].includes(appointment.status)}
       onDragStart={() => canReschedule && onDragStart(appointment)}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(appointment)}

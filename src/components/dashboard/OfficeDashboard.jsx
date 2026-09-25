@@ -112,8 +112,11 @@ function OfficeDashboard() {
 
   const today = appointmentsToday(appointments);
   const doneToday = today.filter((entry) => entry.status === "Completed" || entry.reportSubmitted).length;
+  // Started on site (migration 048), or confirmed and inside its time slot.
   const onSiteNow = today.filter(
-    (entry) => entry.status === "Confirmed" && !entry.reportSubmitted && new Date(entry.scheduledAt) <= now && endOf(entry) > now.getTime()
+    (entry) =>
+      !entry.reportSubmitted &&
+      (entry.status === "In progress" || (entry.status === "Confirmed" && new Date(entry.scheduledAt) <= now && endOf(entry) > now.getTime()))
   ).length;
   const toGo = today.length - doneToday - onSiteNow;
   const workingToday = new Set(today.flatMap((entry) => crewOf(entry))).size;

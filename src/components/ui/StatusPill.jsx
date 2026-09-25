@@ -22,6 +22,7 @@ const STATUS_TONES = {
   // Appointments.
   Pending: "warning",
   Confirmed: "brand",
+  "In progress": "brand",
   Reschedule: "warning",
   Completed: "success",
   Cancelled: "neutral",

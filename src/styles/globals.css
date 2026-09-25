@@ -308,6 +308,21 @@ a[href] {
   }
 }
 
+/* Scheduling: technician chips on wide screens, a dropdown on narrow ones. */
+.tech-dropdown {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .tech-chips {
+    display: none !important;
+  }
+
+  .tech-dropdown {
+    display: block;
+  }
+}
+
 @media (max-width: 520px) {
   /* The New visit button keeps its icon and its aria-label. */
   .app-topbar-label {

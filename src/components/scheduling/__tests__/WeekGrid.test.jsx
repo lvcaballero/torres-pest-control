@@ -208,3 +208,40 @@ describe("WeekGrid", () => {
     });
   });
 });
+
+describe("day and week layouts", () => {
+  it("draws a column per day given: seven for a week", () => {
+    renderGrid();
+    expect(document.querySelectorAll("[data-day]")).toHaveLength(7);
+    expect(document.querySelector("[data-columns]")).toHaveAttribute("data-columns", "7");
+  });
+
+  it("draws one column for the day view", () => {
+    renderGrid({ weekDays: [weekDays[2]] });
+    expect(document.querySelectorAll("[data-day]")).toHaveLength(1);
+    expect(document.querySelector("[data-columns]")).toHaveAttribute("data-columns", "1");
+  });
+});
+
+describe("header", () => {
+  it("shows how full each day is", () => {
+    renderGrid({ loadFor: (key) => (key === MONDAY_KEY ? 0.6 : 0) });
+    expect(screen.getByRole("img", { name: "60% booked" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "0% booked" })).toHaveLength(6);
+  });
+
+  it("marks today and draws the now line in today's column only", () => {
+    renderGrid({ now: new Date(2026, 8, 23, 11, 30) });
+    expect(screen.getByText(/· Today/)).toBeInTheDocument();
+    const lines = document.querySelectorAll("[data-now-line]");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].closest("[data-day]")).toHaveAttribute("data-day", localDateKey(weekDays[2]));
+    // 11:30 in a window starting at 9 with 60px rows.
+    expect(lines[0].style.top).toBe("150px");
+  });
+
+  it("draws no now line outside the visible hours", () => {
+    renderGrid({ now: new Date(2026, 8, 23, 20, 0) });
+    expect(document.querySelector("[data-now-line]")).toBeNull();
+  });
+});

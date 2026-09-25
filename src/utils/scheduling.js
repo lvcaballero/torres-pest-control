@@ -101,6 +101,8 @@ export const DAY_END_HOUR = 19;
 // The calendar shows the boundary row so existing 7 PM appointments remain visible.
 // DAY_END_HOUR remains the booking cutoff used by validation.
 export const CALENDAR_END_HOUR = DAY_END_HOUR + 1;
+/** The working day the Schedule grid always shows: 7 AM – 6 PM. */
+export const SCHEDULE_END_HOUR = 18;
 
 const clockLabel = (hour) => `${String(hour % 12 || 12)}:00 ${hour < 12 ? "AM" : "PM"}`;
 
@@ -234,4 +236,41 @@ export function moveSteps(appointment, scheduledAt) {
   if (appointment.status !== "Reschedule") steps.push({ ...appointment, status: "Reschedule" });
   steps.push({ ...appointment, scheduledAt, status: appointment.status });
   return steps;
+}
+
+/** Calendar-day key (YYYY-MM-DD) in local time. */
+const dayKeyOf = (value) => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+/** The office's working window, in hours, that "full" is measured against. */
+export const WORKING_HOURS_PER_DAY = 11;
+
+/**
+ * How full a day is, 0–1: booked technician-minutes over what the active
+ * technicians can give in a working day. A two-person visit costs twice its
+ * length; an unassigned one still costs one person's time. Cancelled visits
+ * cost nothing.
+ */
+export function dayLoad(appointments, dateKey, technicianCount, hoursPerDay = WORKING_HOURS_PER_DAY) {
+  if (!technicianCount) return 0;
+  const booked = appointments
+    .filter((entry) => entry.status !== "Cancelled" && dayKeyOf(entry.scheduledAt) === dateKey)
+    .reduce((sum, entry) => sum + (entry.durationMinutes || 60) * Math.max(1, crewOf(entry).length), 0);
+  return Math.min(1, booked / (technicianCount * hoursPerDay * 60));
+}
+
+/** Hours a technician is booked for within `window` ({ start, end } Dates), crew visits included. */
+export function technicianHours(appointments, technicianId, { start, end }) {
+  const minutes = appointments
+    .filter(
+      (entry) =>
+        entry.status !== "Cancelled" &&
+        isAssignedTo(entry, technicianId) &&
+        startOf(entry) >= start.getTime() &&
+        startOf(entry) < end.getTime()
+    )
+    .reduce((sum, entry) => sum + (entry.durationMinutes || 60), 0);
+  return Math.round((minutes / 60) * 10) / 10;
 }

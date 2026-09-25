@@ -1,37 +1,100 @@
-// The one control row above the calendar.
+// The one control row above the calendar: view, period, technicians.
 //
-// This replaces three stacked rows: the Calendar/List/Technicians tabs and
-// the technician <select> on one, the Week/Month toggle beside them, and the
-// date navigation on a third — with a colour legend underneath that was a
-// fourth control for state the <select> already owned.
+// Views are Day / Week / Month / List. The old Technicians view is gone —
+// the Day view shows each visit's crew as initials and the side panel's
+// Technician load gives the hours, which is what that grid was used for.
 //
-// Two merges do most of the work. `view` and `scheduleTab` became a single
-// `mode`, which turns two segmented controls into one; and the legend folded
-// into the technician filter, which is where the colours were needed anyway.
+// Technicians are filter chips with their initials, as on the cards, so the
+// filter doubles as the key to who "JD" is. Below 860px the chips collapse
+// into the TechnicianFilter dropdown so the row never runs off the screen.
+//
+// There is no create button here: the top bar's "New visit" is the page's one
+// primary action.
 
-import { CalendarDays, ChevronLeft, ChevronRight, List, Plus, Users } from "lucide-react";
-import { neutral, text, weight } from "../../styles/tokens";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { brand, font, neutral, radius, surface, weight } from "../../styles/tokens";
+import Avatar from "../ui/Avatar";
 import Button from "../ui/Button";
 import SegmentedControl from "../ui/SegmentedControl";
 import Toolbar from "../ui/Toolbar";
-import TechnicianFilter from "./TechnicianFilter";
+import TechnicianFilter, { ALL_TECHNICIANS, UNASSIGNED_ONLY } from "./TechnicianFilter";
 
-/** The four things the page can show. `view` and `scheduleTab` used to split these. */
+/** The four things the page can show. */
 export const MODES = {
+  DAY: "day",
   WEEK: "week",
   MONTH: "month",
   LIST: "list",
-  TECHNICIANS: "technicians",
 };
 
-export const isCalendarMode = (mode) => mode === MODES.WEEK || mode === MODES.MONTH;
+export const isCalendarMode = (mode) => mode === MODES.DAY || mode === MODES.WEEK || mode === MODES.MONTH;
 
 const MODE_OPTIONS = [
-  { value: MODES.WEEK, label: "Week", icon: <CalendarDays size={13} aria-hidden="true" /> },
+  { value: MODES.DAY, label: "Day" },
+  { value: MODES.WEEK, label: "Week" },
   { value: MODES.MONTH, label: "Month" },
-  { value: MODES.LIST, label: "List", icon: <List size={13} aria-hidden="true" /> },
-  { value: MODES.TECHNICIANS, label: "Technicians", icon: <Users size={13} aria-hidden="true" /> },
+  { value: MODES.LIST, label: "List" },
 ];
+
+function Chip({ selected, onClick, children, label }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      aria-label={label}
+      onClick={onClick}
+      className="ui-interactive"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        border: `1px solid ${selected ? brand.base : neutral.loam}`,
+        background: selected ? "rgba(127, 17, 17, 0.07)" : surface.panel,
+        color: selected ? brand.base : neutral.ink,
+        borderRadius: radius.pill,
+        padding: "3px 10px 3px 4px",
+        fontSize: "12.5px",
+        fontWeight: selected ? weight.medium : weight.regular,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** One chip per technician plus Unassigned. Clicking the selected chip clears the filter. */
+export function TechnicianChips({ technicians, value, onChange, countFor = () => null }) {
+  const toggle = (key) => onChange(value === key ? ALL_TECHNICIANS : key);
+  const countLabel = (count) => (count == null ? "" : `, ${count} ${count === 1 ? "visit" : "visits"}`);
+
+  return (
+    <div role="group" aria-label="Filter by technician" className="tech-chips" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+      {technicians.map((account) => {
+        const name = account.name || account.username;
+        return (
+          <Chip
+            key={account.id}
+            selected={value === account.id}
+            onClick={() => toggle(account.id)}
+            label={`${name}${countLabel(countFor(account.id))}`}
+          >
+            <Avatar user={account} size="sm" />
+            {name.split(" ")[0]}
+          </Chip>
+        );
+      })}
+      <Chip
+        selected={value === UNASSIGNED_ONLY}
+        onClick={() => toggle(UNASSIGNED_ONLY)}
+        label={`Unassigned${countLabel(countFor(null))}`}
+      >
+        <Avatar user={null} size="sm" />
+        Unassigned
+      </Chip>
+    </div>
+  );
+}
 
 function SchedulingToolbar({
   mode,
@@ -45,77 +108,51 @@ function SchedulingToolbar({
   onTechnicianFilterChange,
   countFor,
   isTechnician,
-  canCreate,
-  onCreate,
 }) {
-  const modeOptions = isTechnician
-    ? MODE_OPTIONS.filter((option) => option.value !== MODES.TECHNICIANS)
-    : MODE_OPTIONS;
-
-  // List mode has its own date-from/date-to filters, so the period navigation
-  // would be a second, contradictory way to choose a range.
+  // List mode has its own date filters, so period navigation would be a
+  // second, contradictory way to choose a range.
   const showPeriodNav = mode !== MODES.LIST;
+  const unit = mode === MODES.DAY ? "day" : mode === MODES.MONTH ? "month" : "week";
 
   return (
     <Toolbar
       start={
-        <SegmentedControl
-          ariaLabel="Scheduling view"
-          options={modeOptions}
-          value={mode}
-          onChange={onModeChange}
-          size="sm"
-        />
-      }
-      center={
-        showPeriodNav ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Button size="icon" aria-label="Previous period" onClick={() => onNavigate(-1)}>
-              <ChevronLeft size={15} strokeWidth={1.75} />
-            </Button>
-            {/* Between the chevrons, because it is the reset — not a third
-                direction to travel in. */}
-            <Button size="sm" onClick={onToday} disabled={isOnToday}>
-              Today
-            </Button>
-            <Button size="icon" aria-label="Next period" onClick={() => onNavigate(1)}>
-              <ChevronRight size={15} strokeWidth={1.75} />
-            </Button>
-            <strong
-              style={{
-                color: neutral.ink,
-                fontSize: text.small.fontSize,
-                fontWeight: weight.medium,
-                marginLeft: "6px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {rangeLabel}
-            </strong>
-          </div>
-        ) : null
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <SegmentedControl ariaLabel="Scheduling view" options={MODE_OPTIONS} value={mode} onChange={onModeChange} size="sm" />
+          {showPeriodNav && (
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <Button size="icon" variant="quiet" aria-label="Previous period" title={`Previous ${unit}`} onClick={() => onNavigate(-1)}>
+                <ChevronLeft size={15} strokeWidth={1.75} />
+              </Button>
+              <Button size="md" variant="quiet" onClick={onToday} disabled={isOnToday}>
+                Today
+              </Button>
+              <Button size="icon" variant="quiet" aria-label="Next period" title={`Next ${unit}`} onClick={() => onNavigate(1)}>
+                <ChevronRight size={15} strokeWidth={1.75} />
+              </Button>
+              <strong
+                style={{
+                  color: neutral.ink,
+                  font: `500 18px/1.2 ${font.display}`,
+                  marginLeft: "8px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {rangeLabel}
+              </strong>
+            </div>
+          )}
+        </div>
       }
       end={
-        <>
-          {!isTechnician && (
-            <TechnicianFilter
-              technicians={technicians}
-              value={technicianFilter}
-              onChange={onTechnicianFilterChange}
-              countFor={countFor}
-            />
-          )}
-          {canCreate && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onCreate}
-              icon={<Plus size={14} strokeWidth={2} />}
-            >
-              New appointment
-            </Button>
-          )}
-        </>
+        !isTechnician && (
+          <>
+            <TechnicianChips technicians={technicians} value={technicianFilter} onChange={onTechnicianFilterChange} countFor={countFor} />
+            <div className="tech-dropdown">
+              <TechnicianFilter technicians={technicians} value={technicianFilter} onChange={onTechnicianFilterChange} countFor={countFor} />
+            </div>
+          </>
+        )
       }
     />
   );

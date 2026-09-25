@@ -26,7 +26,8 @@ import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
 import { APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps } from "../utils/scheduling";
+import useNow from "../hooks/useNow";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -37,7 +38,7 @@ import {
   startOfWeek,
   toDateTimeLocal,
 } from "../utils/calendarDates";
-import { badgeStyle, statusAccent } from "../components/scheduling/appointmentTheme";
+import { badgeStyle } from "../components/scheduling/appointmentTheme";
 import CalendarLegend from "../components/scheduling/CalendarLegend";
 import { CalendarProvider } from "../components/scheduling/CalendarContext";
 import WeekGrid from "../components/scheduling/WeekGrid";
@@ -45,7 +46,7 @@ import MonthGrid from "../components/scheduling/MonthGrid";
 import OverflowDialog from "../components/scheduling/OverflowDialog";
 import NewAppointmentModal from "../components/scheduling/NewAppointmentModal";
 import TechnicianPicker from "../components/scheduling/TechnicianPicker";
-import SchedulingToolbar, { MODES } from "../components/scheduling/SchedulingToolbar";
+import SchedulingToolbar, { MODES, isCalendarMode } from "../components/scheduling/SchedulingToolbar";
 import {
   fullDayWindow,
   hoursIn,
@@ -81,6 +82,7 @@ function SchedulingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState(MODES.WEEK);
+  const now = useNow(60000);
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [tab, setTab] = useState("Overview");
   const [draggedId, setDraggedId] = useState(null);
@@ -157,10 +159,17 @@ function SchedulingPage() {
 
   const weekStart = startOfWeek(anchorDate);
   const weekStartTime = weekStart.getTime();
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, index) => addDays(new Date(weekStartTime), index)),
-    [weekStartTime]
-  );
+  const anchorDayKey = localDateKey(anchorDate);
+  // The columns the grid draws: the whole week, or just the anchor day.
+  const weekDays = useMemo(() => {
+    if (mode === MODES.DAY) {
+      const day = new Date(anchorDate);
+      day.setHours(0, 0, 0, 0);
+      return [day];
+    }
+    return Array.from({ length: 7 }, (_, index) => addDays(new Date(weekStartTime), index));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, weekStartTime, anchorDayKey]);
   const monthCells = useMemo(() => {
     const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
     const gridStart = startOfWeek(monthStart);
@@ -225,18 +234,20 @@ function SchedulingPage() {
   // The hours the grid actually draws. A week with four appointments used to
   // render all thirteen business hours at a fixed 56px — 728px of mostly
   // empty ruled paper, which is the loudest thing wrong with the old screen.
-  const hourWindow = useMemo(
-    () =>
-      showAllHours
-        ? fullDayWindow(DAY_START_HOUR, CALENDAR_END_HOUR)
-        : visibleHourWindow(
-            visibleAppointments.filter((appointment) =>
-              weekDays.some((date) => localDateKey(date) === localDateKey(new Date(appointment.scheduledAt)))
-            ),
-            { businessStart: DAY_START_HOUR, businessEnd: CALENDAR_END_HOUR }
-          ),
-    [visibleAppointments, weekDays, showAllHours]
-  );
+  //
+  // The office's day, 7 AM – 6 PM, is always on screen so there is somewhere
+  // to drop a visit; the window only widens (never narrows) to reach a visit
+  // booked outside it, so nothing is ever hidden.
+  const hourWindow = useMemo(() => {
+    if (showAllHours) return fullDayWindow(DAY_START_HOUR, CALENDAR_END_HOUR);
+    const inView = visibleAppointments.filter((appointment) =>
+      weekDays.some((date) => localDateKey(date) === localDateKey(new Date(appointment.scheduledAt)))
+    );
+    const base = fullDayWindow(DAY_START_HOUR, SCHEDULE_END_HOUR);
+    if (inView.length === 0) return base;
+    const used = visibleHourWindow(inView, { businessStart: DAY_START_HOUR, businessEnd: CALENDAR_END_HOUR, pad: 0, minHours: 1 });
+    return { startHour: Math.min(base.startHour, used.startHour), endHour: Math.max(base.endHour, used.endHour) };
+  }, [visibleAppointments, weekDays, showAllHours]);
 
   // Fewer hours on screen means each can afford more height, which is what
   // makes a readable card possible at all.
@@ -341,8 +352,8 @@ function SchedulingPage() {
 
   const navigateCalendar = (amount) => {
     const next = new Date(anchorDate);
-    // The technicians view is a week grid too, so only month mode steps by month.
     if (mode === MODES.MONTH) next.setMonth(next.getMonth() + amount);
+    else if (mode === MODES.DAY) next.setDate(next.getDate() + amount);
     else next.setDate(next.getDate() + amount * 7);
     setAnchorDate(next);
   };
@@ -603,20 +614,28 @@ function SchedulingPage() {
       technicianId === null ? crewOf(appointment).length === 0 : isAssignedTo(appointment, technicianId)
     ).length;
 
+  const weekEnd = addDays(weekStart, 6);
   const rangeLabel =
     mode === MODES.MONTH
       ? anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })
-      : `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`;
+      : mode === MODES.DAY
+        ? anchorDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+        : `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString([], {
+            month: weekEnd.getMonth() === weekStart.getMonth() ? undefined : "short",
+            day: "numeric",
+            year: "numeric",
+          })}`;
 
   const isOnToday =
     mode === MODES.MONTH
-      ? anchorDate.getMonth() === new Date().getMonth() &&
-        anchorDate.getFullYear() === new Date().getFullYear()
-      : localDateKey(weekStart) === localDateKey(startOfWeek(new Date()));
+      ? anchorDate.getMonth() === now.getMonth() && anchorDate.getFullYear() === now.getFullYear()
+      : mode === MODES.DAY
+        ? anchorDayKey === localDateKey(now)
+        : localDateKey(weekStart) === localDateKey(startOfWeek(now));
 
   return (
     <div style={pageShell}>
-      <PageHeader eyebrow="Operations" title="Scheduling" />
+      <PageHeader eyebrow="Operations" title="Schedule" />
 
       <div style={{ display: "grid", gap: "15px" }}>
         <SchedulingToolbar
@@ -631,11 +650,6 @@ function SchedulingPage() {
           onTechnicianFilterChange={setTechnicianFilter}
           countFor={jobsThisWeek}
           isTechnician={isTechnician}
-          canCreate={!isTechnician}
-          onCreate={() => {
-            setCreateScheduledAt("");
-            setCreateOpen(true);
-          }}
         />
 
         <section style={{ ...card, padding: mode === MODES.LIST ? "20px" : 0, border: mode === MODES.LIST ? undefined : "none", background: mode === MODES.LIST ? undefined : "transparent" }}>
@@ -700,18 +714,11 @@ function SchedulingPage() {
               />
             )}
 
-            {mode === MODES.TECHNICIANS && (
-              <TechnicianAvailability
-                accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : activeTechnicians}
-                appointments={visibleAppointments}
-                weekDays={weekDays}
-                clients={clients}
-              />
-            )}
-
-            {mode === MODES.WEEK && (
+            {(mode === MODES.WEEK || mode === MODES.DAY) && (
               <WeekGrid
                 weekDays={weekDays}
+                loadFor={(key) => dayLoad(visibleAppointments, key, Math.max(1, activeTechnicians.length))}
+                now={now}
                 weekLayout={weekLayout}
                 window={hourWindow}
                 rowHeight={rowHeight}
@@ -734,7 +741,7 @@ function SchedulingPage() {
             )}
           </CalendarProvider>
 
-          {(mode === MODES.WEEK || mode === MODES.MONTH) && (
+          {isCalendarMode(mode) && (
             <div style={{ marginTop: "12px" }}>
               <CalendarLegend
                 note={canReschedule ? (
@@ -1636,43 +1643,6 @@ function AppointmentPanel({
         )}
       </section>
     </div>
-  );
-}
-
-function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
-  const [selectedDay, setSelectedDay] = useState(null);
-
-  const timeRange = (appointment) => {
-    const start = new Date(appointment.scheduledAt);
-    const end = new Date(start.getTime() + (appointment.durationMinutes || 60) * 60000);
-    return `${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  };
-
-  return (
-    <>
-      <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
-        <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Dispatch</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.1rem" }}>Technician availability</h2></div>
-        <span style={{ color: colors.muted, fontSize: "0.75rem" }}>Select a day to view all booked times.</span>
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #efe9e0", borderLeft: "1px solid #efe9e0" }}>
-          <div style={{ padding: "0.6rem", background: "#fcfaf1", color: colors.muted, fontSize: "0.7rem", fontWeight: 500 }}>Account</div>
-          {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fcfaf1", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.muted, fontSize: "0.68rem", fontWeight: 500 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.ink, fontSize: "0.78rem", fontWeight: 500 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => isAssignedTo(appointment, account.id) && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", background: dayAppointments.length ? "#faf0e2" : "#eef2ec", color: dayAppointments.length ? "#9a3412" : "#4a6b4a", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
-        </div>
-      </div>
-      </section>
-      {selectedDay && <div role="dialog" aria-modal="true" onClick={() => setSelectedDay(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
-        <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 500px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-            <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>Technician schedule</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{selectedDay.account.name || selectedDay.account.username}</h2><div style={{ color: colors.muted, fontSize: "0.78rem", marginTop: "0.2rem" }}>{selectedDay.day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</div></div>
-            <button type="button" aria-label="Close schedule summary" onClick={() => setSelectedDay(null)} style={{ ...secondaryButton, padding: "0.4rem 0.55rem" }}><X size={16} /></button>
-          </div>
-          {selectedDay.appointments.length === 0 ? <div style={{ marginTop: "1rem", padding: "0.8rem", borderRadius: "3.75px", background: "#eef2ec", color: "#4a6b4a", fontSize: "0.8rem", fontWeight: 500 }}>Available all day.</div> : <div style={{ display: "grid", gap: "0.55rem", marginTop: "1rem" }}>{selectedDay.appointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id} style={{ padding: "0.7rem", border: "1px solid #efe9e0", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "3.75px", background: "#faf0e2" }}><div style={{ color: colors.ink, fontWeight: 500, fontSize: "0.82rem" }}>{timeRange(appointment)}</div><div style={{ color: colors.body, fontSize: "0.8rem", marginTop: "0.2rem" }}>{client?.name || "Unknown client"}</div><div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>{appointment.pestConcern || appointment.serviceType || "Service"} · {appointment.status}</div></div>; })}</div>}
-        </section>
-      </div>}
-    </>
   );
 }
 

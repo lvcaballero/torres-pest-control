@@ -157,20 +157,19 @@ describe("SchedulingPage", () => {
   it("renders the page header", () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "Scheduling" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Schedule" })).toBeInTheDocument();
     expect(screen.getByText("Operations")).toBeInTheDocument();
   });
 
-  it("renders one toolbar with every view, the period nav and the create action", () => {
+  it("renders one toolbar with every view and the period nav", () => {
     renderPage();
 
     const views = screen.getByRole("radiogroup", { name: "Scheduling view" });
-    ["Week", "Month", "List", "Technicians"].forEach((label) => {
+    ["Day", "Week", "Month", "List"].forEach((label) => {
       expect(within(views).getByRole("radio", { name: new RegExp(label) })).toBeInTheDocument();
     });
 
     expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /New appointment/ })).toBeInTheDocument();
   });
 
   it("opens on the week grid with this week's appointments drawn", () => {
@@ -180,13 +179,13 @@ describe("SchedulingPage", () => {
     expect(screen.getByText("Clizfel Testaclizfel")).toBeInTheDocument();
   });
 
-  // The density fix. With appointments at 9 AM and 3-5 PM the grid needs
-  // roughly 8 AM to 6 PM — not the full 7 AM to 8 PM it always drew before.
-  it("renders only the hours the week actually uses", () => {
+  // The office's day is always on screen so there is somewhere to drop a
+  // visit, but not the evening rows nobody books.
+  it("draws the working day, 7 AM to 6 PM", () => {
     renderPage();
 
-    expect(screen.getByText("9:00 AM")).toBeInTheDocument();
-    expect(screen.getByText("3:00 PM")).toBeInTheDocument();
+    expect(screen.getByText("7:00 AM")).toBeInTheDocument();
+    expect(screen.getByText("5:00 PM")).toBeInTheDocument();
     expect(screen.queryByText("7:00 PM")).not.toBeInTheDocument();
   });
 
@@ -228,12 +227,13 @@ describe("SchedulingPage", () => {
       expect(screen.getByText(new RegExp(new Date().toLocaleDateString([], { month: "long" })))).toBeInTheDocument();
     });
 
-    it("shows the technicians view", async () => {
+    it("shows a single day", async () => {
       renderPage();
 
-      await userEvent.click(screen.getByRole("radio", { name: /Technicians/ }));
+      await userEvent.click(screen.getByRole("radio", { name: /Day/ }));
 
-      expect(screen.getAllByText(/Karl Hameed/).length).toBeGreaterThan(0);
+      expect(document.querySelector("[data-columns]")).toHaveAttribute("data-columns", "1");
+      expect(document.querySelectorAll("[data-day]")).toHaveLength(1);
     });
   });
 
@@ -256,10 +256,9 @@ describe("SchedulingPage", () => {
     expect(screen.queryByText(/Dashed outline = Pending/)).not.toBeInTheDocument();
   });
 
-  it("opens the create form from the toolbar", async () => {
-    renderPage();
-
-    await userEvent.click(screen.getByRole("button", { name: /New appointment/ }));
+  // The top bar's New visit lands here with ?new=1.
+  it("opens the create form from a New visit link", () => {
+    renderPage("/scheduling?new=1");
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });

@@ -12,6 +12,8 @@
 import {
   allowedNextStatuses,
   bookableTechnicians,
+  dayLoad,
+  technicianHours,
   moveSteps,
   appointmentsOverlap,
   busyTechnicianIds,
@@ -343,5 +345,40 @@ describe("bookableTechnicians", () => {
   // Editing a visit a since-deactivated technician is on must not drop them.
   it("keeps a deactivated technician who is already on the crew", () => {
     expect(bookableTechnicians(technicians, ["ben"]).map((account) => account.id)).toEqual(["jun", "ben", "new"]);
+  });
+});
+
+describe("dayLoad", () => {
+  const day = "2026-09-25";
+  const at = (hour) => `${day}T${String(hour).padStart(2, "0")}:00:00`;
+
+  it("measures booked technician-time against the team's working day", () => {
+    const appointments = [
+      { id: "a", scheduledAt: at(8), durationMinutes: 330, status: "Confirmed", technicianIds: ["jun"] },
+      { id: "b", scheduledAt: at(9), durationMinutes: 60, status: "Cancelled", technicianIds: ["jun"] },
+    ];
+    // 330 of 2 × 11 × 60 = 1320 minutes.
+    expect(dayLoad(appointments, day, 2)).toBeCloseTo(0.25);
+  });
+
+  it("charges a crew visit once per member and caps at full", () => {
+    const crew = [{ id: "a", scheduledAt: at(8), durationMinutes: 600, status: "Confirmed", technicianIds: ["jun", "ramon"] }];
+    expect(dayLoad(crew, day, 1)).toBe(1);
+    expect(dayLoad(crew, day, 0)).toBe(0);
+  });
+});
+
+describe("technicianHours", () => {
+  const week = { start: new Date(2026, 8, 21), end: new Date(2026, 8, 28) };
+
+  it("adds up this week's visits for a technician, crew visits included", () => {
+    const appointments = [
+      { id: "a", scheduledAt: "2026-09-22T09:00:00", durationMinutes: 90, status: "Confirmed", technicianIds: ["jun"] },
+      { id: "b", scheduledAt: "2026-09-23T09:00:00", durationMinutes: 60, status: "Pending", technicianIds: ["ramon", "jun"] },
+      { id: "c", scheduledAt: "2026-09-24T09:00:00", durationMinutes: 60, status: "Cancelled", technicianIds: ["jun"] },
+      { id: "d", scheduledAt: "2026-09-29T09:00:00", durationMinutes: 60, status: "Confirmed", technicianIds: ["jun"] },
+    ];
+    expect(technicianHours(appointments, "jun", week)).toBe(2.5);
+    expect(technicianHours(appointments, "ramon", week)).toBe(1);
   });
 });

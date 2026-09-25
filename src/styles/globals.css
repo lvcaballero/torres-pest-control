@@ -308,6 +308,20 @@ a[href] {
   }
 }
 
+/* Client profile: a 320px facts column beside the history tabs. */
+.client-columns {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .client-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Scheduling: the grid beside a 250px side panel, stacking when narrow. */
 .schedule-layout {
   display: grid;

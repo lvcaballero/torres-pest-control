@@ -27,7 +27,7 @@ import { useToast } from "../context/ToastContext";
 import { APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
 import useNow from "../hooks/useNow";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps, technicianHours } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -40,6 +40,9 @@ import {
 } from "../utils/calendarDates";
 import { badgeStyle } from "../components/scheduling/appointmentTheme";
 import CalendarLegend from "../components/scheduling/CalendarLegend";
+import ScheduleSidePanel from "../components/scheduling/ScheduleSidePanel";
+import { awaitingReschedule } from "../utils/dashboardMetrics";
+import { reserviceDue } from "../utils/dispatch";
 import { CalendarProvider } from "../components/scheduling/CalendarContext";
 import WeekGrid from "../components/scheduling/WeekGrid";
 import MonthGrid from "../components/scheduling/MonthGrid";
@@ -90,6 +93,10 @@ function SchedulingPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createClientId, setCreateClientId] = useState("");
   const [createScheduledAt, setCreateScheduledAt] = useState("");
+  // Service, frequency and pest concern carried over when booking a re-service.
+  const [createPrefill, setCreatePrefill] = useState(null);
+  // A re-service card being dragged from the side panel (not an appointment).
+  const [reserviceDrag, setReserviceDrag] = useState(null);
   const [overflowGroup, setOverflowGroup] = useState(null);
   const [printRequest, setPrintRequest] = useState(null);
   const { methods: dynamicMethods, groups: dynamicGroups } = useTreatmentMethods();
@@ -113,6 +120,9 @@ function SchedulingPage() {
   //                writes the report and records materials, so that stays.
   const isTechnician = currentUser?.role === ROLES.TECHNICIAN;
   const canReschedule = !isTechnician;
+  // The office plans from the side panel; a technician's view is their own
+  // schedule, so it keeps the plain legend instead.
+  const showSidePanel = !isTechnician;
   // A technician "owns" a visit they are on, lead or not — an appointment can
   // carry a crew since migration 041.
   const ownsAppointment = (appointment) => !isTechnician || isAssignedTo(appointment, currentUser?.id);
@@ -559,10 +569,37 @@ function SchedulingPage() {
     setCreateOpen(false);
     setSelectedId(result.id);
     setCreateScheduledAt("");
-    setMode(MODES.WEEK);
-    setAnchorDate(startOfWeek(new Date(result.scheduledAt)));
+    setCreateClientId("");
+    setCreatePrefill(null);
+    // Show the new visit where it landed, in the day view if that's open.
+    if (mode !== MODES.DAY) setMode(MODES.WEEK);
+    setAnchorDate(mode === MODES.DAY ? new Date(result.scheduledAt) : startOfWeek(new Date(result.scheduledAt)));
     setMessage("Appointment created.");
     return true;
+  };
+
+  // Book the next visit for a client due for re-service: their last visit's
+  // service, frequency and pest concern come along; the time is where the
+  // card was dropped, or the form's default when it was clicked.
+  const bookReservice = (entry, scheduledAt) => {
+    setCreateClientId(entry.client.id);
+    setCreateScheduledAt(scheduledAt);
+    setCreatePrefill({
+      serviceId: entry.last.serviceId || "",
+      frequency: entry.last.serviceFrequency || "",
+      pestConcern: entry.last.pestConcern || "",
+    });
+    setCreateOpen(true);
+  };
+
+  const handleGridDrop = (dateKey, time) => {
+    if (reserviceDrag) {
+      const entry = reserviceDrag;
+      setReserviceDrag(null);
+      bookReservice(entry, toDateTimeLocal(new Date(`${dateKey}T${time}:00`)));
+      return;
+    }
+    moveAppointment(dateKey, time);
   };
 
   const openCreateAt = (dateKey, time) => {
@@ -620,11 +657,7 @@ function SchedulingPage() {
       ? anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })
       : mode === MODES.DAY
         ? anchorDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })
-        : `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString([], {
-            month: weekEnd.getMonth() === weekStart.getMonth() ? undefined : "short",
-            day: "numeric",
-            year: "numeric",
-          })}`;
+        : weekRangeLabel(weekStart, weekEnd);
 
   const isOnToday =
     mode === MODES.MONTH
@@ -715,6 +748,7 @@ function SchedulingPage() {
             )}
 
             {(mode === MODES.WEEK || mode === MODES.DAY) && (
+              <div className={showSidePanel ? "schedule-layout" : undefined}>
               <WeekGrid
                 weekDays={weekDays}
                 loadFor={(key) => dayLoad(visibleAppointments, key, Math.max(1, activeTechnicians.length))}
@@ -725,10 +759,40 @@ function SchedulingPage() {
                 dayStartHour={DAY_START_HOUR}
                 dayEndHour={DAY_END_HOUR}
                 onEmptyClick={openCreateAt}
-                onDropAt={moveAppointment}
+                onDropAt={handleGridDrop}
                 onShowOverflow={setOverflowGroup}
                 onShowAllHours={() => setShowAllHours(true)}
               />
+              {showSidePanel && (
+                <ScheduleSidePanel
+                  reschedule={awaitingReschedule(visibleAppointments)}
+                  reservice={reserviceDue(appointments, clients, now, 14)}
+                  load={activeTechnicians.map((technician) => ({
+                    technician,
+                    hours: technicianHours(appointments, technician.id, { start: weekStart, end: addDays(weekStart, 7) }),
+                  }))}
+                  clientName={(id) => clients.find((client) => client.id === id)?.name || "Unknown client"}
+                  canDrag={canReschedule}
+                  onDragAppointment={(appointment) => {
+                    setReserviceDrag(null);
+                    setDraggedId(appointment.id);
+                  }}
+                  onDragReservice={(entry) => {
+                    setDraggedId(null);
+                    setReserviceDrag(entry);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setReserviceDrag(null);
+                  }}
+                  onOpenAppointment={(appointment) => {
+                    setSelectedId(appointment.id);
+                    setTab("Overview");
+                  }}
+                  onBookReservice={(entry) => bookReservice(entry, "")}
+                />
+              )}
+              </div>
             )}
 
             {mode === MODES.MONTH && (
@@ -741,7 +805,7 @@ function SchedulingPage() {
             )}
           </CalendarProvider>
 
-          {isCalendarMode(mode) && (
+          {isCalendarMode(mode) && !(showSidePanel && mode !== MODES.MONTH) && (
             <div style={{ marginTop: "12px" }}>
               <CalendarLegend
                 note={canReschedule ? (
@@ -818,10 +882,14 @@ function SchedulingPage() {
           services={activeServices}
           initialClientId={createClientId}
           initialScheduledAt={createScheduledAt}
+          initialServiceId={createPrefill?.serviceId || ""}
+          initialFrequency={createPrefill?.frequency || ""}
+          initialPestConcern={createPrefill?.pestConcern || ""}
           onClose={() => {
             setCreateOpen(false);
             setCreateClientId("");
             setCreateScheduledAt("");
+            setCreatePrefill(null);
           }}
           onCreate={handleCreate}
         />
@@ -833,6 +901,16 @@ function SchedulingPage() {
       </CalendarProvider>
     </div>
   );
+}
+
+/** "Sep 21 – 27, 2026", "Sep 28 – Oct 4, 2026", "Dec 28, 2026 – Jan 3, 2027". */
+export function weekRangeLabel(start, end) {
+  const month = (date) => date.toLocaleDateString([], { month: "short" });
+  if (start.getFullYear() !== end.getFullYear()) {
+    return `${month(start)} ${start.getDate()}, ${start.getFullYear()} – ${month(end)} ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  const endPart = start.getMonth() === end.getMonth() ? `${end.getDate()}` : `${month(end)} ${end.getDate()}`;
+  return `${month(start)} ${start.getDate()} – ${endPart}, ${end.getFullYear()}`;
 }
 
 function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, services = [], serviceById = () => null, serviceByName = () => null, onSave }) {

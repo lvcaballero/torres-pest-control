@@ -17,7 +17,7 @@
 // The submit path is deliberately unchanged: still uncontrolled fields read
 // through FormData, still returning the caller's error string on failure.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, MapPin, Phone } from "lucide-react";
 import { neutral, radius, status, surface, text, weight } from "../../styles/tokens";
 import { LIMITS, PEST_CONCERN_SUGGESTIONS, SERVICE_FREQUENCIES } from "../../utils/constants";
@@ -77,6 +77,10 @@ function NewAppointmentModal({
   services = [],
   initialClientId = "",
   initialScheduledAt = "",
+  // Carried over from a client's last visit when booking a re-service.
+  initialServiceId = "",
+  initialFrequency = "",
+  initialPestConcern = "",
   onClose,
   onCreate,
 }) {
@@ -144,6 +148,13 @@ function NewAppointmentModal({
       }
     }
   };
+
+  // A re-service booking arrives with the last visit's service: apply its
+  // default duration and price once, exactly as picking it by hand would.
+  useEffect(() => {
+    if (initialServiceId) chooseService(initialServiceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Recomputed per render: the picker's lower bound moves with the clock.
   const earliest = toDateTimeLocal(new Date());
@@ -375,7 +386,7 @@ function NewAppointmentModal({
             </Field>
 
             <Field label="Pest concern">
-              <Select name="pestConcern" defaultValue="">
+              <Select name="pestConcern" defaultValue={initialPestConcern}>
                 <option value="">Select a pest concern</option>
                 {PEST_CONCERN_SUGGESTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -387,7 +398,7 @@ function NewAppointmentModal({
                 hold a quarterly contract and a one-off fumigation, and the
                 price has to stay whatever was agreed on the day. */}
             <Field label="Frequency">
-              <Select name="serviceFrequency" defaultValue="">
+              <Select name="serviceFrequency" defaultValue={initialFrequency}>
                 <option value="">Not set</option>
                 {SERVICE_FREQUENCIES.map((option) => (
                   <option key={option} value={option}>{option}</option>

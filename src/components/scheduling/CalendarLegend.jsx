@@ -26,21 +26,30 @@ export function LegendSwatch({ status }) {
   );
 }
 
-function CalendarLegend({ note = null }) {
+function CalendarLegend({ note = null, vertical = false }) {
   return (
     <div
       style={{
         display: "flex",
         flexWrap: "wrap",
-        alignItems: "center",
-        gap: "8px 18px",
+        flexDirection: vertical ? "column" : "row",
+        alignItems: vertical ? "flex-start" : "center",
+        gap: vertical ? "10px" : "8px 18px",
         fontSize: "12.5px",
         color: neutral.saddle,
       }}
     >
       <ul
         aria-label="Legend"
-        style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", margin: 0, padding: 0, listStyle: "none" }}
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          flexDirection: vertical ? "column" : "row",
+          gap: vertical ? "7px" : "8px 16px",
+          margin: 0,
+          padding: 0,
+          listStyle: "none",
+        }}
       >
         {LEGEND_STATUSES.map((status) => {
           const visual = statusVisual(status);
@@ -52,7 +61,7 @@ function CalendarLegend({ note = null }) {
           );
         })}
       </ul>
-      {note && <span style={{ marginLeft: "auto", color: neutral.bark }}>{note}</span>}
+      {note && <span style={{ marginLeft: vertical ? 0 : "auto", color: neutral.bark }}>{note}</span>}
     </div>
   );
 }

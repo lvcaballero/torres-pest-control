@@ -9,7 +9,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import SchedulingPage, { buildStockRows, defaultStockOutDate, validateStockOut } from "../SchedulingPage";
+import SchedulingPage, { buildStockRows, defaultStockOutDate, validateStockOut, weekRangeLabel } from "../SchedulingPage";
 import { localDateKey, startOfWeek } from "../../utils/calendarDates";
 
 // SchedulingPage reads ?appointment= via useSearchParams, so it needs a router
@@ -423,5 +423,19 @@ describe("stock-out helpers", () => {
     expect(validateStockOut([{ itemId: "i1", amount: "0" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
     expect(validateStockOut([{ itemId: "i1", amount: "" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
     expect(validateStockOut([], "2026-01-01", mockInventory).error).toMatch(/at least one item/);
+  });
+});
+
+describe("weekRangeLabel", () => {
+  it("names the month once inside a month", () => {
+    expect(weekRangeLabel(new Date(2026, 8, 21), new Date(2026, 8, 27))).toBe("Sep 21 – 27, 2026");
+  });
+
+  it("names both months across a month boundary", () => {
+    expect(weekRangeLabel(new Date(2026, 8, 28), new Date(2026, 9, 4))).toBe("Sep 28 – Oct 4, 2026");
+  });
+
+  it("names both years across New Year", () => {
+    expect(weekRangeLabel(new Date(2026, 11, 28), new Date(2027, 0, 3))).toBe("Dec 28, 2026 – Jan 3, 2027");
   });
 });

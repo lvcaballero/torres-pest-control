@@ -67,7 +67,7 @@ describe("NewAppointmentModal", () => {
   it("groups its fields into named sections", () => {
     renderModal();
 
-    ["Client", "When", "Assignment", "Work"].forEach((legend) => {
+    ["Client", "When", "Assignment", "Details"].forEach((legend) => {
       expect(screen.getByRole("group", { name: legend })).toBeInTheDocument();
     });
   });
@@ -419,5 +419,47 @@ describe("duration presets are a group, not a labelled control", () => {
     ["30m", "1h", "1h 30m", "2h", "Custom"].forEach((label) => {
       expect(within(group).getByRole("button", { name: label })).toBeInTheDocument();
     });
+  });
+});
+
+describe("service first and clash hints", () => {
+  // The service sets duration and price, so it comes before the time.
+  it("asks for the service before the date and time", () => {
+    renderModal({ services });
+
+    const service = screen.getByRole("combobox", { name: /Service type/ });
+    const when = screen.getByLabelText(/Date and time/);
+    expect(service.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("names who is already out at the chosen time, and where", () => {
+    renderModal({ initialScheduledAt: `${TODAY}T09:30` });
+
+    expect(screen.getByTestId("clash-hint")).toHaveTextContent(/Karl is on Clizfel Testaclizfel 9:00.*10:00/);
+    expect(screen.getByText("1 of 2 free at this time")).toBeInTheDocument();
+  });
+
+  it("says nothing about clashes for a free slot", () => {
+    renderModal({ initialScheduledAt: `${TODAY}T13:00` });
+
+    expect(screen.queryByTestId("clash-hint")).toBeNull();
+    expect(screen.getByText("All free at this time")).toBeInTheDocument();
+  });
+
+  // Booking a re-service from the Schedule side panel.
+  it("carries the last visit's service, frequency and pest concern", () => {
+    renderModal({
+      services,
+      initialClientId: "c1",
+      initialServiceId: "s1",
+      initialFrequency: "Quarterly",
+      initialPestConcern: "Termites",
+    });
+
+    expect(screen.getByRole("combobox", { name: /Service type/ })).toHaveValue("s1");
+    expect(screen.getByRole("combobox", { name: "Frequency" })).toHaveValue("Quarterly");
+    expect(screen.getByRole("combobox", { name: "Pest concern" })).toHaveValue("Termites");
+    expect(screen.getByLabelText(/Price/)).toHaveValue(4500);
+    expect(screen.getByRole("button", { name: "2h" })).toHaveAttribute("aria-pressed", "true");
   });
 });

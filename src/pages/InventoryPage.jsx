@@ -13,9 +13,16 @@
 // original note this replaced) — the file's just bigger now.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, MoreHorizontal, Plus, Search } from "lucide-react";
+import { AlertTriangle, FlaskConical, MoreHorizontal, Package, PackagePlus, Plus, Search, Wrench } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import useAuth from "../hooks/useAuth";
 import useInventory from "../hooks/useInventory";
+import useNow from "../hooks/useNow";
+import Button from "../components/ui/Button";
+import SegmentedControl from "../components/ui/SegmentedControl";
+import StatusPill from "../components/ui/StatusPill";
+import { SUBSYSTEMS } from "../utils/permissions";
+import { inventoryAlerts, isBelowReorder, isExpiringSoon, isMaintenanceOverdue, itemValue, sortByUrgency, watchFor } from "../utils/inventoryWatch";
 import useUsers from "../hooks/useUsers";
 import { useToast } from "../context/ToastContext";
 import { INVENTORY_STATUS } from "../services/inventoryService";
@@ -243,6 +250,11 @@ function InventoryPage() {
   const { showSuccess, showError } = useToast();
 
   const [tab, setTab] = useState("items"); // "items" | "history"
+  const { can } = useAuth();
+  // Receiving and reordering stock is an inventory write: admins only, per
+  // the permission matrix (staff and technicians read inventory).
+  const canManageStock = can(SUBSYSTEMS.INVENTORY, "create");
+  const now = useNow(60 * 60 * 1000);
   const [openForm, setOpenForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -337,12 +349,20 @@ function InventoryPage() {
       if (itemStatusFilter === "ACTIVE" && isDisabled) return false;
       if (itemStatusFilter === "DISABLED" && !isDisabled) return false;
       if (itemStockFilter === "OUT" && !isOutOfStock) return false;
-      if (itemStockFilter === "LOW" && !isLowStock) return false;
+      if (itemStockFilter === "LOW" && !isBelowReorder(item)) return false;
       if (itemStockFilter === "HEALTHY" && isLowStock) return false;
+      if (itemStockFilter === "EXPIRING" && !isExpiringSoon(item, now)) return false;
+      if (itemStockFilter === "MAINTENANCE" && !isMaintenanceOverdue(item, now)) return false;
       if (itemStockFilter === "LOSSES" && !recentLosses.has(item.id)) return false;
       return true;
     });
-  }, [inventory, itemSearch, itemTypeFilter, itemStatusFilter, itemStockFilter, recentLosses]);
+  }, [inventory, itemSearch, itemTypeFilter, itemStatusFilter, itemStockFilter, recentLosses, now]);
+
+  const alerts = useMemo(() => inventoryAlerts(inventory, now, recentLosses), [inventory, now, recentLosses]);
+  const stockValue = useMemo(
+    () => inventory.filter((item) => item.status !== INVENTORY_STATUS.DISABLED).reduce((sum, item) => sum + itemValue(item), 0),
+    [inventory]
+  );
 
   const hasItemFilters = itemSearch || itemTypeFilter !== "ALL" || itemStatusFilter !== "ALL" || itemStockFilter !== "ALL";
 
@@ -513,47 +533,29 @@ function InventoryPage() {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+      <div style={{ marginBottom: "18px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
         <div>
-          <p style={{ color: "#7f1d1d", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: "0.72rem", margin: 0 }}>
-            Inventory
+          <p style={{ margin: 0, fontSize: "11.5px", letterSpacing: "0.09em", textTransform: "uppercase", color: "#50463c" }}>Operations</p>
+          <h1 style={{ margin: "4px 0 0", fontSize: "30px", lineHeight: 1.2, letterSpacing: "-0.33px" }}>Inventory</h1>
+          <p style={{ margin: "4px 0 0", color: "#50463c" }}>
+            {inventory.length} {inventory.length === 1 ? "item" : "items"} · ₱{Math.round(stockValue).toLocaleString()} on hand
           </p>
-          <h1 style={{ margin: "0.25rem 0 0", fontSize: "2.1rem", color: "#211b15", lineHeight: 1.15 }}>
-            Inventory Management
-          </h1>
         </div>
-        {tab === "items" && (
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => { setStockInSeedItemId(""); setStockInOpen(true); }}
-              style={{
-                ...secondaryButton,
-                padding: "0.78rem 1.15rem",
-                fontSize: "0.85rem",
-              }}
-            >
-              Stock In Delivery
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpenForm((value) => !value)}
-              style={{
-                background: "#9a2d24",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "3.75px",
-                padding: "0.78rem 1.15rem",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                cursor: "pointer",
-                boxShadow: "none",
-              }}
-            >
-              {openForm ? "Close Form" : "Add Inventory Item"}
-            </button>
-          </div>
-        )}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Button variant="quiet" onClick={() => setTab(tab === "history" ? "items" : "history")}>
+            {tab === "history" ? "Items" : "Stock history"}
+          </Button>
+          {canManageStock && (
+            <Button variant="secondary" icon={<Plus size={15} />} onClick={() => { setTab("items"); setOpenForm((value) => !value); }}>
+              {openForm ? "Close form" : "Add item"}
+            </Button>
+          )}
+          {canManageStock && (
+            <Button variant="primary" icon={<PackagePlus size={15} />} onClick={() => { setStockInSeedItemId(""); setStockInOpen(true); }}>
+              Receive delivery
+            </Button>
+          )}
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #efe9e0" }}>
@@ -561,7 +563,7 @@ function InventoryPage() {
           Items
         </TabButton>
         <TabButton active={tab === "history"} onClick={() => setTab("history")}>
-          Stock Movement History
+          Stock history
         </TabButton>
       </div>
 
@@ -699,85 +701,91 @@ function InventoryPage() {
             </form>
           )}
 
-          <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto" }}>
-            <div style={{ background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", gap: "0.9rem", alignItems: "end", flexWrap: "wrap" }}>
-                <div style={{ flex: "1 1 260px", minWidth: "220px" }}>
-                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
-                    Search
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <Search size={15} style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "#96897b" }} />
-                    <input
-                      value={itemSearch}
-                      onChange={(e) => setItemSearch(e.target.value)}
-                      placeholder="Search items"
-                      style={{ ...inputStyle, paddingLeft: "2.4rem" }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
-                    Type
-                  </label>
-                  <select value={itemTypeFilter} onChange={(e) => setItemTypeFilter(e.target.value)} style={inputStyle}>
-                    <option value="ALL">All Types</option>
-                    <option value="CHEMICAL">Chemical</option>
-                    <option value="EQUIPMENT">Equipment</option>
-                    <option value="MATERIAL">Material</option>
-                  </select>
-                </div>
-
-                <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
-                    Status
-                  </label>
-                  <select value={itemStatusFilter} onChange={(e) => setItemStatusFilter(e.target.value)} style={inputStyle}>
-                    <option value="ALL">All Statuses</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="DISABLED">Disabled</option>
-                  </select>
-                </div>
-
-                <div style={{ flex: "0 0 170px" }}>
-                  <label style={{ display: "block", color: "#50463c", fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.45rem" }}>
-                    Stock Level
-                  </label>
-                  <select value={itemStockFilter} onChange={(e) => setItemStockFilter(e.target.value)} style={inputStyle}>
-                    <option value="ALL">All Stock Levels</option>
-                    <option value="OUT">Out of Stock</option>
-                    <option value="LOW">Low Stock</option>
-                    <option value="HEALTHY">Healthy Stock</option>
-                    <option value="LOSSES">Missing / damaged (30 days)</option>
-                  </select>
-                </div>
-
+          {/* The four alert cards double as filters: click one to see just
+              those items, click it again to see everything. */}
+          <div role="group" aria-label="Stock alerts" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "16px" }}>
+            {[
+              { key: "LOW", count: alerts.low, label: "Below reorder level", Icon: Package, tone: "danger" },
+              { key: "EXPIRING", count: alerts.expiring, label: "Expires within 30 days", Icon: FlaskConical, tone: "danger" },
+              { key: "MAINTENANCE", count: alerts.maintenance, label: "Maintenance overdue", Icon: Wrench, tone: "warning" },
+              { key: "LOSSES", count: alerts.losses, label: "Missing / damaged this month", Icon: AlertTriangle, tone: "neutral" },
+            ].map(({ key, count, label, Icon, tone }) => {
+              const selected = itemStockFilter === key;
+              const tile = tone === "danger" ? { background: "#f9ecea", color: "#9a2d24" } : tone === "warning" ? { background: "#faf0e2", color: "#9a6420" } : { background: "#efe9e0", color: "#50463c" };
+              return (
                 <button
+                  key={key}
                   type="button"
-                  onClick={clearItemFilters}
-                  disabled={!hasItemFilters}
+                  aria-pressed={selected}
+                  onClick={() => setItemStockFilter(selected ? "ALL" : key)}
+                  className="ui-interactive"
                   style={{
-                    ...secondaryButton,
-                    padding: "0.72rem 0.9rem",
-                    fontSize: "0.82rem",
-                    minWidth: "120px",
-                    opacity: hasItemFilters ? 1 : 0.55,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "14px 16px",
+                    textAlign: "left",
+                    background: "#ffffff",
+                    border: `1px solid ${selected ? "#7f1111" : "#e6dfd3"}`,
+                    boxShadow: "none",
+                    borderRadius: "7.5px",
+                    cursor: "pointer",
                   }}
                 >
-                  Clear Filters
+                  <span aria-hidden="true" style={{ width: "34px", height: "34px", borderRadius: "4px", display: "grid", placeItems: "center", flexShrink: 0, ...(count ? tile : { background: "#efe9e0", color: "#8a7d70" }) }}>
+                    <Icon size={17} strokeWidth={1.6} />
+                  </span>
+                  <span>
+                    <span style={{ display: "block", fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 500, fontSize: "24px", lineHeight: 1.1, color: "#211b15" }}>{count}</span>
+                    <span style={{ display: "block", fontSize: "13px", color: "#50463c" }}>{label}</span>
+                  </span>
                 </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
-          <div style={{ maxWidth: "1200px", width: "100%", margin: "0 auto", background: "#ffffff", border: "1px solid #efe9e0", borderRadius: "7.5px", boxShadow: "none", overflow: "visible", position: "relative", zIndex: 1 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.5fr) 1fr 1.2fr 1fr 1.4fr", gap: "0.75rem", padding: "0.9rem 1.5rem", background: "#efe9e0", borderBottom: "1px solid #efe9e0" }}>
-              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Item Details</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Type</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Stock Level</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>Status</span>
-              <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "#96897b", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right" }}>Actions</span>
+          <div style={{ width: "100%", background: "#ffffff", border: "1px solid #e6dfd3", borderRadius: "7.5px", boxShadow: "none", overflow: "visible", position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", padding: "14px 18px", borderBottom: "1px solid #e6dfd3" }}>
+              <div style={{ position: "relative", flex: "1 1 240px", maxWidth: "380px" }}>
+                <Search size={15} aria-hidden="true" style={{ position: "absolute", left: "11px", top: "50%", transform: "translateY(-50%)", color: "#8a7d70" }} />
+                <input
+                  aria-label="Search items"
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  placeholder="Search items"
+                  style={{ ...inputStyle, paddingLeft: "34px" }}
+                />
+              </div>
+              <SegmentedControl
+                ariaLabel="Item type"
+                size="sm"
+                value={itemTypeFilter}
+                onChange={setItemTypeFilter}
+                options={[
+                  { value: "ALL", label: "All" },
+                  { value: "CHEMICAL", label: "Chemicals" },
+                  { value: "EQUIPMENT", label: "Equipment" },
+                  { value: "MATERIAL", label: "Materials" },
+                ]}
+              />
+              <select aria-label="Item status" value={itemStatusFilter} onChange={(e) => setItemStatusFilter(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: "13px" }}>
+                <option value="ALL">Active and disabled</option>
+                <option value="ACTIVE">Active only</option>
+                <option value="DISABLED">Disabled only</option>
+              </select>
+              <Button size="sm" variant="quiet" onClick={clearItemFilters} disabled={!hasItemFilters}>
+                Clear filters
+              </Button>
+              <span style={{ marginLeft: "auto", color: "#8a7d70", fontSize: "12.5px" }}>Sorted by urgency</span>
+            </div>
+
+            <div className="inventory-scroll">
+            <div className="inventory-row inventory-head" style={{ background: "#faf7ee", borderBottom: "1px solid #e6dfd3" }}>
+              {["Item", "Type", "On hand", "Watch", "Location", "Value", ""].map((label, index) => (
+                <span key={label || "actions"} style={{ fontSize: "11px", fontWeight: 500, color: "#8a7d70", textTransform: "uppercase", letterSpacing: "0.08em", textAlign: index === 2 || index === 5 ? "right" : "left" }}>
+                  {label || <span className="visually-hidden">Actions</span>}
+                </span>
+              ))}
             </div>
 
             {error && (
@@ -805,97 +813,68 @@ function InventoryPage() {
               </div>
             )}
 
-            {filteredInventory.map((item) => {
-              const isLowStock = Number(item.quantity) <= 0 || (item.reorderLevel !== null && item.reorderLevel !== undefined && item.quantity <= item.reorderLevel);
+            {sortByUrgency(filteredInventory, now, recentLosses).map((item) => {
               const isDisabled = item.status === INVENTORY_STATUS.DISABLED;
+              const low = isBelowReorder(item);
+              const watch = watchFor(item, now);
               const typeLabel = item.type === "CHEMICAL" ? "Chemical" : item.type === "EQUIPMENT" ? "Equipment" : "Material";
-              const stockText = `${Number(item.quantity || 0).toLocaleString()} ${item.unit || ""}`.trim();
-              const stockBadgeStyle = isDisabled
-                ? { background: "#efe9e0", border: "1px solid #efe9e0", color: "#50463c" }
-                : isLowStock
-                  ? { background: "#faf0e2", border: "1px solid #fed7aa", color: "#b45309" }
-                  : { background: "#eef2ec", border: "1px solid #a7f3d0", color: "#4a6b4a" };
+              const quantity = Number(item.quantity || 0);
+              const reorder = item.reorderLevel === null || item.reorderLevel === undefined || item.reorderLevel === "" ? null : Number(item.reorderLevel);
+              // The bar is on-hand against twice the reorder level: full means
+              // comfortably stocked, a short red bar means reorder.
+              const fill = reorder ? Math.min(1, quantity / (reorder * 2)) : quantity > 0 ? 1 : 0;
+              const detail = [item.supplier, item.type === "EQUIPMENT" ? item.serialNumber : item.chemicalType || item.materialCategory].filter(Boolean).join(" · ");
+              const losses = recentLosses.get(item.id);
 
               return (
                 <div
                   key={item.id}
+                  className="inventory-row"
                   onClick={() => setSelectedItem(item)}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 2.5fr) 1fr 1.2fr 1fr 1.4fr",
-                    gap: "0.75rem",
-                    padding: "1rem",
-                    borderTop: "1px solid #efe9e0",
-                    alignItems: "center",
+                    borderTop: "1px solid #e6dfd3",
                     cursor: "pointer",
-                    transition: "background-color 0.2s ease",
-                    background: isDisabled ? "#efe9e0" : "#ffffff",
+                    background: isDisabled ? "#f6f2ea" : low ? "#fffcf8" : "#ffffff",
+                    opacity: isDisabled ? 0.75 : 1,
                     position: "relative",
                     zIndex: actionMenuItemId === item.id ? 60 : 1,
                     overflow: "visible",
                     isolation: "isolate",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#efe9e0")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ffffff")}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, color: "#211b15", fontSize: "0.96rem", display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
-                      {item.name}
-                      {recentLosses.has(item.id) && (
-                        <span
-                          title="Missing or damaged stock recorded in the last 30 days. See History → Stock Out."
-                          style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", borderRadius: "999px", padding: "0.1rem 0.5rem", fontSize: "0.68rem", fontWeight: 500, ...REASON_TONES.MISSING }}
-                        >
-                          <AlertTriangle size={11} aria-hidden="true" />
-                          {describeLosses(recentLosses.get(item.id))}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", color: "#96897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.supplier || item.storageLocation || "Inventory item"}
+                    <div style={{ fontWeight: 500, color: "#211b15" }}>{item.name}</div>
+                    <div style={{ fontSize: "12px", color: "#8a7d70", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {[detail || null, losses ? describeLosses(losses) : null, isDisabled ? "Disabled" : null].filter(Boolean).join(" · ") || "—"}
                     </div>
                   </div>
 
-                  <div style={{ color: "#50463c", fontSize: "0.9rem" }}>{typeLabel}</div>
+                  <div style={{ color: "#211b15" }}>{typeLabel}</div>
 
-                  <div style={{ color: isLowStock ? "#9a2d24" : "#211b15", fontWeight: 500, textAlign: "right", whiteSpace: "nowrap" }}>
-                    {stockText}
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "center" }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        borderRadius: "999px",
-                        padding: "0.32rem 0.7rem",
-                        fontSize: "0.72rem",
-                        fontWeight: 500,
-                        ...stockBadgeStyle,
-                      }}
-                    >
-                      {isDisabled ? "Disabled" : isLowStock ? "Low Stock" : "Healthy"}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px", whiteSpace: "nowrap" }}>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <b style={{ fontWeight: 600 }}>{quantity.toLocaleString()}</b>
+                      {reorder !== null && low ? <span style={{ color: "#50463c" }}> / {reorder}</span> : null} {item.unit || ""}
+                    </span>
+                    <span aria-hidden="true" style={{ width: "72px", height: "4px", borderRadius: "2px", background: "#efe9e0", overflow: "hidden", flexShrink: 0 }}>
+                      <span style={{ display: "block", height: "100%", width: `${fill * 100}%`, background: low ? "#9a2d24" : "#50463c" }} />
                     </span>
                   </div>
 
-                  <div ref={actionMenuItemId === item.id ? actionMenuRef : null} style={{ display: "flex", gap: "0.45rem", alignItems: "center", justifyContent: "flex-end", overflow: "visible", position: "relative", zIndex: actionMenuItemId === item.id ? 200 : 1 }} onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => { setStockInSeedItemId(item.id); setStockInOpen(true); }}
-                      style={{
-                        ...secondaryButton,
-                        padding: "0.42rem 0.72rem",
-                        fontSize: "0.72rem",
-                        border: "1px solid #cbd5e1",
-                        background: "#ffffff",
-                        color: "#50463c",
-                        borderRadius: "3.75px",
-                        boxShadow: "none",
-                      }}
-                    >
-                      Stock In
-                    </button>
+                  <div style={{ minWidth: 0 }}>
+                    {watch.pill ? <StatusPill tone={watch.tone}>{watch.label}</StatusPill> : <span style={{ color: "#8a7d70", fontSize: "13px" }}>{watch.label}</span>}
+                  </div>
 
+                  <div style={{ color: "#211b15", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.storageLocation || "—"}</div>
+
+                  <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#211b15" }}>₱{Math.round(itemValue(item)).toLocaleString()}</div>
+
+                  <div ref={actionMenuItemId === item.id ? actionMenuRef : null} style={{ display: "flex", gap: "6px", alignItems: "center", justifyContent: "flex-end", overflow: "visible", position: "relative", zIndex: actionMenuItemId === item.id ? 200 : 1 }} onClick={(e) => e.stopPropagation()}>
+                    {low && canManageStock && (
+                      <Button size="sm" variant="secondary" onClick={() => { setStockInSeedItemId(item.id); setStockInOpen(true); }}>
+                        Reorder
+                      </Button>
+                    )}
                     <div style={{ position: "relative", display: "inline-block", overflow: "visible", zIndex: actionMenuItemId === item.id ? 300 : 1 }}>
                       <button
                         type="button"
@@ -940,9 +919,10 @@ function InventoryPage() {
                             pointerEvents: "auto",
                           }}
                         >
+                          {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setStockInSeedItemId(item.id); setStockInOpen(true); }} style={{ ...menuActionStyle, color: "#211b15" }}>Stock In</button>}
                           <button type="button" onClick={() => { setActionMenuItemId(null); setEditItem(item); }} style={{ ...menuActionStyle, color: "#211b15" }}>Edit</button>
                           {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setStockOutItem(item); }} style={{ ...menuActionStyle, color: "#9a2d24" }}>Stock Out</button>}
-                          {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setCorrectionItem(item); }} style={{ ...menuActionStyle, color: "#7c3aed" }}>Correct Stock</button>}
+                          {!isDisabled && <button type="button" onClick={() => { setActionMenuItemId(null); setCorrectionItem(item); }} style={{ ...menuActionStyle, color: "#211b15" }}>Correct Stock</button>}
                           <button type="button" onClick={() => { setActionMenuItemId(null); if (isDisabled) setItemStatus(item.id, INVENTORY_STATUS.ACTIVE).then((r) => handleStatusResult(r, showSuccess, showError, item.name, "enabled")); else setDisableTarget(item); }} style={{ ...menuActionStyle, color: isDisabled ? "#4a6b4a" : "#9a2d24" }}>
                             {isDisabled ? "Enable" : "Disable"}
                           </button>
@@ -956,8 +936,8 @@ function InventoryPage() {
                 </div>
               );
             })}
-
-            <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #efe9e0", background: "#efe9e0", color: "#96897b", fontSize: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            </div>
+            <div style={{ padding: "10px 18px", borderTop: "1px solid #e6dfd3", color: "#8a7d70", fontSize: "12.5px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>Showing {filteredInventory.length} of {inventory.length} items</span>
             </div>
           </div>

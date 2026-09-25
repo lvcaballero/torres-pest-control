@@ -308,6 +308,45 @@ a[href] {
   }
 }
 
+/* Inventory items: one grid shared by the header and every row. Below
+   900px the table scrolls inside itself rather than squeezing columns. */
+.inventory-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2.2fr) 0.9fr 1.5fr 1.5fr 0.9fr 0.9fr 118px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  font-size: 13.5px;
+}
+
+.inventory-head {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.inventory-scroll {
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .inventory-scroll {
+    overflow-x: auto;
+  }
+
+  .inventory-row {
+    min-width: 900px;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* Client profile: a 320px facts column beside the history tabs. */
 .client-columns {
   display: grid;

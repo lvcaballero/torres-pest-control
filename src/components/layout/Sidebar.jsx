@@ -137,7 +137,17 @@ const styles = {
     padding: "7px 10px",
     borderRadius: radius.control,
     // Every item carries a border so the active one costs no layout shift.
-    border: "1px solid transparent",
+    //
+    // Longhands, not the `border` shorthand — this is load-bearing and has
+    // regressed once already. activeLink sets borderColor, so React owns that
+    // longhand; when the item goes inactive React removes it by assigning "",
+    // which DELETES the declaration rather than falling back to the
+    // shorthand's transparent. border-color then drops to its initial value,
+    // currentColor, and every tab you have visited keeps an outline. Naming
+    // borderColor here gives React a value to write back instead.
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "transparent",
     background: "transparent",
     color: neutral.saddle,
     textDecoration: "none",

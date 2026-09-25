@@ -151,6 +151,20 @@ describe("Sidebar active state", () => {
     expect(screen.getByRole("link", { name: /Clients/ })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: /Inventory/ }).querySelector("[data-active-marker]")).not.toBeNull();
   });
+
+  // Regression: with the `border` shorthand on the base style, React deleted
+  // border-color when a link went inactive, so it fell back to currentColor
+  // and every visited tab kept an outline.
+  it("clears the outline from the item the user navigated away from", async () => {
+    renderSidebar("/clients");
+
+    await userEvent.click(screen.getByRole("link", { name: /Inventory/ }));
+    await userEvent.click(screen.getByRole("link", { name: /Schedule/ }));
+
+    ["Clients", "Inventory"].forEach((label) => {
+      expect(screen.getByRole("link", { name: new RegExp(label) }).style.borderColor).toBe("transparent");
+    });
+  });
 });
 
 describe("Sidebar footer", () => {

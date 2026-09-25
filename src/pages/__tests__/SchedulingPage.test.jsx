@@ -9,7 +9,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import SchedulingPage, { buildStockRows, defaultStockOutDate, validateStockOut, weekRangeLabel } from "../SchedulingPage";
+import SchedulingPage, { buildStockRows, defaultStockOutDate, scopeAppointments, shortDuration, validateStockOut, weekRangeLabel } from "../SchedulingPage";
 import { localDateKey, startOfWeek } from "../../utils/calendarDates";
 
 // SchedulingPage reads ?appointment= via useSearchParams, so it needs a router
@@ -227,6 +227,19 @@ describe("SchedulingPage", () => {
       expect(screen.getByText(new RegExp(new Date().toLocaleDateString([], { month: "long" })))).toBeInTheDocument();
     });
 
+    it("opens the list on upcoming visits, with sortable columns", async () => {
+      renderPage();
+
+      await userEvent.click(screen.getByRole("radio", { name: /List/ }));
+
+      expect(screen.getByRole("radio", { name: "Upcoming" })).toBeChecked();
+      ["When", "Client", "Service", "Status", "Duration", "Price"].forEach((label) => {
+        expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+      });
+      expect(screen.getByRole("columnheader", { name: "Technicians" })).toBeInTheDocument();
+      expect(screen.getByText(/^Showing \d+ of \d+/)).toBeInTheDocument();
+    });
+
     it("shows a single day", async () => {
       renderPage();
 
@@ -437,5 +450,40 @@ describe("weekRangeLabel", () => {
 
   it("names both years across New Year", () => {
     expect(weekRangeLabel(new Date(2026, 11, 28), new Date(2027, 0, 3))).toBe("Dec 28, 2026 – Jan 3, 2027");
+  });
+});
+
+describe("scopeAppointments", () => {
+  const now = new Date(2026, 8, 25, 12, 0);
+  const at = (day, hour) => new Date(2026, 8, day, hour).toISOString();
+  const list = [
+    { id: "last-week", scheduledAt: at(18, 9), durationMinutes: 60 },
+    { id: "running", scheduledAt: at(25, 11, 30), durationMinutes: 90 },
+    { id: "tomorrow", scheduledAt: at(26, 9), durationMinutes: 60 },
+    { id: "this-morning", scheduledAt: at(25, 8), durationMinutes: 60 },
+  ];
+  const ids = (scope) => scopeAppointments(list, scope, now).map((entry) => entry.id);
+
+  it("puts what's still ahead first, soonest first", () => {
+    expect(ids("upcoming")).toEqual(["running", "tomorrow"]);
+  });
+
+  it("lists the past newest first", () => {
+    expect(ids("past")).toEqual(["this-morning", "last-week"]);
+  });
+
+  it("shows everything in date order", () => {
+    expect(ids("all")).toEqual(["last-week", "this-morning", "running", "tomorrow"]);
+  });
+});
+
+describe("shortDuration", () => {
+  it.each([
+    [90, "1h 30m"],
+    [60, "1h"],
+    [45, "45m"],
+    [150, "2h 30m"],
+  ])("writes %i minutes as %s", (minutes, label) => {
+    expect(shortDuration(minutes)).toBe(label);
   });
 });

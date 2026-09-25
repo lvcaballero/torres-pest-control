@@ -27,7 +27,7 @@ import { useToast } from "../context/ToastContext";
 import { APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
 import useNow from "../hooks/useNow";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments, moveSteps, technicianHours } from "../utils/scheduling";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, endOf, layoutDayAppointments, moveSteps, startOf, technicianHours } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -38,7 +38,6 @@ import {
   startOfWeek,
   toDateTimeLocal,
 } from "../utils/calendarDates";
-import { badgeStyle } from "../components/scheduling/appointmentTheme";
 import CalendarLegend from "../components/scheduling/CalendarLegend";
 import ScheduleSidePanel from "../components/scheduling/ScheduleSidePanel";
 import { awaitingReschedule } from "../utils/dashboardMetrics";
@@ -58,8 +57,12 @@ import {
 } from "../utils/calendarGeometry";
 import PageHeader from "../components/common/PageHeader";
 import { todayISO, validateAppointmentStart, validateAttachment, validateDuration, validateMoney, validateMovementDate, validateQuantity } from "../utils/validators";
-import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton, sunkenPanel } from "../styles/theme";
+import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
 import Button from "../components/ui/Button";
+import DataTable from "../components/ui/DataTable";
+import SegmentedControl from "../components/ui/SegmentedControl";
+import StatusPill from "../components/ui/StatusPill";
+import { AvatarStack } from "../components/ui/Avatar";
 import Field from "../components/ui/Field";
 import Input from "../components/ui/Input";
 import Select from "../components/ui/Select";
@@ -111,6 +114,9 @@ function SchedulingPage() {
   const [pestConcernFilter, setPestConcernFilter] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // The list opens on what's coming, not on every visit since the beginning.
+  const [listScope, setListScope] = useState("upcoming");
+  const [listLimit, setListLimit] = useState(LIST_PAGE_SIZE);
   const draggedCardRef = useRef(false);
 
   // Two separate rights, and they do not line up:
@@ -123,6 +129,9 @@ function SchedulingPage() {
   // The office plans from the side panel; a technician's view is their own
   // schedule, so it keeps the plain legend instead.
   const showSidePanel = !isTechnician;
+  const listFiltersSet = Boolean(
+    appointmentSearch || statusFilter !== "ALL" || clientFilter !== "ALL" || pestConcernFilter !== "ALL" || dateFrom || dateTo
+  );
   // A technician "owns" a visit they are on, lead or not — an appointment can
   // carry a crew since migration 041.
   const ownsAppointment = (appointment) => !isTechnician || isAssignedTo(appointment, currentUser?.id);
@@ -687,7 +696,33 @@ function SchedulingPage() {
 
         <section style={{ ...card, padding: mode === MODES.LIST ? "20px" : 0, border: mode === MODES.LIST ? undefined : "none", background: mode === MODES.LIST ? undefined : "transparent" }}>
           {mode === MODES.LIST && (
-            <div style={{ ...sunkenPanel, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px", alignItems: "end", marginBottom: "15px" }}>
+            <div style={{ display: "grid", gap: "12px", paddingBottom: "14px", marginBottom: "4px", borderBottom: `1px solid ${colors.line}` }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
+              <SegmentedControl
+                ariaLabel="Which visits"
+                size="sm"
+                value={listScope}
+                onChange={(value) => { setListScope(value); setListLimit(LIST_PAGE_SIZE); }}
+                options={[{ value: "upcoming", label: "Upcoming" }, { value: "past", label: "Past" }, { value: "all", label: "All" }]}
+              />
+              <Button
+                size="sm"
+                variant="quiet"
+                disabled={!listFiltersSet}
+                onClick={() => {
+                  setAppointmentSearch("");
+                  setStatusFilter("ALL");
+                  setClientFilter("ALL");
+                  setPestConcernFilter("ALL");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                style={{ marginLeft: "auto" }}
+              >
+                Clear filters
+              </Button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", alignItems: "end" }}>
               <Field label="Search appointments" style={{ gridColumn: "span 2" }}>
                 <Input
                   value={appointmentSearch}
@@ -695,16 +730,6 @@ function SchedulingPage() {
                   placeholder="Client, address, technician, pest concern, ID"
                 />
               </Field>
-              {!isTechnician && (
-                <Field label="Technician">
-                  <Select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)}>
-                    <option value="ALL">All technicians</option>
-                    {activeTechnicians.map((account) => (
-                      <option key={account.id} value={account.id}>{account.name || account.username}</option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
               <Field label="Status">
                 <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                   <option value="ALL">All statuses</option>
@@ -729,20 +754,19 @@ function SchedulingPage() {
               <Field label="Date to">
                 <Input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} />
               </Field>
-              {(dateFrom || dateTo) && (
-                <Button size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ alignSelf: "end" }}>
-                  Clear dates
-                </Button>
-              )}
+            </div>
             </div>
           )}
 
           <CalendarProvider value={calendarValue}>
             {mode === MODES.LIST && (
               <AppointmentListView
-                appointments={visibleAppointments}
+                appointments={scopeAppointments(visibleAppointments, listScope, now)}
                 clients={clients}
                 accounts={allAccounts}
+                scope={listScope}
+                limit={listLimit}
+                onShowMore={() => setListLimit((current) => current + LIST_PAGE_SIZE)}
                 onSelect={(id) => { setSelectedId(id); setTab("Overview"); }}
               />
             )}
@@ -960,27 +984,113 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
   </form>;
 }
 
-function AppointmentListView({ appointments, clients, accounts, onSelect }) {
-  return <div style={{ overflowX: "auto", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
-      <thead><tr style={{ background: "#fcfaf1" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #efe9e0" }}>{label}</th>)}</tr></thead>
-      <tbody>{appointments.map((appointment) => {
-        const client = clients.find((entry) => entry.id === appointment.clientId);
-        const crewNames = crewOf(appointment)
-          .map((id) => accounts.find((entry) => entry.id === id))
-          .map((entry) => entry?.name || entry?.username)
-          .filter(Boolean);
-        return <tr key={appointment.id} onClick={() => onSelect(appointment.id)} style={{ cursor: "pointer" }}>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{client?.name || "Unknown client"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{crewNames.join(", ") || "Unassigned"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{appointment.pestConcern || "Inspection"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #f1e7e7" }}><span style={badgeStyle(appointment.status)}>{appointment.status}</span></td>
-        </tr>;
-      })}</tbody>
-    </table>
-    {appointments.length === 0 && <div style={{ padding: "2rem", textAlign: "center", color: colors.muted }}>No appointments match the current filters.</div>}
-  </div>;
+export const LIST_PAGE_SIZE = 50;
+
+/** 90 -> "1h 30m", 60 -> "1h", 45 -> "45m": short enough for a table column. */
+export function shortDuration(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return [hours ? `${hours}h` : "", rest ? `${rest}m` : ""].filter(Boolean).join(" ") || "0m";
+}
+
+/**
+ * The list's Upcoming / Past / All split. Upcoming is anything not yet over,
+ * soonest first; Past is the rest, newest first; All is chronological.
+ */
+export function scopeAppointments(appointments, scope, now = new Date()) {
+  const nowMs = now.getTime();
+  const ends = (entry) => endOf(entry) >= nowMs;
+  if (scope === "upcoming") return appointments.filter(ends).sort((a, b) => startOf(a) - startOf(b));
+  if (scope === "past") return appointments.filter((entry) => !ends(entry)).sort((a, b) => startOf(b) - startOf(a));
+  return [...appointments].sort((a, b) => startOf(a) - startOf(b));
+}
+
+function AppointmentListView({ appointments, clients, accounts, scope, limit, onShowMore, onSelect }) {
+  const clientName = (id) => clients.find((entry) => entry.id === id)?.name || "Unknown client";
+  const crewFor = (appointment) => crewOf(appointment).map((id) => accounts.find((entry) => entry.id === id) || null);
+  const shown = appointments.slice(0, limit);
+  const columns = [
+    {
+      key: "when",
+      label: "When",
+      sortable: true,
+      sortValue: (row) => startOf(row),
+      render: (row) => (
+        <span style={{ whiteSpace: "nowrap", fontWeight: 500 }}>
+          {new Date(row.scheduledAt).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+          <span style={{ color: colors.muted, fontWeight: 400 }}>
+            {" · "}
+            {new Date(row.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+          </span>
+        </span>
+      ),
+    },
+    { key: "client", label: "Client", sortable: true, sortValue: (row) => clientName(row.clientId), render: (row) => clientName(row.clientId) },
+    {
+      key: "service",
+      label: "Service",
+      sortable: true,
+      sortValue: (row) => row.serviceType || row.pestConcern || "",
+      render: (row) => (
+        <span>
+          {row.serviceType || "—"}
+          {row.pestConcern && <span style={{ display: "block", color: colors.muted, fontSize: "12px" }}>{row.pestConcern}</span>}
+        </span>
+      ),
+    },
+    {
+      key: "crew",
+      label: "Technicians",
+      render: (row) => {
+        const crew = crewFor(row);
+        const names = crew.filter(Boolean).map((entry) => (entry.name || entry.username).split(" ")[0]);
+        return crew.length ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <AvatarStack users={crew} size="sm" />
+            <span style={{ color: colors.body, fontSize: "12.5px" }}>{names.join(", ")}</span>
+          </span>
+        ) : (
+          <span style={{ color: colors.muted }}>Unassigned</span>
+        );
+      },
+    },
+    { key: "status", label: "Status", sortable: true, sortValue: (row) => row.status, render: (row) => <StatusPill status={row.status} /> },
+    { key: "duration", label: "Duration", align: "right", sortable: true, sortValue: (row) => row.durationMinutes || 60, render: (row) => shortDuration(row.durationMinutes || 60) },
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      sortable: true,
+      sortValue: (row) => (row.price === "" || row.price === null || row.price === undefined ? null : Number(row.price)),
+      render: (row) =>
+        row.price === "" || row.price === null || row.price === undefined ? (
+          <span style={{ color: colors.muted }}>—</span>
+        ) : (
+          `₱${Number(row.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+        ),
+    },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: "10px" }}>
+      <DataTable
+        key={scope}
+        caption="Appointments"
+        columns={columns}
+        rows={shown}
+        onRowClick={(row) => onSelect(row.id)}
+        empty={scope === "upcoming" ? "Nothing upcoming matches these filters." : "No appointments match the current filters."}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", color: colors.muted, fontSize: "12.5px" }}>
+        Showing {shown.length} of {appointments.length}
+        {shown.length < appointments.length && (
+          <Button size="sm" variant="quiet" onClick={onShowMore}>
+            Show {Math.min(LIST_PAGE_SIZE, appointments.length - shown.length)} more
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const fieldsetReset = { border: 0, padding: 0, margin: 0, minWidth: 0 };

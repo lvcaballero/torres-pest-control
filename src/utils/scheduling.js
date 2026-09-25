@@ -4,7 +4,7 @@
 // in supabase/migrations/027-appointment-integrity.sql. The database is the
 // authority; these exist so the UI can hide moves the server would reject.
 
-import { APPOINTMENT_STATUS_TRANSITIONS } from "./constants";
+import { ACCOUNT_STATUS, APPOINTMENT_STATUS_TRANSITIONS } from "./constants";
 
 export const startOf = (appointment) => new Date(appointment.scheduledAt).getTime();
 export const endOf = (appointment) => startOf(appointment) + (appointment.durationMinutes || 60) * 60000;
@@ -101,6 +101,8 @@ export const DAY_END_HOUR = 19;
 // The calendar shows the boundary row so existing 7 PM appointments remain visible.
 // DAY_END_HOUR remains the booking cutoff used by validation.
 export const CALENDAR_END_HOUR = DAY_END_HOUR + 1;
+/** The working day the Schedule grid always shows: 7 AM – 6 PM. */
+export const SCHEDULE_END_HOUR = 18;
 
 const clockLabel = (hour) => `${String(hour % 12 || 12)}:00 ${hour < 12 ? "AM" : "PM"}`;
 
@@ -207,4 +209,68 @@ export function canTransition(from, to) {
 /** The statuses a status select should offer, current status included. */
 export function allowedNextStatuses(from) {
   return [from, ...(APPOINTMENT_STATUS_TRANSITIONS[from] || [])];
+}
+
+/**
+ * The technicians a visit can be booked with: active accounts only. A
+ * deactivated technician already on `keepIds` (the crew of a visit being
+ * edited) stays listed so saving the form never silently drops them; the
+ * picker marks them inactive.
+ */
+export function bookableTechnicians(technicians, keepIds = []) {
+  const keep = new Set(keepIds);
+  return technicians.filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE || keep.has(account.id));
+}
+
+/**
+ * The writes that move a visit to `scheduledAt` without changing its status.
+ *
+ * update_appointment (migration 047) refuses a time change unless the row is
+ * already in Reschedule, so a Pending or Confirmed visit hops through
+ * Reschedule and is then saved at the new time with its ORIGINAL status —
+ * Reschedule -> Pending/Confirmed is allowed by migration 027. A visit that is
+ * already in Reschedule needs only the one write.
+ */
+export function moveSteps(appointment, scheduledAt) {
+  const steps = [];
+  if (appointment.status !== "Reschedule") steps.push({ ...appointment, status: "Reschedule" });
+  steps.push({ ...appointment, scheduledAt, status: appointment.status });
+  return steps;
+}
+
+/** Calendar-day key (YYYY-MM-DD) in local time. */
+const dayKeyOf = (value) => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+/** The office's working window, in hours, that "full" is measured against. */
+export const WORKING_HOURS_PER_DAY = 11;
+
+/**
+ * How full a day is, 0–1: booked technician-minutes over what the active
+ * technicians can give in a working day. A two-person visit costs twice its
+ * length; an unassigned one still costs one person's time. Cancelled visits
+ * cost nothing.
+ */
+export function dayLoad(appointments, dateKey, technicianCount, hoursPerDay = WORKING_HOURS_PER_DAY) {
+  if (!technicianCount) return 0;
+  const booked = appointments
+    .filter((entry) => entry.status !== "Cancelled" && dayKeyOf(entry.scheduledAt) === dateKey)
+    .reduce((sum, entry) => sum + (entry.durationMinutes || 60) * Math.max(1, crewOf(entry).length), 0);
+  return Math.min(1, booked / (technicianCount * hoursPerDay * 60));
+}
+
+/** Hours a technician is booked for within `window` ({ start, end } Dates), crew visits included. */
+export function technicianHours(appointments, technicianId, { start, end }) {
+  const minutes = appointments
+    .filter(
+      (entry) =>
+        entry.status !== "Cancelled" &&
+        isAssignedTo(entry, technicianId) &&
+        startOf(entry) >= start.getTime() &&
+        startOf(entry) < end.getTime()
+    )
+    .reduce((sum, entry) => sum + (entry.durationMinutes || 60), 0);
+  return Math.round((minutes / 60) * 10) / 10;
 }

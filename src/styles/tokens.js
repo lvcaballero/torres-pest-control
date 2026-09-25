@@ -32,6 +32,8 @@ export const brand = {
   /** Maroon at low alpha, for tinted fills and rings over parchment. */
   wash: "rgba(127, 17, 17, 0.08)",
   ring: "rgba(127, 17, 17, 0.22)",
+  /** Pressed / hovered primary fill. */
+  hover: "#661010",
 };
 
 /**
@@ -45,26 +47,17 @@ export const surface = {
   sunken: "#efe9e0", // bone — wells, table headers, section bands
   inverted: "#252a23", // charcoal olive — inverted product panels
   /**
-   * Bone warmed toward maroon — the navigation rail, and only that.
-   *
-   * The rail wants to be a band distinct from the parchment page without
-   * becoming a slab of accent, which is the mistake the maroon rail made. A
-   * brand-tinted bone widens the gap from the canvas and keeps a trace of the
-   * company colour in the surface itself, so the accent stays available for
-   * the active item.
-   *
-   * It must stay light. The logo is dark red-and-blue artwork on transparency
-   * and needs a light ground: it clears 4.8:1 here, against 1.7:1 on maroon
-   * and 1.4:1 on deep olive. Any dark rail also drops the maroon active
-   * marker to ~1.4:1, which is what forces amber back in as the accent.
+   * The navigation rail. Plain bone: the earlier maroon-warmed "#e8dcd7" read
+   * as dusty pink next to the parchment page. The active item lifts to white
+   * with a maroon marker, so the rail itself needs no brand tint.
    */
-  rail: "#e8dcd7",
+  rail: "#efe9e0",
 };
 
 /** Warm neutrals for text and strokes, lightest to darkest. */
 export const neutral = {
   loam: "#c7bcaf", // low-emphasis dividers and card edges
-  bark: "#96897b", // muted helper text, metadata, placeholders
+  bark: "#8a7d70", // muted helper text, metadata, placeholders
   saddle: "#50463c", // secondary body text, subdued icon fills
   ink: "#211b15", // primary text and strong borders — warm near-black
   olive: "#434f40", // organic dark divider, icon strokes
@@ -73,6 +66,11 @@ export const neutral = {
 /** Non-brand accents. `soft` is Ambrook's honey amber, demoted to highlights. */
 export const accent = {
   soft: "#e8b672", // honey amber — highlights only, never a primary action
+  /**
+   * The same honey amber, named for its one sanctioned use as a fill: a
+   * call to action sitting on the dark olive surface, where maroon vanishes.
+   */
+  amber: "#e8b672",
   wheat: "#f0c891", // lighter amber for decorative strokes
   sage: "#7a9779", // green, for outlined emphasis — never a primary CTA
 };
@@ -81,7 +79,7 @@ export const accent = {
 export const status = {
   success: "#4a6b4a",
   successSurface: "#eef2ec",
-  warning: "#a06a24",
+  warning: "#9a6420",
   warningSurface: "#faf0e2",
   danger: "#9a2d24",
   dangerSurface: "#f9ecea",
@@ -93,8 +91,11 @@ export const status = {
  * Borders. Ambrook uses exactly two weights: a bone hairline for quiet
  * separation and an ink line for anything that must read as an edge.
  */
+/** The hairline colour: a shade warmer and darker than bone, so a white card reads on parchment. */
+export const line = "#e6dfd3";
+
 export const border = {
-  hairline: `1px solid ${surface.sunken}`,
+  hairline: `1px solid ${line}`,
   soft: `1px solid ${neutral.loam}`,
   strong: `1px solid ${neutral.ink}`,
 };
@@ -152,7 +153,7 @@ export const text = {
     fontWeight: weight.regular,
   },
   small: { fontSize: "13px", lineHeight: 1.5, letterSpacing: "0px" },
-  body: { fontSize: "15px", lineHeight: 1.71, letterSpacing: "0px" },
+  body: { fontSize: "14px", lineHeight: 1.55, letterSpacing: "0px" },
   bodyLg: { fontSize: "17px", lineHeight: 1.6, letterSpacing: "0px" },
   subheading: { fontSize: "19px", lineHeight: 1.43, letterSpacing: "-0.21px" },
   heading: { fontSize: "30px", lineHeight: 1.33, letterSpacing: "-0.33px" },
@@ -175,6 +176,8 @@ export const shadow = {
 export const focusRing = `0 0 0 3px ${brand.ring}`;
 
 export const layout = {
-  pageMaxWidth: "1200px",
-  sidebarWidth: "264px",
+  pageMaxWidth: "1280px",
+  sidebarWidth: "232px",
+  /** Below this width the rail becomes a drawer. Mirrored in globals.css. */
+  drawerBreakpoint: 860,
 };

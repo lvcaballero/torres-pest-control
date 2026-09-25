@@ -14,6 +14,7 @@ import { radius, text, weight } from "../../styles/tokens";
 import {
   destructiveButton,
   primaryButton,
+  quietButton,
   secondaryButton,
   successButton,
 } from "../../styles/theme";
@@ -21,6 +22,8 @@ import {
 const VARIANTS = {
   primary: primaryButton,
   secondary: secondaryButton,
+  /** Loam-edged white: everyday row actions that shouldn't compete. */
+  quiet: quietButton,
   danger: destructiveButton,
   success: successButton,
   ghost: {
@@ -33,12 +36,15 @@ const VARIANTS = {
   },
 };
 
+// Three fixed heights so a button never sits taller or shorter than the
+// dropdown beside it: 28 for dense rows, 34 for toolbars (matching a 36px
+// input once its border is counted), 44 for a thumb-sized primary.
 const SIZES = {
-  sm: { padding: "5px 10px", fontSize: text.caption.fontSize },
-  md: { padding: "9px 15px", fontSize: text.body.fontSize },
-  lg: { padding: "11px 22px", fontSize: text.bodyLg.fontSize },
+  sm: { minHeight: "28px", padding: "0 10px", fontSize: "12.5px" },
+  md: { minHeight: "34px", padding: "0 14px", fontSize: "13.5px" },
+  lg: { minHeight: "44px", padding: "0 18px", fontSize: "15px" },
   /** A square control sized for a bare icon — chevrons, close, kebab. */
-  icon: { padding: "7px", fontSize: text.body.fontSize, lineHeight: 0 },
+  icon: { width: "34px", height: "34px", padding: 0, fontSize: text.body.fontSize, lineHeight: 0 },
 };
 
 const Button = forwardRef(function Button(

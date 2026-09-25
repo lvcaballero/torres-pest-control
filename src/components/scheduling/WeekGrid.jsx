@@ -15,11 +15,13 @@
 // page passes down. Those two values, and nothing else, are what changed to
 // make the narrowing possible.
 
-import { neutral, radius, surface, text, weight } from "../../styles/tokens";
+import { brand, font, neutral, radius, surface, weight } from "../../styles/tokens";
 import {
   clampToBookableDay,
   columnPlacement,
   hoursIn,
+  minutesFromGridStart,
+  minutesToPixel,
   pixelToMinutes,
   spanGeometry,
 } from "../../utils/calendarGeometry";
@@ -47,12 +49,18 @@ function WeekGrid({
   onDropAt,
   onShowOverflow,
   onShowAllHours,
+  loadFor = null,
+  now = new Date(),
 }) {
   const { draggedId } = useCalendar();
   const hours = hoursIn(hourWindow);
   const gridStartHour = hourWindow.startHour;
-  const todayKey = localDateKey(new Date());
+  const todayKey = localDateKey(now);
   const gridHeight = hours.length * rowHeight;
+  // One column per day given: seven for the week view, one for the day view.
+  const dayCount = weekDays.length;
+  const nowTop = minutesToPixel(minutesFromGridStart(now, gridStartHour), rowHeight);
+  const showNow = nowTop >= 0 && nowTop <= gridHeight;
 
   const geometryFor = (start, end) =>
     spanGeometry(start, end, { gridStartHour, rowHeight, minHeight: 30, gap: 2 });
@@ -72,7 +80,14 @@ function WeekGrid({
         background: surface.panel,
       }}
     >
-      <div style={{ minWidth: "780px", display: "grid", gridTemplateColumns: "64px repeat(7, minmax(95px, 1fr))" }}>
+      <div
+        data-columns={dayCount}
+        style={{
+          minWidth: dayCount === 1 ? 0 : "780px",
+          display: "grid",
+          gridTemplateColumns: `64px repeat(${dayCount}, minmax(95px, 1fr))`,
+        }}
+      >
         {/* Header row stays put while the hours scroll under it. */}
         <div
           style={{
@@ -97,25 +112,50 @@ function WeekGrid({
                 position: "sticky",
                 top: 0,
                 zIndex: 3,
-                padding: "8px 5px",
-                textAlign: "center",
+                padding: "10px 10px 8px",
+                textAlign: "left",
                 borderRight: `1px solid ${surface.sunken}`,
                 borderBottom: `1px solid ${surface.sunken}`,
-                background: isToday ? "rgba(127, 17, 17, 0.06)" : surface.canvas,
+                background: isToday ? "#f7eeea" : surface.panel,
               }}
             >
-              <div style={{ ...text.caption, color: neutral.bark, textTransform: "uppercase" }}>
+              <div
+                style={{
+                  fontSize: "11.5px",
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  color: isToday ? brand.base : neutral.bark,
+                }}
+              >
                 {date.toLocaleDateString([], { weekday: "short" })}
+                {isToday ? " · Today" : ""}
               </div>
               <div
                 style={{
-                  color: isToday ? "#7f1111" : neutral.ink,
-                  fontSize: "17px",
-                  fontWeight: weight.medium,
+                  color: isToday ? brand.base : neutral.ink,
+                  font: `500 22px/1.1 ${font.display}`,
+                  marginTop: "2px",
                 }}
               >
                 {date.getDate()}
               </div>
+              {loadFor && (
+                <div
+                  role="img"
+                  aria-label={`${Math.round(loadFor(key) * 100)}% booked`}
+                  title={`${Math.round(loadFor(key) * 100)}% of the team's day is booked`}
+                  style={{ height: "3px", background: surface.sunken, borderRadius: "2px", marginTop: "8px", overflow: "hidden" }}
+                >
+                  <span
+                    style={{
+                      display: "block",
+                      height: "100%",
+                      width: `${Math.round(loadFor(key) * 100)}%`,
+                      background: isToday ? brand.base : neutral.saddle,
+                    }}
+                  />
+                </div>
+              )}
 
               {/* The window never hides an appointment, so this is normally
                   empty — it stays as a safety net, and as the way back to the
@@ -168,6 +208,7 @@ function WeekGrid({
         {weekDays.map((date) => {
           const key = localDateKey(date);
           const layout = weekLayout.get(key) || { placed: [], overflow: [] };
+          const isToday = key === todayKey;
 
           return (
             <div
@@ -186,10 +227,19 @@ function WeekGrid({
                 position: "relative",
                 height: `${gridHeight}px`,
                 borderRight: `1px solid ${surface.sunken}`,
-                background: draggedId ? "rgba(127, 17, 17, 0.02)" : surface.panel,
+                background: draggedId || isToday ? "rgba(127, 17, 17, 0.025)" : surface.panel,
                 backgroundImage: `repeating-linear-gradient(to bottom, ${surface.sunken} 0px, ${surface.sunken} 1px, transparent 1px, transparent ${rowHeight}px)`,
               }}
             >
+              {isToday && showNow && (
+                <span
+                  aria-hidden="true"
+                  data-now-line=""
+                  style={{ position: "absolute", left: "-1px", right: 0, top: `${nowTop}px`, borderTop: `1.5px solid ${brand.base}`, zIndex: 4, pointerEvents: "none" }}
+                >
+                  <span style={{ position: "absolute", left: "-4px", top: "-4.5px", width: "7px", height: "7px", borderRadius: "50%", background: brand.base }} />
+                </span>
+              )}
               {layout.placed.map(({ appointment, column, columns }) => {
                 const { top, height } = geometryFor(
                   new Date(appointment.scheduledAt).getTime(),

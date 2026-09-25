@@ -16,6 +16,8 @@ import Toast from "../components/common/Toast";
 const ToastContext = createContext(null);
 
 const AUTO_DISMISS_MS = 4000;
+// A toast with an action (Undo) stays long enough to reach for it.
+const ACTION_DISMISS_MS = 8000;
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -25,10 +27,10 @@ export function ToastProvider({ children }) {
   }, []);
 
   const push = useCallback(
-    (message, tone = "success") => {
+    (message, tone = "success", { action = null } = {}) => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      setToasts((previous) => [...previous, { id, message, tone }]);
-      setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+      setToasts((previous) => [...previous, { id, message, tone, action }]);
+      setTimeout(() => dismiss(id), action ? ACTION_DISMISS_MS : AUTO_DISMISS_MS);
       return id;
     },
     [dismiss]
@@ -38,9 +40,9 @@ export function ToastProvider({ children }) {
     () => ({
       toasts,
       dismiss,
-      showSuccess: (message) => push(message, "success"),
-      showError: (message) => push(message, "error"),
-      showInfo: (message) => push(message, "info"),
+      showSuccess: (message, options) => push(message, "success", options),
+      showError: (message, options) => push(message, "error", options),
+      showInfo: (message, options) => push(message, "info", options),
     }),
     [toasts, dismiss, push]
   );
@@ -51,7 +53,7 @@ export function ToastProvider({ children }) {
       <div
         style={{
           position: "fixed",
-          top: "1.25rem",
+          bottom: "1.25rem",
           right: "1.25rem",
           display: "grid",
           gap: "0.6rem",

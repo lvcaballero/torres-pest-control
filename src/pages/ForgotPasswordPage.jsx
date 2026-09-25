@@ -1,6 +1,7 @@
-// Forgot-password route. Shares LoginPage's shell and card design.
+// Forgot-password route. Shares LoginPage's AuthLayout frame.
 
 import { Navigate, useLocation } from "react-router-dom";
+import AuthLayout from "../components/auth/AuthLayout";
 import ForgotPassword from "../components/auth/ForgotPassword";
 import useAuth from "../hooks/useAuth";
 
@@ -12,11 +13,10 @@ function ForgotPasswordPage() {
     return <Navigate to={location.state?.from || "/"} replace />;
   }
 
-  // Same shell as LoginPage: ForgotPassword renders the full card itself.
   return (
-    <div className="standalone-login-page">
+    <AuthLayout>
       <ForgotPassword />
-    </div>
+    </AuthLayout>
   );
 }
 

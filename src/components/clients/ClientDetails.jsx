@@ -2,26 +2,30 @@
 //
 // Sprint AC (View Single Client Profile): "Detail view displays full client
 // information, classification, and attached documents" and "Staff can
-// navigate back to the list or edit the profile from this view." Back
-// navigation was missing entirely — the old page imported only useParams,
-// with no Link anywhere.
+// navigate back to the list or edit the profile from this view." The way
+// back is the breadcrumb; the layout (facts column + Timeline / Visits /
+// Reports / Documents tabs) follows the redesign handoff.
 
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Download, Eye, FileText, PencilLine, Printer, Trash2, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Download, Eye, FileText, Printer, Trash2, X } from "lucide-react";
 import ClientForm from "./ClientForm";
 import ClientDocuments, { CATEGORY_TAGS } from "./ClientDocuments";
 import ImagePreviewModal, { isImageFile } from "../common/ImagePreviewModal";
 import SignaturePreview from "../common/SignaturePreview";
 import ServiceReportPrinter from "../scheduling/ServiceReportPrinter";
-import PageHeader from "../common/PageHeader";
+import DataTable from "../ui/DataTable";
+import StatusPill from "../ui/StatusPill";
+import { ClientFacts, ClientHeader, ClientTimeline, NextVisitBanner, Tabs } from "./ClientProfileParts";
+import { clientVisits, currentPlan, lifetimeValue, nextVisit, timelineEvents } from "../../utils/clientTimeline";
+import { signatureState } from "../../utils/dashboardMetrics";
 import { useScheduling } from "../../context/SchedulingContext";
 import useUsers from "../../hooks/useUsers";
 import useInventory from "../../hooks/useInventory";
-import { formatDate, formatDateTime, formatFileSize, formatTime, humanizeEnum } from "../../utils/formatters";
+import { formatDate, formatDateTime, formatFileSize, formatTime } from "../../utils/formatters";
 import { DOCUMENT_CATEGORIES } from "../../utils/constants";
 import { crewOf } from "../../utils/scheduling";
-import { colors, dangerButton, pageShell, primaryButton, secondaryButton } from "../../styles/theme";
+import { colors, pageShell, secondaryButton } from "../../styles/theme";
 
 
 const peso = (value) => `₱${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -331,8 +335,11 @@ function ClientDetails({
   canDelete,
   canUploadDocuments,
   canRemoveDocuments,
+  canBook = false,
   onSave,
   onDelete,
+  onArchive = () => {},
+  onRestore = () => {},
   onUploadDocument,
   onRemoveDocument,
   onResolveDocumentUrl,
@@ -343,9 +350,18 @@ function ClientDetails({
   const { staff, technicians } = useUsers();
   const { inventory } = useInventory();
   const accounts = [...staff, ...technicians];
-  const serviceHistory = appointments
-    .filter((appointment) => appointment.clientId === client.id && appointment.status === "Completed")
-    .sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt));
+  const navigate = useNavigate();
+  const [tab, setTab] = useState("timeline");
+  const nameOf = (id) => {
+    const account = accounts.find((entry) => entry.id === id);
+    return account?.name || account?.username || "";
+  };
+  const visits = useMemo(() => clientVisits(appointments, client.id), [appointments, client.id]);
+  const reports = visits.filter((entry) => entry.reportSubmitted);
+  const upcoming = nextVisit(visits);
+  const value = lifetimeValue(visits);
+  const plan = currentPlan(visits);
+  const events = useMemo(() => timelineEvents(client, visits), [client, visits]);
   const [printRequest, setPrintRequest] = useState(null);
   const [signatureUrl, setSignatureUrl] = useState("");
   const [technicianSignatureUrl, setTechnicianSignatureUrl] = useState("");
@@ -361,6 +377,16 @@ function ClientDetails({
     });
     return () => { cancelled = true; };
   }, [selectedHistory?.signaturePath, selectedHistory?.technicianSignaturePath, getSignatureUrl]);
+
+  // Escape closes the report, as it does every other dialog in the app.
+  useEffect(() => {
+    if (!selectedHistory) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setSelectedHistory(null);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedHistory]);
 
   // Reached for downloads and for non-images (PDF, DOCX) only: HistoryFileList
   // sends images to its lightbox instead of to a new tab.
@@ -386,212 +412,130 @@ function ClientDetails({
       } : prev);
     }
   };
-  const overviewFields = useMemo(
-    () => [
-      { label: "Client No.", value: client.reference || "—" },
-      { label: "Classification", value: client.classification === "OTHER" && client.classificationOther ? client.classificationOther : humanizeEnum(client.classification) },
-      { label: "Source", value: client.source || "—" },
-      { label: "Phone", value: client.phone || "—" },
-      { label: "Email", value: client.email || "—" },
-      { label: "Address", value: client.address || "—", fullWidth: true },
-    ],
-    [client]
-  );
+
+  const menuItems = [
+    ...(canDelete
+      ? [
+          client.status === "ARCHIVED"
+            ? { label: "Restore client", onClick: onRestore }
+            : { label: "Archive client", onClick: onArchive },
+          { label: "Delete permanently…", onClick: onDelete, danger: true, separated: true },
+        ]
+      : []),
+  ];
+  const openReport = (appointment) => setSelectedHistory(appointment);
+  const tabs = [
+    { value: "timeline", label: "Timeline" },
+    { value: "visits", label: "Visits", count: visits.length },
+    { value: "reports", label: "Reports", count: reports.length },
+    { value: "documents", label: "Documents", count: (client.documents || []).length },
+  ];
+
+  const visitColumns = [
+    {
+      key: "when",
+      label: "When",
+      sortable: true,
+      sortValue: (row) => new Date(row.scheduledAt).getTime(),
+      render: (row) => <span style={{ whiteSpace: "nowrap" }}>{formatDateTime(row.scheduledAt)}</span>,
+    },
+    { key: "service", label: "Service", sortable: true, sortValue: (row) => row.serviceType || row.pestConcern || "", render: (row) => row.serviceType || row.pestConcern || "—" },
+    { key: "crew", label: "Technicians", render: (row) => crewOf(row).map(nameOf).filter(Boolean).join(", ") || "Unassigned" },
+    { key: "status", label: "Status", sortable: true, sortValue: (row) => row.status, render: (row) => <StatusPill status={row.status} /> },
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      sortable: true,
+      sortValue: (row) => (row.price === "" || row.price == null ? null : Number(row.price)),
+      render: (row) => (row.price === "" || row.price == null ? "—" : peso(row.price)),
+    },
+  ];
+  const reportColumns = [
+    visitColumns[0],
+    visitColumns[1],
+    visitColumns[2],
+    {
+      key: "signature",
+      label: "Signature",
+      sortable: true,
+      sortValue: (row) => signatureState(row),
+      render: (row) => {
+        const state = signatureState(row);
+        return <StatusPill tone={state === "Signed" ? "success" : "warning"}>{state}</StatusPill>;
+      },
+    },
+    visitColumns[4],
+  ];
 
   return (
     <div style={pageShell}>
-      <PageHeader
-        eyebrow={client.reference ? `Client Profile · ${client.reference}` : "Client Profile"}
-        title={client.name}
-        actions={
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.9rem" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.65rem", flexWrap: "wrap" }}>
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  ...primaryButton,
-                  padding: "0.65rem 0.9rem",
-                  fontSize: "0.82rem",
-                }}
-              >
-                <PencilLine size={15} /> Edit Profile
-              </button>
-            )}
-            {canDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  ...dangerButton,
-                  padding: "0.65rem 0.9rem",
-                  fontSize: "0.82rem",
-                  background: "#fff1f2",
-                  color: "#be123c",
-                  border: "1px solid #fecdd3",
-                  boxShadow: "none",
-                }}
-              >
-                <Trash2 size={15} /> Delete Permanently
-              </button>
-            )}
-            </div>
-            <Link
-              to="/clients"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.4rem",
-                ...secondaryButton,
-                textDecoration: "none",
-                padding: "0.65rem 0.9rem",
-                fontSize: "0.82rem",
-              }}
-            >
-              <ArrowLeft size={16} /> Back to Client Profiles
-            </Link>
-          </div>
-        }
+      <ClientHeader
+        client={client}
+        plan={plan}
+        clientSince={client.createdAt ? new Date(client.createdAt).toLocaleDateString([], { month: "short", year: "numeric" }) : ""}
+        canEdit={canEdit}
+        canBook={canBook}
+        menuItems={menuItems}
+        onEdit={() => setIsEditModalOpen(true)}
       />
 
-      <section style={{ ...neutralCard, marginBottom: "1rem", padding: "1rem 1.25rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-          <div>
-            <p style={{ margin: 0, color: "#96897b", fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client record</p>
-            <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem", fontWeight: 500 }}>Profile overview</h2>
-          </div>
-        </div>
+      <div className="client-columns">
+        <ClientFacts client={client} value={value} canEdit={canEdit} onEdit={() => setIsEditModalOpen(true)} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
-          {overviewFields.map((field) => (
-            <div key={field.label} style={{ gridColumn: field.fullWidth ? "1 / -1" : "span 1" }}>
-              <div style={{ fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "#96897b" }}>
-                {field.label}
+        <section style={{ ...neutralCard, minWidth: 0 }}>
+          <Tabs tabs={tabs} value={tab} onChange={setTab} />
+
+          {tab === "timeline" && (
+            <>
+              <NextVisitBanner appointment={upcoming} crewNames={upcoming ? crewOf(upcoming).map(nameOf).filter(Boolean) : []} />
+              <ClientTimeline events={events} nameOf={nameOf} onOpenReport={openReport} />
+            </>
+          )}
+
+          {tab === "visits" && (
+            <div style={{ padding: "12px 18px 16px" }}>
+              <DataTable
+                caption="Visits"
+                columns={visitColumns}
+                rows={visits}
+                onRowClick={(row) => (row.reportSubmitted ? openReport(row) : navigate(`/scheduling?appointment=${encodeURIComponent(row.id)}`))}
+                empty="No visits booked yet."
+              />
+            </div>
+          )}
+
+          {tab === "reports" && (
+            <div style={{ padding: "12px 18px 16px" }}>
+              <DataTable caption="Service reports" columns={reportColumns} rows={reports} onRowClick={openReport} empty="No service reports filed yet." />
+            </div>
+          )}
+
+          {tab === "documents" && (
+            <div style={{ padding: "14px 18px 18px" }}>
+              <p style={{ margin: "0 0 12px", color: colors.muted, fontSize: "12.5px" }}>
+                Paperwork that belongs to the client, not to one visit. Photos and signed forms for a service go in that appointment's Report tab.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.7rem", alignItems: "start" }}>
+                {DOCUMENT_CATEGORIES.map((category) => (
+                  <ClientDocuments
+                    key={category.value}
+                    compact
+                    title={category.label}
+                    uploadLabel={category.uploadLabel}
+                    documents={(client.documents || []).filter((document) => (document.category || "OTHER") === category.value)}
+                    canUpload={canUploadDocuments}
+                    canRemove={canRemoveDocuments}
+                    onUpload={(file) => onUploadDocument(file, category.value)}
+                    onRemove={onRemoveDocument}
+                    onResolveUrl={onResolveDocumentUrl}
+                    emptyMessage="None uploaded yet."
+                  />
+                ))}
               </div>
-              <div style={{ marginTop: "0.35rem", fontSize: "0.95rem", color: "#211b15", fontWeight: 500, lineHeight: 1.5 }}>
-                {field.value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {client.serviceNotes && (
-          <div style={{ marginTop: "1.25rem", padding: "0.85rem 1rem", background: "#fcfaf1", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
-            <div style={{ fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "#96897b" }}>
-              Service notes
-            </div>
-            <div style={{ marginTop: "0.35rem", fontSize: "0.88rem", color: "#211b15", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-              {client.serviceNotes}
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #efe9e0", fontSize: "0.74rem", color: "#96897b" }}>
-          Created {formatDateTime(client.createdAt)} • Last updated {formatDateTime(client.updatedAt)}
-        </div>
-      </section>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem" }}>
-        <section style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-            <div>
-              <p style={{ margin: 0, color: "#96897b", fontSize: "0.72rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Client history</p>
-              <h2 style={{ margin: "0.35rem 0 0", color: colors.ink, fontSize: "1.2rem" }}>Service history</h2>
-            </div>
-            <span style={{ color: colors.muted, fontSize: "0.8rem" }}>{serviceHistory.length} appointment{serviceHistory.length === 1 ? "" : "s"}</span>
-          </div>
-          {serviceHistory.length === 0 ? (
-            <div style={{ marginTop: "1rem", padding: "1rem", borderRadius: "3.75px", background: "#efe9e0", color: colors.muted, fontSize: "0.85rem" }}>No service history recorded yet.</div>
-          ) : (
-            /* A table, not a stack of cards.
-               The cards reprinted the whole report — findings, treatment,
-               attachments, materials — for every visit, so reading a client's
-               history meant scrolling past four paragraphs to reach the next
-               date. The four fields the office actually scans across are the
-               date, the terms it was done on, what it cost, and when the visit
-               before it was. Everything else is one click away: the row still
-               opens the full report. */
-            <div style={{ marginTop: "1rem", overflowX: "auto", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
-                <thead>
-                  <tr style={{ background: "#fcfaf1" }}>
-                    {["Date", "Frequency", "Price", "Last appointment"].map((label) => (
-                      <th
-                        key={label}
-                        scope="col"
-                        style={{ padding: "0.7rem 0.75rem", color: colors.muted, fontSize: "0.68rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #efe9e0", fontWeight: 500 }}
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {serviceHistory.map((appointment, index) => {
-                    // serviceHistory is newest first, so the visit before this
-                    // one is the next row down.
-                    const previous = serviceHistory[index + 1];
-                    return (
-                      <tr
-                        key={appointment.id}
-                        onClick={() => setSelectedHistory(appointment)}
-                        style={{ cursor: "pointer" }}
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedHistory(appointment);
-                          }
-                        }}
-                      >
-                        <td style={{ padding: "0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>
-                          {formatDateTime(appointment.scheduledAt)}
-                        </td>
-                        <td style={{ padding: "0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>
-                          {appointment.serviceFrequency || "—"}
-                        </td>
-                        <td style={{ padding: "0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>
-                          {appointment.price === "" || appointment.price === null || appointment.price === undefined
-                            ? "—"
-                            : peso(appointment.price)}
-                        </td>
-                        <td style={{ padding: "0.75rem", color: colors.muted, borderBottom: "1px solid #f1e7e7" }}>
-                          {previous ? formatDate(previous.scheduledAt) : "First visit"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           )}
         </section>
-        <div style={{ ...neutralCard, padding: "1rem 1.25rem" }}>
-          <h2 style={{ marginTop: 0, marginBottom: "0.3rem", color: colors.body, fontSize: "1.05rem" }}>Client documents</h2>
-          <p style={{ margin: "0 0 1rem", color: colors.muted, fontSize: "0.76rem" }}>Paperwork that belongs to the client, not to one visit. Photos and signed forms for a service go in that appointment's Report tab.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: "0.7rem", alignItems: "start" }}>
-            {DOCUMENT_CATEGORIES.map((category) => <ClientDocuments
-              key={category.value}
-              compact
-              title={category.label}
-              uploadLabel={category.uploadLabel}
-              documents={(client.documents || []).filter((document) => (document.category || "OTHER") === category.value)}
-              canUpload={canUploadDocuments}
-              canRemove={canRemoveDocuments}
-              onUpload={(file) => onUploadDocument(file, category.value)}
-              onRemove={onRemoveDocument}
-              onResolveUrl={onResolveDocumentUrl}
-              emptyMessage="None uploaded yet."
-            />)}
-          </div>
-        </div>
       </div>
 
       <ServiceReportPrinter request={printRequest} onDone={() => setPrintRequest(null)} onProblem={(text) => window.alert(text)} getAttachmentUrl={getAttachmentUrl} getSignatureUrl={getSignatureUrl} />

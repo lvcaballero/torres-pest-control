@@ -18,23 +18,8 @@ import EmptyState from "../common/EmptyState";
 import { ACCOUNT_STATUS, SPRINT_ROLES } from "../../utils/constants";
 import { validateEmailFormat, isEmailTaken, isUsernameTaken, validatePhilippinePhone } from "../../utils/validators";
 import { colors, inputStyle, invalidInputStyle } from "../../styles/theme";
-
-const roleBadgeColors = {
-  ADMIN: { background: "#efe9e0", color: "#8b1e1e", border: "1px solid rgba(167, 139, 250, 0.5)" },
-  STAFF: { background: "#efe9e0", color: "#50463c", border: "1px solid rgba(147, 197, 253, 0.6)" },
-  TECHNICIAN: { background: "#eef2ec", color: "#4a6b4a", border: "1px solid rgba(103, 232, 249, 0.7)" },
-};
-
-const statusBadgeColors = {
-  ACTIVE: { background: "#eef2ec", color: "#4a6b4a", border: "1px solid rgba(110, 231, 183, 0.6)" },
-  INACTIVE: { background: "#f9ecea", color: "#9a2d24", border: "1px solid rgba(254, 202, 202, 0.8)" },
-  PENDING: { background: "#faf0e2", color: "#a06a24", border: "1px solid rgba(253, 186, 116, 0.8)" },
-};
-
-function uppercaseLabel(value) {
-  if (!value) return "";
-  return String(value).toUpperCase();
-}
+import StatusPill, { toneFor } from "../ui/StatusPill";
+import { formatLastLogin, humanizeEnum } from "../../utils/formatters";
 
 function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onResetPassword }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -220,7 +205,6 @@ function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onRe
                   "Role",
                   "Status",
                   "Phone Number",
-                  "Date Created",
                   "Last Login",
                   "Actions",
                 ].map((header) => (
@@ -363,63 +347,19 @@ function UserList({ users, canEdit, onEdit, onAvatarChange, onToggleStatus, onRe
                     </td>
 
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          borderRadius: "999px",
-                          background: roleBadgeColors[user.role]?.background || "#efe9e0",
-                          color: roleBadgeColors[user.role]?.color || "#50463c",
-                          border: roleBadgeColors[user.role]?.border || "1px solid #efe9e0",
-                          padding: "0.28rem 0.7rem",
-                          fontSize: "0.72rem",
-                          fontWeight: 500,
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {uppercaseLabel(user.role)}
-                      </span>
+                      <StatusPill tone={toneFor(user.role)} dot={false}>{humanizeEnum(user.role)}</StatusPill>
                     </td>
 
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle" }}>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          borderRadius: "999px",
-                          background: statusBadgeColors[user.status]?.background || "#efe9e0",
-                          color: statusBadgeColors[user.status]?.color || "#50463c",
-                          border: statusBadgeColors[user.status]?.border || "1px solid #efe9e0",
-                          padding: "0.28rem 0.7rem",
-                          fontSize: "0.72rem",
-                          fontWeight: 500,
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: "0.375rem",
-                            height: "0.375rem",
-                            borderRadius: "999px",
-                            display: "inline-block",
-                            background: user.status === "ACTIVE" ? "#10b981" : user.status === "PENDING" ? "#f59e0b" : "#96897b",
-                            marginRight: "0.38rem",
-                          }}
-                        />
-                        {uppercaseLabel(user.status)}
-                      </span>
+                      <StatusPill tone={toneFor(user.status)}>{humanizeEnum(user.status)}</StatusPill>
                     </td>
 
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
                       {user.phone || "—"}
                     </td>
 
-                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
-                    </td>
-
-                    <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
-                      {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
+                                        <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", color: "#50463c", fontSize: "0.9rem" }}>
+                      {formatLastLogin(user.lastLoginAt)}
                     </td>
 
                     <td style={{ padding: "0.95rem 1rem", verticalAlign: "middle", position: "relative" }}>

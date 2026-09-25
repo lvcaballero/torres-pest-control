@@ -18,13 +18,14 @@ function ClientSearch({
   onStatusChange,
 }) {
   return (
-    <div style={{ display: "flex", gap: "0.9rem", alignItems: "end", flexWrap: "wrap", padding: "1rem 1.25rem" }}>
+    <div style={{ display: "flex", gap: "12px", alignItems: "end", flexWrap: "wrap", padding: "14px 18px", borderBottom: "1px solid #e6dfd3" }}>
       <div style={{ flex: "1 1 280px", minWidth: "220px" }}>
         <label style={labelStyle}>Search client</label>
         <input
           value={searchTerm}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name, phone, or email"
+          placeholder="Name, reference, phone, email or address"
+          aria-label="Search clients"
           style={inputStyle}
         />
       </div>
@@ -62,7 +63,7 @@ function ClientSearch({
 const labelStyle = {
   display: "block",
   color: "#50463c",
-  fontSize: "0.75rem",
+  fontSize: "12.5px",
   fontWeight: 500,
   marginBottom: "0.45rem",
 };

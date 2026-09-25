@@ -9,7 +9,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import SchedulingPage, { buildStockRows, defaultStockOutDate, validateStockOut } from "../SchedulingPage";
+import SchedulingPage, { buildStockRows, defaultStockOutDate, scopeAppointments, shortDuration, validateStockOut, weekRangeLabel } from "../SchedulingPage";
 import { localDateKey, startOfWeek } from "../../utils/calendarDates";
 
 // SchedulingPage reads ?appointment= via useSearchParams, so it needs a router
@@ -157,20 +157,19 @@ describe("SchedulingPage", () => {
   it("renders the page header", () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "Scheduling" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Schedule" })).toBeInTheDocument();
     expect(screen.getByText("Operations")).toBeInTheDocument();
   });
 
-  it("renders one toolbar with every view, the period nav and the create action", () => {
+  it("renders one toolbar with every view and the period nav", () => {
     renderPage();
 
     const views = screen.getByRole("radiogroup", { name: "Scheduling view" });
-    ["Week", "Month", "List", "Technicians"].forEach((label) => {
+    ["Day", "Week", "Month", "List"].forEach((label) => {
       expect(within(views).getByRole("radio", { name: new RegExp(label) })).toBeInTheDocument();
     });
 
     expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /New appointment/ })).toBeInTheDocument();
   });
 
   it("opens on the week grid with this week's appointments drawn", () => {
@@ -180,13 +179,13 @@ describe("SchedulingPage", () => {
     expect(screen.getByText("Clizfel Testaclizfel")).toBeInTheDocument();
   });
 
-  // The density fix. With appointments at 9 AM and 3-5 PM the grid needs
-  // roughly 8 AM to 6 PM — not the full 7 AM to 8 PM it always drew before.
-  it("renders only the hours the week actually uses", () => {
+  // The office's day is always on screen so there is somewhere to drop a
+  // visit, but not the evening rows nobody books.
+  it("draws the working day, 7 AM to 6 PM", () => {
     renderPage();
 
-    expect(screen.getByText("9:00 AM")).toBeInTheDocument();
-    expect(screen.getByText("3:00 PM")).toBeInTheDocument();
+    expect(screen.getByText("7:00 AM")).toBeInTheDocument();
+    expect(screen.getByText("5:00 PM")).toBeInTheDocument();
     expect(screen.queryByText("7:00 PM")).not.toBeInTheDocument();
   });
 
@@ -228,12 +227,26 @@ describe("SchedulingPage", () => {
       expect(screen.getByText(new RegExp(new Date().toLocaleDateString([], { month: "long" })))).toBeInTheDocument();
     });
 
-    it("shows the technicians view", async () => {
+    it("opens the list on upcoming visits, with sortable columns", async () => {
       renderPage();
 
-      await userEvent.click(screen.getByRole("radio", { name: /Technicians/ }));
+      await userEvent.click(screen.getByRole("radio", { name: /List/ }));
 
-      expect(screen.getAllByText(/Karl Hameed/).length).toBeGreaterThan(0);
+      expect(screen.getByRole("radio", { name: "Upcoming" })).toBeChecked();
+      ["When", "Client", "Service", "Status", "Duration", "Price"].forEach((label) => {
+        expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+      });
+      expect(screen.getByRole("columnheader", { name: "Technicians" })).toBeInTheDocument();
+      expect(screen.getByText(/^Showing \d+ of \d+/)).toBeInTheDocument();
+    });
+
+    it("shows a single day", async () => {
+      renderPage();
+
+      await userEvent.click(screen.getByRole("radio", { name: /Day/ }));
+
+      expect(document.querySelector("[data-columns]")).toHaveAttribute("data-columns", "1");
+      expect(document.querySelectorAll("[data-day]")).toHaveLength(1);
     });
   });
 
@@ -256,10 +269,9 @@ describe("SchedulingPage", () => {
     expect(screen.queryByText(/Dashed outline = Pending/)).not.toBeInTheDocument();
   });
 
-  it("opens the create form from the toolbar", async () => {
-    renderPage();
-
-    await userEvent.click(screen.getByRole("button", { name: /New appointment/ }));
+  // The top bar's New visit lands here with ?new=1.
+  it("opens the create form from a New visit link", () => {
+    renderPage("/scheduling?new=1");
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
@@ -424,5 +436,54 @@ describe("stock-out helpers", () => {
     expect(validateStockOut([{ itemId: "i1", amount: "0" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
     expect(validateStockOut([{ itemId: "i1", amount: "" }], "2026-01-01", mockInventory).error).toMatch(/greater than zero/);
     expect(validateStockOut([], "2026-01-01", mockInventory).error).toMatch(/at least one item/);
+  });
+});
+
+describe("weekRangeLabel", () => {
+  it("names the month once inside a month", () => {
+    expect(weekRangeLabel(new Date(2026, 8, 21), new Date(2026, 8, 27))).toBe("Sep 21 – 27, 2026");
+  });
+
+  it("names both months across a month boundary", () => {
+    expect(weekRangeLabel(new Date(2026, 8, 28), new Date(2026, 9, 4))).toBe("Sep 28 – Oct 4, 2026");
+  });
+
+  it("names both years across New Year", () => {
+    expect(weekRangeLabel(new Date(2026, 11, 28), new Date(2027, 0, 3))).toBe("Dec 28, 2026 – Jan 3, 2027");
+  });
+});
+
+describe("scopeAppointments", () => {
+  const now = new Date(2026, 8, 25, 12, 0);
+  const at = (day, hour) => new Date(2026, 8, day, hour).toISOString();
+  const list = [
+    { id: "last-week", scheduledAt: at(18, 9), durationMinutes: 60 },
+    { id: "running", scheduledAt: at(25, 11, 30), durationMinutes: 90 },
+    { id: "tomorrow", scheduledAt: at(26, 9), durationMinutes: 60 },
+    { id: "this-morning", scheduledAt: at(25, 8), durationMinutes: 60 },
+  ];
+  const ids = (scope) => scopeAppointments(list, scope, now).map((entry) => entry.id);
+
+  it("puts what's still ahead first, soonest first", () => {
+    expect(ids("upcoming")).toEqual(["running", "tomorrow"]);
+  });
+
+  it("lists the past newest first", () => {
+    expect(ids("past")).toEqual(["this-morning", "last-week"]);
+  });
+
+  it("shows everything in date order", () => {
+    expect(ids("all")).toEqual(["last-week", "this-morning", "running", "tomorrow"]);
+  });
+});
+
+describe("shortDuration", () => {
+  it.each([
+    [90, "1h 30m"],
+    [60, "1h"],
+    [45, "45m"],
+    [150, "2h 30m"],
+  ])("writes %i minutes as %s", (minutes, label) => {
+    expect(shortDuration(minutes)).toBe(label);
   });
 });

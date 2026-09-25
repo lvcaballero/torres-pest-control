@@ -17,13 +17,13 @@
 // The submit path is deliberately unchanged: still uncontrolled fields read
 // through FormData, still returning the caller's error string on failure.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, MapPin, Phone } from "lucide-react";
 import { neutral, radius, status, surface, text, weight } from "../../styles/tokens";
 import { LIMITS, PEST_CONCERN_SUGGESTIONS, SERVICE_FREQUENCIES } from "../../utils/constants";
 import { defaultAppointmentDateTime, toDateTimeLocal } from "../../utils/calendarDates";
 import { validateAppointmentStart, validateDuration, validateMoney } from "../../utils/validators";
-import { busyTechnicianIds, describeSlotConflict } from "../../utils/scheduling";
+import { appointmentsOverlap, busyTechnicianIds, describeSlotConflict, isAssignedTo } from "../../utils/scheduling";
 import Button from "../ui/Button";
 import Field from "../ui/Field";
 import Input from "../ui/Input";
@@ -77,6 +77,10 @@ function NewAppointmentModal({
   services = [],
   initialClientId = "",
   initialScheduledAt = "",
+  // Carried over from a client's last visit when booking a re-service.
+  initialServiceId = "",
+  initialFrequency = "",
+  initialPestConcern = "",
   onClose,
   onCreate,
 }) {
@@ -123,6 +127,26 @@ function NewAppointmentModal({
 
   const selectedService = services.find((service) => service.id === serviceId) || null;
 
+  // Who is already out at the chosen time, and where — so a clash is visible
+  // while picking the time, not only after ticking a busy technician.
+  const clashes = useMemo(() => {
+    if (!scheduledAt || !durationMinutes || busyIds.size === 0) return [];
+    const slot = { id: null, scheduledAt, durationMinutes };
+    return activeAccounts
+      .filter((account) => busyIds.has(account.id))
+      .map((account) => {
+        const visit = appointments.find(
+          (entry) => entry.status !== "Cancelled" && isAssignedTo(entry, account.id) && appointmentsOverlap(entry, slot)
+        );
+        const start = visit ? new Date(visit.scheduledAt) : null;
+        const end = visit ? new Date(start.getTime() + (visit.durationMinutes || 60) * 60000) : null;
+        const clock = (date) => date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        const where = visit ? clients.find((client) => client.id === visit.clientId)?.name : "";
+        return `${(account.name || account.username).split(" ")[0]}${where ? ` is on ${where}` : " is booked"}${visit ? ` ${clock(start)}–${clock(end)}` : ""}`;
+      });
+  }, [activeAccounts, appointments, busyIds, clients, scheduledAt, durationMinutes]);
+  const freeCount = activeAccounts.filter((account) => !busyIds.has(account.id)).length;
+
   // A service profile carries a default price and duration (migration 047).
   // Choosing one fills them in; the price only when it is still blank, so a
   // figure already agreed with the client is never overwritten.
@@ -144,6 +168,13 @@ function NewAppointmentModal({
       }
     }
   };
+
+  // A re-service booking arrives with the last visit's service: apply its
+  // default duration and price once, exactly as picking it by hand would.
+  useEffect(() => {
+    if (initialServiceId) chooseService(initialServiceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Recomputed per render: the picker's lower bound moves with the clock.
   const earliest = toDateTimeLocal(new Date());
@@ -214,7 +245,7 @@ function NewAppointmentModal({
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "15px 20px",
+          gap: "12px 20px",
         }}
       >
         <Section legend="Client" span={2}>
@@ -258,15 +289,35 @@ function NewAppointmentModal({
             </div>
           )}
 
-          <Field label="Service location">
-            <Input
-              name="serviceLocation"
-              value={serviceLocation}
-              onChange={(event) => setServiceLocation(event.target.value)}
-              placeholder="Defaults to the client's address"
-              maxLength={LIMITS.NOTES_MAX}
-            />
-          </Field>
+          {/* The service comes first: it sets the duration and the price, so
+              picking it before the time means both are right when the time
+              is chosen. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", alignItems: "start" }}>
+            <Field
+              label="Service type"
+              hint={
+                selectedService?.materials?.length
+                  ? `Prefills ${selectedService.materials.length} material${selectedService.materials.length === 1 ? "" : "s"} on the Stock-Out tab.`
+                  : undefined
+              }
+            >
+              <Select name="serviceType" value={serviceId} onChange={(event) => chooseService(event.target.value)}>
+                <option value="">Select a service type</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>{service.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Service location">
+              <Input
+                name="serviceLocation"
+                value={serviceLocation}
+                onChange={(event) => setServiceLocation(event.target.value)}
+                placeholder="Defaults to the client's address"
+                maxLength={LIMITS.NOTES_MAX}
+              />
+            </Field>
+          </div>
         </Section>
 
         <Section legend="When">
@@ -280,6 +331,11 @@ function NewAppointmentModal({
               required
             />
           </Field>
+          {clashes.length > 0 && (
+            <p data-testid="clash-hint" style={{ margin: "-4px 0 0", color: status.warning, fontSize: "12.5px", lineHeight: 1.45 }}>
+              Booked then: {clashes.join("; ")}.
+            </p>
+          )}
 
           {/* A radiogroup of toggle buttons, NOT a labelled control. Wrapping
               these in Field's <label> made the first button inherit the
@@ -351,8 +407,13 @@ function NewAppointmentModal({
               it would name only its first checkbox. TechnicianPicker labels
               itself through role="group". */}
           <div style={{ display: "grid", gap: "6px" }}>
-            <span style={{ color: neutral.ink, fontWeight: weight.medium, fontSize: text.small.fontSize }}>
+            <span style={{ display: "flex", alignItems: "baseline", gap: "8px", color: neutral.ink, fontWeight: weight.medium, fontSize: text.small.fontSize }}>
               Technicians
+              {activeAccounts.length > 0 && scheduledAt && (
+                <span style={{ color: neutral.bark, fontWeight: weight.regular, fontSize: "12px" }}>
+                  {freeCount === activeAccounts.length ? "All free at this time" : `${freeCount} of ${activeAccounts.length} free at this time`}
+                </span>
+              )}
             </span>
             <TechnicianPicker
               accounts={activeAccounts}
@@ -363,19 +424,10 @@ function NewAppointmentModal({
           </div>
         </Section>
 
-        <Section legend="Work" span={2}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px", alignItems: "start" }}>
-            <Field label="Service type" hint={selectedService?.materials?.length ? `Prefills ${selectedService.materials.length} material${selectedService.materials.length === 1 ? "" : "s"} on the Stock-Out tab.` : undefined}>
-              <Select name="serviceType" value={serviceId} onChange={(event) => chooseService(event.target.value)}>
-                <option value="">Select a service type</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>{service.name}</option>
-                ))}
-              </Select>
-            </Field>
-
+        <Section legend="Details" span={2}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", alignItems: "start" }}>
             <Field label="Pest concern">
-              <Select name="pestConcern" defaultValue="">
+              <Select name="pestConcern" defaultValue={initialPestConcern}>
                 <option value="">Select a pest concern</option>
                 {PEST_CONCERN_SUGGESTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -387,7 +439,7 @@ function NewAppointmentModal({
                 hold a quarterly contract and a one-off fumigation, and the
                 price has to stay whatever was agreed on the day. */}
             <Field label="Frequency">
-              <Select name="serviceFrequency" defaultValue="">
+              <Select name="serviceFrequency" defaultValue={initialFrequency}>
                 <option value="">Not set</option>
                 {SERVICE_FREQUENCIES.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -410,7 +462,7 @@ function NewAppointmentModal({
           </div>
 
           <Field label="Notes">
-            <Textarea name="notes" rows={3} maxLength={LIMITS.NOTES_MAX} />
+            <Textarea name="notes" rows={2} maxLength={LIMITS.NOTES_MAX} />
           </Field>
         </Section>
 

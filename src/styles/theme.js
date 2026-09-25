@@ -20,6 +20,7 @@ import {
   focusRing,
   font,
   layout,
+  line,
   neutral,
   radius,
   shadow,
@@ -52,7 +53,7 @@ export const colors = {
 
   // Strokes. `line` is the workhorse hairline; `softLine` separates rows
   // inside an already-bordered container without drawing a second edge.
-  line: surface.sunken,
+  line,
   softLine: "rgba(199, 188, 175, 0.45)",
   strongLine: neutral.ink,
   loam: neutral.loam,
@@ -82,7 +83,7 @@ export const card = {
   background: surface.panel,
   border: border.hairline,
   borderRadius: radius.card,
-  padding: space.lg,
+  padding: "22px",
   boxShadow: shadow.none,
 };
 
@@ -98,7 +99,7 @@ export const inputStyle = {
   width: "100%",
   border: `1px solid ${neutral.loam}`,
   borderRadius: radius.control,
-  padding: "9px 12px",
+  padding: "8px 11px",
   fontSize: text.body.fontSize,
   fontFamily: font.sans,
   background: surface.panel,
@@ -121,7 +122,7 @@ export const primaryButton = {
   borderRadius: radius.control,
   background: brand.base,
   color: surface.canvas,
-  padding: "9px 20px",
+  padding: "7px 16px",
   fontSize: text.body.fontSize,
   fontWeight: weight.medium,
   cursor: "pointer",
@@ -134,11 +135,21 @@ export const secondaryButton = {
   background: "transparent",
   color: neutral.ink,
   borderRadius: radius.control,
-  padding: "9px 15px",
+  padding: "7px 14px",
   fontSize: text.body.fontSize,
   fontWeight: weight.medium,
   cursor: "pointer",
   boxShadow: shadow.none,
+};
+
+/**
+ * The third rung: a loam-edged white button for everyday row actions
+ * ("Assign", "Review", "Open") so a list of them doesn't shout.
+ */
+export const quietButton = {
+  ...secondaryButton,
+  border: `1px solid ${neutral.loam}`,
+  background: surface.panel,
 };
 
 /**
@@ -194,6 +205,19 @@ export const heading = {
   margin: 0,
   fontFamily: font.display,
   fontWeight: weight.medium,
+  color: neutral.ink,
+};
+
+/**
+ * Serif card / section title. The display face turns muddy below 17px, so
+ * smaller titles should use the sans at weight 500 instead.
+ */
+export const serifTitle = {
+  margin: 0,
+  fontFamily: font.display,
+  fontWeight: weight.medium,
+  fontSize: text.bodyLg.fontSize,
+  lineHeight: 1.3,
   color: neutral.ink,
 };
 

@@ -130,6 +130,8 @@ export function InventoryProvider({ children }) {
         return {
           ...entry,
           quantity: movement.newQuantity,
+          // The server's word on the item's expiry after this delivery.
+          ...(movement.expirationDate !== undefined ? { expirationDate: movement.expirationDate } : {}),
           cost: requested?.unitCost === "" || requested?.unitCost === undefined || requested?.unitCost === null
             ? entry.cost
             : Number(requested.unitCost),

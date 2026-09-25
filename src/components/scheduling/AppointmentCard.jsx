@@ -18,19 +18,13 @@
 // others is a third of a column wide, and a wrapped name there overflows the
 // box no matter how tall it is — so the tier is capped by width too.
 
-import { Check, RotateCcw, X } from "lucide-react";
-import { neutral, radius, text, weight } from "../../styles/tokens";
+import { RotateCcw } from "lucide-react";
+import { neutral, radius, weight } from "../../styles/tokens";
 import { formatDuration } from "../../utils/calendarDates";
 import { crewOf, endOf } from "../../utils/scheduling";
-import { HATCH_IMAGE, contentTier, statusVisual } from "./appointmentTheme";
+import { AvatarStack } from "../ui/Avatar";
+import { contentTier, statusVisual } from "./appointmentTheme";
 import { useCalendar } from "./CalendarContext";
-
-const GLYPHS = {
-  completed: Check,
-  reschedule: RotateCcw,
-  cancelled: X,
-  pending: null, // a dot, drawn inline — an icon at this size reads as noise
-};
 
 const clockLabel = (value) =>
   new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -44,32 +38,10 @@ const clampLines = (lines) => ({
   wordBreak: "break-word",
 });
 
-function StatusGlyph({ visual, color }) {
-  if (visual.glyph === "pending") {
-    return (
-      <span
-        aria-hidden="true"
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          background: color,
-          flex: "none",
-        }}
-      />
-    );
-  }
-
-  const Icon = GLYPHS[visual.glyph];
-  if (!Icon) return null;
-  return <Icon size={11} strokeWidth={2.5} color={color} aria-hidden="true" style={{ flex: "none" }} />;
-}
-
 function AppointmentCard({ appointment, height = null, columns = 1, placement = null, dense = false }) {
   const {
     clients,
     accounts,
-    colorFor,
     selectedId,
     draggedId,
     canReschedule,
@@ -82,42 +54,40 @@ function AppointmentCard({ appointment, height = null, columns = 1, placement = 
   if (!client) return null;
 
   const isSelected = appointment.id === selectedId;
-  const tone = colorFor(appointment);
   const visual = statusVisual(appointment.status);
-  // A job can carry a crew (migration 041). The card has room for one name, so
-  // it shows the lead and says how many others are going, rather than
-  // truncating three names into illegibility.
-  const crew = crewOf(appointment)
-    .map((id) => accounts.find((account) => account.id === id))
-    .map((account) => account?.name || account?.username)
-    .filter(Boolean);
-  const technicianName = crew.length === 0
-    ? "Unassigned"
-    : crew.length === 1 ? crew[0] : `${crew[0]} +${crew.length - 1}`;
+  // A job can carry a crew (migration 041), lead first. Initials tell them
+  // apart; the title attribute carries the full names.
+  const crew = crewOf(appointment).map((id) => accounts.find((account) => account.id === id) || null);
+  const crewNames = crew.filter(Boolean).map((account) => account.name || account.username);
+  const technicianName = crewNames.length === 0 ? "Unassigned" : crewNames.join(", ");
 
   // A month cell or a dialog row has no measured height; treat it as the
   // middle tier, which is what those layouts have room for.
   const tier = height === null ? (dense ? "compact" : "medium") : contentTier(height, columns);
   const startLabel = clockLabel(appointment.scheduledAt);
   const endLabel = clockLabel(endOf(appointment));
-  const railColor = visual.railColor || tone.bar;
-  const bodyColor = visual.mutedText ? neutral.saddle : tone.ink;
+  const textColor = visual.muted ? neutral.bark : neutral.ink;
+  const detailColor = visual.muted ? neutral.bark : neutral.saddle;
+  const needsSlot = appointment.status === "Reschedule";
 
   const nameStyle = {
     fontWeight: weight.medium,
     fontSize: tier === "compact" ? "11px" : "12px",
     lineHeight: 1.25,
+    color: textColor,
     textDecoration: visual.strike ? "line-through" : "none",
   };
+  const detailStyle = { fontSize: "10.5px", lineHeight: 1.3, color: detailColor };
 
   return (
     <button
       type="button"
-      draggable={canReschedule}
+      draggable={canReschedule && !["Cancelled", "Completed", "In progress"].includes(appointment.status)}
       onDragStart={() => canReschedule && onDragStart(appointment)}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(appointment)}
       aria-current={isSelected ? "true" : undefined}
+      data-status={appointment.status}
       title={`${client.name}
 ${startLabel} – ${endLabel} · ${formatDuration(appointment.durationMinutes || 60)}
 ${technicianName} · ${appointment.status}${appointment.pestConcern ? ` · ${appointment.pestConcern}` : ""}`}
@@ -128,53 +98,38 @@ ${technicianName} · ${appointment.status}${appointment.pestConcern ? ` · ${app
         display: "flex",
         flexDirection: "column",
         gap: "1px",
-        border: `${visual.borderWidth}px solid ${isSelected ? "#7f1111" : railColor}`,
-        borderLeft: `3px solid ${railColor}`,
+        borderWidth: "1px",
+        borderStyle: visual.borderStyle,
+        borderColor: isSelected ? neutral.ink : "#e6dfd3",
+        borderLeftWidth: "3px",
+        borderLeftStyle: "solid",
+        borderLeftColor: visual.edge,
         borderRadius: radius.control,
-        padding: tier === "compact" ? "2px 5px" : "4px 6px",
-        background: tone.fill,
-        // A real surface tint rather than a CSS filter, so a finished visit
-        // reads as done rather than as a rendering fault.
-        backgroundImage: [visual.hatch ? HATCH_IMAGE : null, visual.tint ? `linear-gradient(${visual.tint}, ${visual.tint})` : null]
-          .filter(Boolean)
-          .join(", "),
-        outline: isSelected ? "2px solid #7f1111" : "none",
+        padding: tier === "compact" ? "2px 6px" : "4px 7px",
+        background: visual.fill,
+        outline: isSelected ? `2px solid ${neutral.ink}` : "none",
         outlineOffset: "1px",
         position: "relative",
         zIndex: isSelected ? 3 : 1,
-        opacity: draggedId === appointment.id ? 0.45 : visual.opacity,
+        opacity: draggedId === appointment.id ? 0.45 : 1,
         overflow: "hidden",
-        color: bodyColor,
+        color: textColor,
         ...placement,
       }}
     >
       {tier === "compact" && (
         <span style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", overflow: "hidden" }}>
-          <StatusGlyph visual={visual} color={railColor} />
           <span style={{ ...nameStyle, overflow: "hidden", textOverflow: "ellipsis" }}>{client.name}</span>
-          <span style={{ fontSize: "10px", opacity: 0.8, flex: "none", marginLeft: "auto" }}>{startLabel}</span>
+          <span style={{ ...detailStyle, flex: "none", marginLeft: "auto" }}>{startLabel}</span>
         </span>
       )}
 
       {tier === "medium" && (
         <>
-          <span style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
-            <StatusGlyph visual={visual} color={railColor} />
-            <span style={{ ...nameStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {client.name}
-            </span>
+          <span style={{ ...nameStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {client.name}
           </span>
-          <span
-            style={{
-              fontSize: "10px",
-              opacity: 0.85,
-              whiteSpace: "nowrap",
-              // A half-width card cannot fit a full range; ellipsise rather
-              // than clip a digit in half.
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
+          <span style={{ ...detailStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {startLabel} – {endLabel}
           </span>
         </>
@@ -182,15 +137,19 @@ ${technicianName} · ${appointment.status}${appointment.pestConcern ? ` · ${app
 
       {tier === "full" && (
         <>
-          <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", opacity: 0.85 }}>
-            <StatusGlyph visual={visual} color={railColor} />
-            {startLabel} – {endLabel}
+          <span style={{ display: "flex", alignItems: "flex-start", gap: "4px" }}>
+            <span style={{ ...nameStyle, ...clampLines(2), flex: 1 }}>{client.name}</span>
+            {needsSlot && <RotateCcw size={11} strokeWidth={2} color={visual.edge} aria-hidden="true" style={{ flex: "none", marginTop: "2px" }} />}
           </span>
-          <span style={{ ...nameStyle, ...clampLines(2) }}>{client.name}</span>
-          <span style={{ ...text.caption, fontSize: "10px", opacity: 0.72, ...clampLines(1) }}>
-            {technicianName}
+          <span style={{ ...detailStyle, ...clampLines(1) }}>
+            {startLabel} – {endLabel}
             {appointment.pestConcern ? ` · ${appointment.pestConcern}` : ""}
           </span>
+          {crew.length > 0 && (
+            <span style={{ marginTop: "3px" }}>
+              <AvatarStack users={crew} size="xs" max={3} />
+            </span>
+          )}
         </>
       )}
     </button>

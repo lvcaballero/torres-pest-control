@@ -14,7 +14,7 @@ import { card, colors, pageShell } from "../styles/theme";
 function ClientDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
-  const { getClient, updateClient, deleteClient, addDocument, removeDocument, getDocumentUrl, loading } =
+  const { getClient, updateClient, deleteClient, archiveClient, restoreClient, addDocument, removeDocument, getDocumentUrl, loading } =
     useClients();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
@@ -57,6 +57,31 @@ function ClientDetailPage() {
   const handleUpload = (file, category) => addDocument(client.id, file, category);
   const handleRemove = (document) => removeDocument(client.id, document);
 
+  // Archive is the everyday way to retire a client: reversible, and the
+  // history stays. Delete sits behind the "…" menu with a confirmation.
+  const handleArchive = async () => {
+    const result = await archiveClient(client.id);
+    if (result !== true) {
+      showError(result);
+      return;
+    }
+    showSuccess(`${client.name} archived.`, {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const undo = await restoreClient(client.id);
+          if (undo !== true) showError(undo);
+        },
+      },
+    });
+  };
+
+  const handleRestore = async () => {
+    const result = await restoreClient(client.id);
+    if (result === true) showSuccess(`${client.name} restored.`);
+    else showError(result);
+  };
+
   const handleDelete = async () => {
     setDeleteDialogOpen(false);
     const result = await deleteClient(client.id);
@@ -74,6 +99,9 @@ function ClientDetailPage() {
         client={client}
         canEdit={can(SUBSYSTEMS.CLIENTS, "edit")}
         canDelete={can(SUBSYSTEMS.CLIENTS, "delete")}
+        canBook={can(SUBSYSTEMS.SCHEDULING, "create")}
+        onArchive={handleArchive}
+        onRestore={handleRestore}
         canUploadDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "create")}
         canRemoveDocuments={can(SUBSYSTEMS.CLIENT_DOCUMENTS, "delete")}
         onSave={handleSave}

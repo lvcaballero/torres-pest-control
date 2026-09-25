@@ -1,31 +1,26 @@
 // The sign-in form. LoginPage owns the route; this owns the fields.
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { heroLine } from "../../utils/greetings";
+import { ArrowRight, Eye, EyeOff, Lock } from "lucide-react";
 
 function Login({ onLogin }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  // Off by default: this app runs on shared office PCs, and a session that
+  // outlives the browser there is someone else's session tomorrow.
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  // Picked once per mount: the hero is rendered twice (red panel and the cream
-  // layer showing through the curve) and the two have to say the same thing.
-  const hero = useMemo(() => heroLine(), []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setStatus("");
 
     // No format or length rules here on purpose. check_login() matches the
-    // identifier against BOTH email and username, so the old email regex
-    // locked out every username holder, and the 8-character minimum rejected
-    // valid older passwords before the server ever saw them. The only thing
-    // worth catching in the browser is an empty box.
+    // identifier against BOTH email and username, so an email regex would
+    // lock out every username holder. The only thing worth catching in the
+    // browser is an empty box.
     if (!identifier.trim()) {
       setError("Enter your email or username.");
       return;
@@ -40,126 +35,92 @@ function Login({ onLogin }) {
     setSubmitting(true);
 
     try {
-      const result = await onLogin?.(identifier.trim(), password);
-
-      if (result !== true) {
-        setError(typeof result === "string" ? result : "Invalid login or password.");
-        return;
-      }
-
-      setStatus("Signed in. This is a demo, so there is nowhere to redirect to.");
+      const result = await onLogin?.(identifier.trim(), password, { remember: rememberMe });
+      if (result !== true) setError(typeof result === "string" ? result : "Invalid email or password.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <main className="standalone-login-card">
-      <section className="standalone-form-panel" aria-labelledby="title">
-        <span className="accent-bar" aria-hidden="true" />
+    <form noValidate onSubmit={handleSubmit} aria-labelledby="login-title">
+      <p className="auth-eyebrow">Staff sign-in</p>
+      <h1 id="login-title">Welcome back</h1>
+      <p className="auth-lede">Use the account your administrator gave you.</p>
 
-        <div className="standalone-form-inner">
-          <div className="tp-logo" aria-label="Torres Pest Control logo" role="img">
-            <img src="/login-logo.png" alt="Torres Pest Control logo" className="tp-logo-image" />
-          </div>
+      <label className="auth-label" htmlFor="login-identifier">
+        Email or username
+      </label>
+      <input
+        id="login-identifier"
+        name="email"
+        className="auth-input"
+        type="text"
+        autoComplete="username"
+        placeholder="jun@torres.ph"
+        value={identifier}
+        onChange={(event) => {
+          setIdentifier(event.target.value);
+          if (error) setError("");
+        }}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? "login-error" : undefined}
+      />
 
-          <h1 id="title">Welcome back</h1>
-          <p className="sub">Sign in to pick up right where you left off.</p>
-
-          <form className="standalone-login-form" noValidate onSubmit={handleSubmit}>
-            <div className="field">
-              <label className="lbl" htmlFor="email">Email or username</label>
-              <input
-                id="email"
-                name="email"
-                className="input"
-                type="text"
-                autoComplete="username"
-                placeholder="you@example.com or your username"
-                value={identifier}
-                onChange={(event) => {
-                  setIdentifier(event.target.value);
-                  if (error) setError("");
-                }}
-                aria-invalid={Boolean(error)}
-              />
-            </div>
-
-            <div className="field">
-              <label className="lbl" htmlFor="password">Password</label>
-              <div className="input-wrap">
-                <input
-                  id="password"
-                  name="password"
-                  className="input"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    if (error) setError("");
-                  }}
-                  aria-invalid={Boolean(error)}
-                />
-                <button
-                  className="toggle-pw"
-                  type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  aria-pressed={showPassword}
-                  aria-controls="password"
-                  onClick={() => setShowPassword((current) => !current)}
-                >
-                  <svg className="icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" hidden={showPassword}>
-                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  <svg className="icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" hidden={!showPassword}>
-                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                    <line x1="2" x2="22" y1="2" y2="22" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="row">
-              <label className="check">
-                <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} />
-                <span>Keep me signed in</span>
-              </label>
-              <Link className="link" to="/forgot-password">
-                Forgot password?
-              </Link>
-            </div>
-
-            <button className="btn-primary" type="submit" disabled={submitting}>
-              {submitting ? "Signing in…" : "Sign in"}
-            </button>
-
-            {error && <p className="err" role="alert">{error}</p>}
-            {status && <p className="status" role="status">{status}</p>}
-          </form>
-        </div>
-      </section>
-
-      <aside className="hero-layer on-red" aria-label="Torres Pest Control welcome message">
-        <div className="hero">
-          <div className="bar" aria-hidden="true" />
-          <h2>{hero}</h2>
-          <p>Everything you saved, tracked and set up is exactly where you left it. Sign in to keep going.</p>
-        </div>
-      </aside>
-
-      <div className="hero-layer on-cream" aria-hidden="true">
-        <div className="hero">
-          <div className="bar" aria-hidden="true" />
-          <h2>{hero}</h2>
-          <p>Everything you saved, tracked and set up is exactly where you left it. Sign in to keep going.</p>
-        </div>
+      <div className="auth-label">
+        <label htmlFor="login-password">Password</label>
+        <Link className="auth-link" to="/forgot-password">
+          Forgot password?
+        </Link>
       </div>
-    </main>
+      <div className="auth-input-wrap">
+        <input
+          id="login-password"
+          name="password"
+          className="auth-input"
+          type={showPassword ? "text" : "password"}
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            if (error) setError("");
+          }}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? "login-error" : undefined}
+        />
+        <button
+          className="auth-toggle"
+          type="button"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          aria-pressed={showPassword}
+          aria-controls="login-password"
+          onClick={() => setShowPassword((current) => !current)}
+        >
+          {showPassword ? <EyeOff aria-hidden="true" strokeWidth={1.6} /> : <Eye aria-hidden="true" strokeWidth={1.6} />}
+        </button>
+      </div>
+
+      <label className="auth-check">
+        <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} />
+        Keep me signed in on this device
+      </label>
+
+      <button className="auth-submit" type="submit" disabled={submitting}>
+        {submitting ? "Signing in…" : "Sign in"}
+        {!submitting && <ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" />}
+      </button>
+
+      {error && (
+        <p className="auth-error" id="login-error" role="alert">
+          {error}
+        </p>
+      )}
+
+      <p className="auth-note">
+        <Lock size={14} strokeWidth={1.6} aria-hidden="true" />
+        Shared computer? Leave “keep me signed in” off.
+      </p>
+    </form>
   );
 }
 

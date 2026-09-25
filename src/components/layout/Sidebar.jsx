@@ -5,63 +5,56 @@
 // is reachable. RoleBasedRoute does the actual enforcing — this only decides
 // what to show.
 //
-// The rail is a SURFACE, not an accent. It used to be a 264px full-height slab
-// of #7f1111, which made it the only saturated block in an app whose every
-// other surface steps through parchment -> bone -> white. This design language
-// builds hierarchy from surface temperature and 1px borders, and spends its
-// one chromatic accent on the thing that has earned attention — here, the
-// active item. Painting the whole rail in it left nothing for the active state
-// to say, and buried the brand mark, whose artwork is dark red and blue on
-// transparency and so had almost no contrast against maroon.
+// The rail is a SURFACE, not an accent: plain bone with ink text. The one
+// chromatic mark is spent on the active item (white, with a 3px maroon
+// marker) and on the count badges, which are the rail's only other claim on
+// attention. Below the drawer breakpoint the same element slides in from the
+// left over a scrim; the CSS for that lives in globals.css (.app-rail).
 
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  BriefcaseBusiness,
+  Activity,
   CalendarDays,
-  Gauge,
-  ListChecks,
+  Home,
+  Lock,
   Package,
-  SprayCan,
+  SlidersHorizontal,
+  Tag,
   Users,
 } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
 import { SUBSYSTEMS } from "../../utils/permissions";
-import { brand, layout, neutral, radius, surface, text, weight } from "../../styles/tokens";
+import { brand, font, neutral, radius, surface, weight } from "../../styles/tokens";
+import { colors } from "../../styles/theme";
+import ProfileMenu from "./ProfileMenu";
 
 /**
- * Navigation, grouped. Six ungrouped links read as one undifferentiated run;
- * the groups give the rail the same uppercase-eyebrow rhythm every page header
- * uses, and let a screen reader announce "Operations, list, 3 items".
+ * Navigation, grouped. The main group carries no visible heading — its four
+ * items are the day's work and read as the rail's top level — but it keeps a
+ * visually hidden one so a screen reader still announces the grouping.
  *
- * Item shape is unchanged — `subsystem` + `action` are still what decides
- * visibility, via can() below.
+ * `badge` names a key in the `badges` prop; a count of 0 shows nothing.
  */
 const NAV_GROUPS = [
   {
     label: "Main",
+    hidden: true,
     items: [
       // The dashboard is the only exact match — "/" prefixes every other route.
-      { label: "Dashboard", path: "/", exact: true, subsystem: null, Icon: Gauge },
+      { label: "Today", path: "/", exact: true, subsystem: null, Icon: Home },
+      { label: "Schedule", path: "/scheduling", subsystem: SUBSYSTEMS.SCHEDULING, action: "view", Icon: CalendarDays, badge: "scheduling" },
+      { label: "Clients", path: "/clients", subsystem: SUBSYSTEMS.CLIENTS, action: "view", Icon: Users },
+      { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package, badge: "inventory" },
     ],
   },
   {
-    label: "Operations",
+    label: "Setup",
     items: [
-      { label: "Scheduling", path: "/scheduling", subsystem: SUBSYSTEMS.SCHEDULING, action: "view", Icon: CalendarDays },
-      { label: "Client Profiles", path: "/clients", subsystem: SUBSYSTEMS.CLIENTS, action: "view", Icon: BriefcaseBusiness },
-      { label: "Inventory", path: "/inventory", subsystem: SUBSYSTEMS.INVENTORY, action: "view", Icon: Package },
-      // Services and Treatment Methods are the operational catalog the office
-      // runs the day on — what is sold, what materials it uses, how it is
-      // applied — so they sit with the work, not with account administration.
-      // Both stay admin-only through the SETTINGS subsystem.
-      { label: "Services", path: "/services", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: SprayCan },
-      { label: "Treatment Methods", path: "/treatment-methods", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: ListChecks },
-    ],
-  },
-  {
-    label: "Administration",
-    items: [
-      { label: "User Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Users },
+      { label: "Services", path: "/services", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: Tag },
+      { label: "Treatment methods", path: "/treatment-methods", subsystem: SUBSYSTEMS.SETTINGS, action: "view", Icon: SlidersHorizontal },
+      { label: "Accounts", path: "/users", subsystem: SUBSYSTEMS.USERS, action: "view", Icon: Lock },
+      { label: "Activity log", path: "/activity", subsystem: SUBSYSTEMS.LOGS, action: "view", Icon: Activity },
     ],
   },
 ];
@@ -69,77 +62,63 @@ const NAV_GROUPS = [
 /**
  * Whether a nav item should read as the current page.
  *
- * This used to be `location.pathname === item.path`, which meant a detail
- * route like /clients/123 highlighted nothing at all — the user could be
- * three clicks deep into Client Profiles with the whole sidebar dark. A
- * prefix match fixes that, but only for items that opt in: "/" is a prefix
- * of every route in the app, so the dashboard has to stay exact.
- *
- * The `/` boundary check matters too — without it, /clients would light up
- * for a hypothetical /clients-archive.
+ * A prefix match keeps the parent lit on a detail route (/clients/123), but
+ * only for items that opt in: "/" is a prefix of every route in the app, so
+ * the dashboard has to stay exact. The `/` boundary check stops /clients
+ * lighting up for a hypothetical /clients-archive.
  */
 export function isNavItemActive(pathname, item) {
   if (item.exact) return pathname === item.path;
   return pathname === item.path || pathname.startsWith(`${item.path}/`);
 }
 
-/** Turns "Administration" into the id its <ul> points at. */
+/** Turns "Setup" into the id its <ul> points at. */
 export function groupHeadingId(label) {
   return `sidebar-group-${label.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
+const visuallyHidden = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+};
+
 const styles = {
-  sidebar: {
-    position: "fixed",
-    inset: "0 auto 0 0",
-    width: layout.sidebarWidth,
-    height: "100vh",
-    // Bone warmed toward maroon: a band distinct from the page that carries a
-    // trace of the brand without spending the accent on 264px of background.
-    // Flat, not a gradient — this design language builds hierarchy from
-    // surface colour and hairline borders, never from depth effects.
-    background: surface.rail,
-    // The rail and the parchment canvas beside it are deliberately close. THIS
-    // hairline is what separates them; removing it collapses the two surfaces
-    // into one indistinct field.
-    borderRight: `1px solid ${neutral.loam}`,
-    padding: "20px 12px 15px",
+  brandRow: {
     display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
+    alignItems: "center",
+    gap: "10px",
+    padding: "2px 8px 18px",
+    textDecoration: "none",
+    color: neutral.ink,
   },
-  logoWrap: {
-    margin: "0 3px 15px",
-    padding: "2px 9px 15px",
-    borderBottom: `1px solid ${neutral.loam}`,
-  },
-  logoImage: {
+  brandName: { display: "block", font: `500 15px/1.15 ${font.display}`, color: neutral.ink },
+  brandSub: {
     display: "block",
-    width: "190px",
-    maxWidth: "100%",
-    height: "auto",
-    objectFit: "contain",
+    fontSize: "10.5px",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: neutral.bark,
   },
   navGroups: {
     flex: 1,
     minHeight: 0,
     overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
+    // Room for the active marker, which hangs into the rail's padding.
+    margin: "0 -14px",
+    padding: "0 14px",
   },
   groupLabel: {
-    margin: "0 0 4px",
-    // 3px marker + 12px padding, so the eyebrow sits on the same left edge as
-    // the link labels beneath it.
-    padding: "0 15px",
-    fontSize: text.caption.fontSize,
-    lineHeight: text.caption.lineHeight,
-    letterSpacing: text.eyebrow.letterSpacing,
+    margin: 0,
+    padding: "14px 10px 6px",
+    fontSize: "10.5px",
+    letterSpacing: "0.1em",
     textTransform: "uppercase",
     fontWeight: weight.medium,
-    // Bark (#96897b) is the usual muted tone, but it lands near 2.7:1 on bone
-    // — too low for 11px text. Saddle is ~7:1 on this surface.
+    // Saddle rather than bark: bark lands near 3:1 on bone, too low for 10px.
     color: neutral.saddle,
   },
   groupList: {
@@ -151,65 +130,120 @@ const styles = {
     gap: "2px",
   },
   link: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    padding: "9px 12px",
+    padding: "7px 10px",
     borderRadius: radius.control,
+    // Every item carries a border so the active one costs no layout shift.
+    //
+    // Longhands, not the `border` shorthand — this is load-bearing and has
+    // regressed once already. activeLink sets borderColor, so React owns that
+    // longhand; when the item goes inactive React removes it by assigning "",
+    // which DELETES the declaration rather than falling back to the
+    // shorthand's transparent. border-color then drops to its initial value,
+    // currentColor, and every tab you have visited keeps an outline. Naming
+    // borderColor here gives React a value to write back instead.
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "transparent",
+    background: "transparent",
     color: neutral.saddle,
     textDecoration: "none",
-    fontSize: text.small.fontSize,
+    fontSize: "13.5px",
     fontWeight: weight.regular,
-    // Every item carries the marker so the active one costs no layout shift.
-    // A border, not an inset box-shadow: the no-shadow rule is absolute here.
-    //
-    // Three longhands rather than the `borderLeft` shorthand, and this is
-    // load-bearing. CSS expands a shorthand into longhands at parse time, so
-    // once activeLink below sets borderLeftColor, React owns that longhand.
-    // When the item goes inactive React removes the key it no longer sees by
-    // assigning "", which DELETES the declaration instead of falling back to
-    // the shorthand's transparent — leaving border-left-color at its initial
-    // value, currentColor, i.e. a 3px bar in the link's own text colour. The
-    // symptom is every tab you have ever visited keeping a marker.
-    //
-    // Naming the colour here means React always has a value to write back,
-    // so the property is overwritten rather than removed.
-    borderLeftWidth: "3px",
-    borderLeftStyle: "solid",
-    borderLeftColor: "transparent",
     boxSizing: "border-box",
-    transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
   },
   activeLink: {
-    background: brand.wash,
-    borderLeftColor: brand.base,
+    background: surface.panel,
+    borderColor: colors.line,
     color: neutral.ink,
     fontWeight: weight.medium,
   },
+  marker: {
+    position: "absolute",
+    left: "-15px",
+    top: "6px",
+    bottom: "6px",
+    width: "3px",
+    background: brand.base,
+    borderRadius: "0 2px 2px 0",
+  },
+  badge: {
+    marginLeft: "auto",
+    minWidth: "18px",
+    textAlign: "center",
+    fontSize: "11px",
+    fontWeight: weight.medium,
+    background: brand.base,
+    color: surface.panel,
+    borderRadius: radius.pill,
+    padding: "0 6px",
+    lineHeight: "17px",
+  },
+  foot: {
+    marginTop: "12px",
+    borderTop: `1px solid ${colors.line}`,
+    paddingTop: "12px",
+  },
 };
 
-function Sidebar() {
+/**
+ * @param badges  counts keyed by an item's `badge` name, e.g. { scheduling: 3 }.
+ * @param open    drawer state below the breakpoint; ignored on desktop.
+ * @param onClose asks the shell to close the drawer (link click, Escape).
+ */
+function Sidebar({ badges = {}, open = false, onClose = () => {} }) {
   const location = useLocation();
-  const { currentUser, can } = useAuth();
+  const navigate = useNavigate();
+  const { currentUser, can, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const footRef = useRef(null);
 
-  const isVisible = (item) => {
-    if (item.role && currentUser?.role !== item.role) return false;
-    if (item.subsystem && !can(item.subsystem, item.action)) return false;
-    return true;
-  };
+  // Clicking outside the profile menu closes it.
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (footRef.current && !footRef.current.contains(event.target)) setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [profileOpen]);
+
+  const isVisible = (item) => !item.subsystem || can(item.subsystem, item.action);
 
   // Filter first, then drop any group left empty — a technician must not see
-  // an "Administration" heading floating above nothing.
+  // a "Setup" heading floating above nothing.
   const navGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(isVisible),
   })).filter((group) => group.items.length > 0);
 
+  const handleNavigate = (path) => {
+    setProfileOpen(false);
+    onClose();
+    navigate(path);
+  };
+
+  const handleLogout = async () => {
+    setProfileOpen(false);
+    try {
+      await logout?.();
+    } finally {
+      navigate("/login");
+    }
+  };
+
   return (
-    <nav style={styles.sidebar} aria-label="Primary">
-      <div style={styles.logoWrap}>
-        <img src="/brand-logo.png" alt="Torres Pest Control" style={styles.logoImage} />
-      </div>
+    <nav className="app-rail" data-open={open ? "true" : "false"} aria-label="Primary" id="app-rail">
+      <Link to="/" style={styles.brandRow} onClick={onClose}>
+        <img src="/login-logo.png" alt="" width="30" height="30" style={{ display: "block", objectFit: "contain" }} />
+        <span>
+          <span style={styles.brandName}>Torres</span>
+          <span style={styles.brandSub}>Pest Control</span>
+        </span>
+      </Link>
 
       <div style={styles.navGroups}>
         {navGroups.map((group) => {
@@ -217,29 +251,37 @@ function Sidebar() {
 
           return (
             <div key={group.label}>
-              <p id={headingId} style={styles.groupLabel}>
+              <p id={headingId} style={group.hidden ? visuallyHidden : styles.groupLabel}>
                 {group.label}
               </p>
 
               <ul aria-labelledby={headingId} style={styles.groupList}>
                 {group.items.map((item) => {
                   const isActive = isNavItemActive(location.pathname, item);
+                  const count = item.badge ? Number(badges[item.badge]) || 0 : 0;
 
                   return (
                     <li key={item.path}>
                       <Link
                         className="sidebar-nav-link"
                         to={item.path}
+                        onClick={onClose}
                         aria-current={isActive ? "page" : undefined}
                         style={{ ...styles.link, ...(isActive ? styles.activeLink : null) }}
                       >
+                        {isActive && <span aria-hidden="true" data-active-marker="" style={styles.marker} />}
                         <item.Icon
                           size={16}
-                          strokeWidth={1.75}
-                          style={{ color: isActive ? brand.base : neutral.saddle, flexShrink: 0 }}
+                          strokeWidth={1.6}
+                          style={{ color: isActive ? neutral.ink : neutral.saddle, flexShrink: 0 }}
                           aria-hidden="true"
                         />
                         {item.label}
+                        {count > 0 && (
+                          <span style={styles.badge} aria-label={`${count} need attention`}>
+                            {count > 99 ? "99+" : count}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );
@@ -249,6 +291,19 @@ function Sidebar() {
           );
         })}
       </div>
+
+      {currentUser && (
+        <div ref={footRef} style={styles.foot}>
+          <ProfileMenu
+            variant="rail"
+            user={currentUser}
+            open={profileOpen}
+            onToggle={() => setProfileOpen((current) => !current)}
+            onNavigate={handleNavigate}
+            onLogout={handleLogout}
+          />
+        </div>
+      )}
     </nav>
   );
 }

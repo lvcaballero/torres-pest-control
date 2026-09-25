@@ -252,7 +252,9 @@ export async function setItemStatus(itemId, status) {
  *
  * `entries` carry `amount` already converted into the item's own unit — see
  * utils/units.js. The pre-conversion figures ride along so the movement log can
- * show what was actually written on the note.
+ * show what was actually written on the note. A chemical line may carry
+ * `expirationDate`, the date printed on this delivery, which replaces the
+ * item's expiry (migration 049).
  */
 export async function stockInBatch(entries, { date, reference, intakeBranchOrStation, idempotencyKey }) {
   const { data, error } = await supabase.rpc("stock_in_batch", {
@@ -269,6 +271,8 @@ export async function stockInBatch(entries, { date, reference, intakeBranchOrSta
       conversion_factor: entry.conversionFactor === undefined || entry.conversionFactor === null
         ? 1
         : Number(entry.conversionFactor),
+      // Migration 049: the expiry printed on this delivery replaces the item's.
+      expiration_date: nullIfBlank(entry.expirationDate),
     })),
     p_movement_date: date,
     p_reference: nullIfBlank(reference),
@@ -295,6 +299,8 @@ export async function stockInBatch(entries, { date, reference, intakeBranchOrSta
       totalCost: Number(row.total_cost) || 0,
       createdAt: row.created_at,
       newQuantity: Number(row.new_quantity),
+      // Absent (undefined) before migration 049, so the caller keeps the old date.
+      expirationDate: row.expiration_date,
     })),
   };
 }

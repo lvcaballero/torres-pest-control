@@ -24,9 +24,10 @@ import useUsers from "../hooks/useUsers";
 import useServices from "../hooks/useServices";
 import { useScheduling } from "../context/SchedulingContext";
 import { useToast } from "../context/ToastContext";
-import { ACCOUNT_STATUS, APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
+import { APPOINTMENT_STATUSES, ATTACHMENT_CATEGORIES, DOCUMENT_CATEGORIES, PEST_CONCERN_SUGGESTIONS, ROLES, LIMITS, SERVICE_FREQUENCIES } from "../utils/constants";
 import useTreatmentMethods from "../hooks/useTreatmentMethods";
-import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, allowedNextStatuses, busyTechnicianIds, canTransition, crewOf, describeSlotConflict, findTechnicianConflicts, isAssignedTo, layoutDayAppointments } from "../utils/scheduling";
+import useNow from "../hooks/useNow";
+import { CALENDAR_END_HOUR, DAY_END_HOUR, DAY_START_HOUR, SCHEDULE_END_HOUR, allowedNextStatuses, bookableTechnicians, busyTechnicianIds, canTransition, crewOf, dayLoad, describeSlotConflict, findTechnicianConflicts, isAssignedTo, endOf, layoutDayAppointments, moveSteps, startOf, technicianHours } from "../utils/scheduling";
 import {
   addDays,
   formatDateTime,
@@ -37,19 +38,17 @@ import {
   startOfWeek,
   toDateTimeLocal,
 } from "../utils/calendarDates";
-import {
-  UNASSIGNED_COLOR,
-  badgeStyle,
-  statusAccent,
-  technicianColorMap,
-} from "../components/scheduling/appointmentTheme";
+import CalendarLegend from "../components/scheduling/CalendarLegend";
+import ScheduleSidePanel from "../components/scheduling/ScheduleSidePanel";
+import { awaitingReschedule } from "../utils/dashboardMetrics";
+import { reserviceDue } from "../utils/dispatch";
 import { CalendarProvider } from "../components/scheduling/CalendarContext";
 import WeekGrid from "../components/scheduling/WeekGrid";
 import MonthGrid from "../components/scheduling/MonthGrid";
 import OverflowDialog from "../components/scheduling/OverflowDialog";
 import NewAppointmentModal from "../components/scheduling/NewAppointmentModal";
 import TechnicianPicker from "../components/scheduling/TechnicianPicker";
-import SchedulingToolbar, { MODES } from "../components/scheduling/SchedulingToolbar";
+import SchedulingToolbar, { MODES, isCalendarMode } from "../components/scheduling/SchedulingToolbar";
 import {
   fullDayWindow,
   hoursIn,
@@ -58,8 +57,12 @@ import {
 } from "../utils/calendarGeometry";
 import PageHeader from "../components/common/PageHeader";
 import { todayISO, validateAppointmentStart, validateAttachment, validateDuration, validateMoney, validateMovementDate, validateQuantity } from "../utils/validators";
-import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton, sunkenPanel } from "../styles/theme";
+import { card, colors, inputStyle, pageShell, primaryButton, secondaryButton } from "../styles/theme";
 import Button from "../components/ui/Button";
+import DataTable from "../components/ui/DataTable";
+import SegmentedControl from "../components/ui/SegmentedControl";
+import StatusPill from "../components/ui/StatusPill";
+import { AvatarStack } from "../components/ui/Avatar";
 import Field from "../components/ui/Field";
 import Input from "../components/ui/Input";
 import Select from "../components/ui/Select";
@@ -76,15 +79,16 @@ const LEGACY_SERVICE = "__legacy__";
 
 function SchedulingPage() {
   const { can, currentUser } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const { clients, addDocument, removeDocument, getDocumentUrl } = useClients();
   const { inventory, stockOutMany } = useInventory();
   const { staff, technicians } = useUsers();
   const { activeServices, serviceById, serviceByName } = useServices();
   const { appointments, createAppointment, updateAppointment, submitReport, addStockUsed, addAttachment, removeAttachment, getAttachmentUrl, uploadSignature, getSignatureUrl, loading, error } = useScheduling();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
   const [mode, setMode] = useState(MODES.WEEK);
+  const now = useNow(60000);
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [tab, setTab] = useState("Overview");
   const [draggedId, setDraggedId] = useState(null);
@@ -92,6 +96,10 @@ function SchedulingPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createClientId, setCreateClientId] = useState("");
   const [createScheduledAt, setCreateScheduledAt] = useState("");
+  // Service, frequency and pest concern carried over when booking a re-service.
+  const [createPrefill, setCreatePrefill] = useState(null);
+  // A re-service card being dragged from the side panel (not an appointment).
+  const [reserviceDrag, setReserviceDrag] = useState(null);
   const [overflowGroup, setOverflowGroup] = useState(null);
   const [printRequest, setPrintRequest] = useState(null);
   const { methods: dynamicMethods, groups: dynamicGroups } = useTreatmentMethods();
@@ -106,6 +114,9 @@ function SchedulingPage() {
   const [pestConcernFilter, setPestConcernFilter] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // The list opens on what's coming, not on every visit since the beginning.
+  const [listScope, setListScope] = useState("upcoming");
+  const [listLimit, setListLimit] = useState(LIST_PAGE_SIZE);
   const draggedCardRef = useRef(false);
 
   // Two separate rights, and they do not line up:
@@ -115,6 +126,12 @@ function SchedulingPage() {
   //                writes the report and records materials, so that stays.
   const isTechnician = currentUser?.role === ROLES.TECHNICIAN;
   const canReschedule = !isTechnician;
+  // The office plans from the side panel; a technician's view is their own
+  // schedule, so it keeps the plain legend instead.
+  const showSidePanel = !isTechnician;
+  const listFiltersSet = Boolean(
+    appointmentSearch || statusFilter !== "ALL" || clientFilter !== "ALL" || pestConcernFilter !== "ALL" || dateFrom || dateTo
+  );
   // A technician "owns" a visit they are on, lead or not — an appointment can
   // carry a crew since migration 041.
   const ownsAppointment = (appointment) => !isTechnician || isAssignedTo(appointment, currentUser?.id);
@@ -128,14 +145,26 @@ function SchedulingPage() {
     setSelectedId(requestedId);
     if (searchParams.get("tab") === "Report") setTab("Report");
   }, [appointments, searchParams, isTechnician, currentUser?.id]);
-  const activeAccounts = useMemo(
-    () => [...staff, ...technicians].filter((account) => account.status !== ACCOUNT_STATUS.INACTIVE),
-    [staff, technicians]
-  );
-  // Colour is keyed off the technician list order so it stays stable between
-  // renders and across the week.
-  const technicianColors = useMemo(() => technicianColorMap(technicians), [technicians]);
-  const colorFor = (appointment) => technicianColors.get(appointment.technicianId) || UNASSIGNED_COLOR;
+  // The top bar's "New visit" (and a client's "Book visit") land here with
+  // ?new=1, optionally &client=<id>. Open the form once, then drop the
+  // params so a refresh or Back doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    if (!isTechnician) {
+      setCreateClientId(searchParams.get("client") || "");
+      setCreateScheduledAt("");
+      setCreateOpen(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    next.delete("client");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, isTechnician]);
+  // Every account, inactive included, for resolving names on visits already
+  // booked. Booking itself only offers `bookableTechnicians`.
+  const allAccounts = useMemo(() => [...staff, ...technicians], [staff, technicians]);
+  // Who can be put on a visit: deactivated accounts are never offered.
+  const activeTechnicians = useMemo(() => bookableTechnicians(technicians), [technicians]);
 
   useEffect(() => {
     setTreatmentMethods(selected?.treatmentMethods || []);
@@ -149,10 +178,17 @@ function SchedulingPage() {
 
   const weekStart = startOfWeek(anchorDate);
   const weekStartTime = weekStart.getTime();
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, index) => addDays(new Date(weekStartTime), index)),
-    [weekStartTime]
-  );
+  const anchorDayKey = localDateKey(anchorDate);
+  // The columns the grid draws: the whole week, or just the anchor day.
+  const weekDays = useMemo(() => {
+    if (mode === MODES.DAY) {
+      const day = new Date(anchorDate);
+      day.setHours(0, 0, 0, 0);
+      return [day];
+    }
+    return Array.from({ length: 7 }, (_, index) => addDays(new Date(weekStartTime), index));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, weekStartTime, anchorDayKey]);
   const monthCells = useMemo(() => {
     const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
     const gridStart = startOfWeek(monthStart);
@@ -166,7 +202,7 @@ function SchedulingPage() {
       if (isTechnician && !isAssignedTo(appointment, currentUser?.id)) return false;
       const client = clients.find((entry) => entry.id === appointment.clientId);
       const crewNames = crewOf(appointment)
-        .map((id) => activeAccounts.find((account) => account.id === id))
+        .map((id) => allAccounts.find((account) => account.id === id))
         .map((account) => account?.name || account?.username || "")
         .join(" ");
       const text = `${appointment.id} ${client?.name || ""} ${client?.address || ""} ${appointment.pestConcern || ""} ${appointment.status} ${crewNames}`.toLowerCase();
@@ -180,7 +216,7 @@ function SchedulingPage() {
         && (!dateFrom || localDateKey(new Date(appointment.scheduledAt)) >= dateFrom)
         && (!dateTo || localDateKey(new Date(appointment.scheduledAt)) <= dateTo);
     });
-  }, [appointments, appointmentSearch, clients, activeAccounts, technicianFilter, statusFilter, clientFilter, pestConcernFilter, dateFrom, dateTo, isTechnician, currentUser?.id]);
+  }, [appointments, appointmentSearch, clients, allAccounts, technicianFilter, statusFilter, clientFilter, pestConcernFilter, dateFrom, dateTo, isTechnician, currentUser?.id]);
 
   const pestConcernOptions = useMemo(
     () => Array.from(new Set(appointments.filter(ownsAppointment).map((appointment) => appointment.pestConcern).filter(Boolean))).sort(),
@@ -217,18 +253,20 @@ function SchedulingPage() {
   // The hours the grid actually draws. A week with four appointments used to
   // render all thirteen business hours at a fixed 56px — 728px of mostly
   // empty ruled paper, which is the loudest thing wrong with the old screen.
-  const hourWindow = useMemo(
-    () =>
-      showAllHours
-        ? fullDayWindow(DAY_START_HOUR, CALENDAR_END_HOUR)
-        : visibleHourWindow(
-            visibleAppointments.filter((appointment) =>
-              weekDays.some((date) => localDateKey(date) === localDateKey(new Date(appointment.scheduledAt)))
-            ),
-            { businessStart: DAY_START_HOUR, businessEnd: CALENDAR_END_HOUR }
-          ),
-    [visibleAppointments, weekDays, showAllHours]
-  );
+  //
+  // The office's day, 7 AM – 6 PM, is always on screen so there is somewhere
+  // to drop a visit; the window only widens (never narrows) to reach a visit
+  // booked outside it, so nothing is ever hidden.
+  const hourWindow = useMemo(() => {
+    if (showAllHours) return fullDayWindow(DAY_START_HOUR, CALENDAR_END_HOUR);
+    const inView = visibleAppointments.filter((appointment) =>
+      weekDays.some((date) => localDateKey(date) === localDateKey(new Date(appointment.scheduledAt)))
+    );
+    const base = fullDayWindow(DAY_START_HOUR, SCHEDULE_END_HOUR);
+    if (inView.length === 0) return base;
+    const used = visibleHourWindow(inView, { businessStart: DAY_START_HOUR, businessEnd: CALENDAR_END_HOUR, pad: 0, minHours: 1 });
+    return { startHour: Math.min(base.startHour, used.startHour), endHour: Math.max(base.endHour, used.endHour) };
+  }, [visibleAppointments, weekDays, showAllHours]);
 
   // Fewer hours on screen means each can afford more height, which is what
   // makes a readable card possible at all.
@@ -244,14 +282,37 @@ function SchedulingPage() {
    * Leaving it undefined now keeps the appointment's own time of day, so a
    * month drag changes the date and nothing else.
    */
+  // Moves a visit to a new start and puts its status back as it was.
+  //
+  // update_appointment (migration 047) only lets the time change while the
+  // row is in Reschedule, so a move is two writes: hop to Reschedule, then
+  // save the new time with the ORIGINAL status. The drop used to save
+  // "Confirmed" here, which silently confirmed Pending visits nobody had
+  // agreed to. If the second write fails, the first is undone so the visit
+  // isn't left stranded in Reschedule. Returns an error string or null.
+  const relocate = async (current, scheduledAt) => {
+    const steps = moveSteps(current, scheduledAt);
+    for (let index = 0; index < steps.length; index += 1) {
+      const result = await updateAppointment(steps[index]);
+      if (typeof result === "string") {
+        if (index > 0) await updateAppointment({ ...current, status: current.status });
+        return result;
+      }
+    }
+    return null;
+  };
+
+  const refuseMove = (reason) => {
+    setDraggedId(null);
+    showError(reason);
+    setMessage(reason);
+  };
+
   const moveAppointment = async (dateKey, time = null) => {
     if (!draggedId) return;
     const current = appointments.find((appointment) => appointment.id === draggedId);
     if (!canReschedule) {
-      setDraggedId(null);
-      const refusal = "Rescheduling is handled by the office. Ask staff to move this visit.";
-      showError(refusal);
-      setMessage(refusal);
+      refuseMove("Rescheduling is handled by the office. Ask staff to move this visit.");
       return;
     }
     if (!current) {
@@ -260,51 +321,63 @@ function SchedulingPage() {
     }
     const keptTime = minutesToTimeValue(minutesOfDay(current.scheduledAt));
     const nextScheduledAt = `${dateKey}T${time || keptTime}:00`;
-    const movedAppointment = { ...current, scheduledAt: nextScheduledAt, status: "Confirmed" };
-    // Refused before anything is written: the Reschedule step below would
-    // otherwise land and strand the visit in that status (migration 047).
+    const movedAppointment = { ...current, scheduledAt: nextScheduledAt };
+    // Refused before anything is written: the Reschedule step would otherwise
+    // land and strand the visit in that status (migration 047).
     if (validateAppointmentStart(nextScheduledAt)) {
-      setDraggedId(null);
-      const pastRefusal = "Appointments cannot be moved into the past.";
-      showError(pastRefusal);
-      setMessage(pastRefusal);
+      refuseMove("Appointments cannot be moved into the past.");
       return;
     }
-    // Moving requires the Reschedule status first, so an appointment that cannot
-    // reach Reschedule cannot be dragged at all.
-    if (!canTransition(current.status, "Reschedule")) {
-      setDraggedId(null);
-      const blockedMessage = `A ${current.status.toLowerCase()} appointment cannot be moved.`;
-      showError(blockedMessage);
-      setMessage(blockedMessage);
+    // A finished or cancelled visit has no slot to move to, even though the
+    // status rules would let a cancelled one through Reschedule.
+    // A visit being worked on right now stays where it is.
+    if (current.status === "In progress") {
+      refuseMove("This visit is in progress on site and can't be moved.");
+      return;
+    }
+    if (current.status === "Cancelled" || !canTransition(current.status, "Reschedule")) {
+      refuseMove(`A ${current.status.toLowerCase()} appointment cannot be moved.`);
       return;
     }
     const dropRefusal = describeSlotConflict(appointments, movedAppointment);
     if (dropRefusal) {
-      setDraggedId(null);
-      showError(dropRefusal);
-      setMessage(dropRefusal);
+      refuseMove(dropRefusal);
       return;
     }
-    if (current.status !== "Reschedule") {
-      const prepareResult = await updateAppointment({ ...current, status: "Reschedule" });
-      if (typeof prepareResult === "string") {
-        setDraggedId(null);
-        showError(prepareResult);
-        setMessage(prepareResult);
-        return;
-      }
-    }
-    const result = await updateAppointment(movedAppointment);
+    const failure = await relocate(current, nextScheduledAt);
     setDraggedId(null);
-    if (typeof result === "string") showError(result);
-    setMessage(typeof result === "string" ? result : `Moved appointment to ${formatDateTime(nextScheduledAt)}.`);
+    if (failure) {
+      showError(failure);
+      setMessage(failure);
+      return;
+    }
+
+    const moved = `Moved to ${formatDateTime(nextScheduledAt)}. Still ${current.status}.`;
+    setMessage(moved);
+    // Undo puts it back where it was — unless that slot is now in the past,
+    // which update_appointment would refuse.
+    const canUndo = !validateAppointmentStart(current.scheduledAt);
+    showSuccess(
+      moved,
+      canUndo
+        ? {
+            action: {
+              label: "Undo",
+              onClick: async () => {
+                const undoFailure = await relocate({ ...current, scheduledAt: nextScheduledAt }, current.scheduledAt);
+                if (undoFailure) showError(undoFailure);
+                setMessage(undoFailure || `Moved back to ${formatDateTime(current.scheduledAt)}.`);
+              },
+            },
+          }
+        : undefined
+    );
   };
 
   const navigateCalendar = (amount) => {
     const next = new Date(anchorDate);
-    // The technicians view is a week grid too, so only month mode steps by month.
     if (mode === MODES.MONTH) next.setMonth(next.getMonth() + amount);
+    else if (mode === MODES.DAY) next.setDate(next.getDate() + amount);
     else next.setDate(next.getDate() + amount * 7);
     setAnchorDate(next);
   };
@@ -455,9 +528,9 @@ function SchedulingPage() {
     setPrintRequest({
       appointment,
       client,
-      technician: activeAccounts.find((account) => account.id === appointment.technicianId) || null,
+      technician: allAccounts.find((account) => account.id === appointment.technicianId) || null,
       technicians: crewOf(appointment)
-        .map((id) => activeAccounts.find((account) => account.id === id))
+        .map((id) => allAccounts.find((account) => account.id === id))
         .filter(Boolean),
       inventory,
     });
@@ -510,10 +583,37 @@ function SchedulingPage() {
     setCreateOpen(false);
     setSelectedId(result.id);
     setCreateScheduledAt("");
-    setMode(MODES.WEEK);
-    setAnchorDate(startOfWeek(new Date(result.scheduledAt)));
+    setCreateClientId("");
+    setCreatePrefill(null);
+    // Show the new visit where it landed, in the day view if that's open.
+    if (mode !== MODES.DAY) setMode(MODES.WEEK);
+    setAnchorDate(mode === MODES.DAY ? new Date(result.scheduledAt) : startOfWeek(new Date(result.scheduledAt)));
     setMessage("Appointment created.");
     return true;
+  };
+
+  // Book the next visit for a client due for re-service: their last visit's
+  // service, frequency and pest concern come along; the time is where the
+  // card was dropped, or the form's default when it was clicked.
+  const bookReservice = (entry, scheduledAt) => {
+    setCreateClientId(entry.client.id);
+    setCreateScheduledAt(scheduledAt);
+    setCreatePrefill({
+      serviceId: entry.last.serviceId || "",
+      frequency: entry.last.serviceFrequency || "",
+      pestConcern: entry.last.pestConcern || "",
+    });
+    setCreateOpen(true);
+  };
+
+  const handleGridDrop = (dateKey, time) => {
+    if (reserviceDrag) {
+      const entry = reserviceDrag;
+      setReserviceDrag(null);
+      bookReservice(entry, toDateTimeLocal(new Date(`${dateKey}T${time}:00`)));
+      return;
+    }
+    moveAppointment(dateKey, time);
   };
 
   const openCreateAt = (dateKey, time) => {
@@ -529,8 +629,7 @@ function SchedulingPage() {
   const calendarValue = useMemo(
     () => ({
       clients,
-      accounts: activeAccounts,
-      colorFor,
+      accounts: allAccounts,
       selectedId,
       draggedId,
       canReschedule,
@@ -553,7 +652,7 @@ function SchedulingPage() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clients, activeAccounts, technicianColors, selectedId, draggedId, canReschedule]
+    [clients, allAccounts, selectedId, draggedId, canReschedule]
   );
 
   const appointmentsOnDay = (dateKey) =>
@@ -566,20 +665,24 @@ function SchedulingPage() {
       technicianId === null ? crewOf(appointment).length === 0 : isAssignedTo(appointment, technicianId)
     ).length;
 
+  const weekEnd = addDays(weekStart, 6);
   const rangeLabel =
     mode === MODES.MONTH
       ? anchorDate.toLocaleDateString([], { month: "long", year: "numeric" })
-      : `${weekStart.toLocaleDateString([], { month: "short", day: "numeric" })} - ${addDays(weekStart, 6).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`;
+      : mode === MODES.DAY
+        ? anchorDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+        : weekRangeLabel(weekStart, weekEnd);
 
   const isOnToday =
     mode === MODES.MONTH
-      ? anchorDate.getMonth() === new Date().getMonth() &&
-        anchorDate.getFullYear() === new Date().getFullYear()
-      : localDateKey(weekStart) === localDateKey(startOfWeek(new Date()));
+      ? anchorDate.getMonth() === now.getMonth() && anchorDate.getFullYear() === now.getFullYear()
+      : mode === MODES.DAY
+        ? anchorDayKey === localDateKey(now)
+        : localDateKey(weekStart) === localDateKey(startOfWeek(now));
 
   return (
     <div style={pageShell}>
-      <PageHeader eyebrow="Operations" title="Scheduling" />
+      <PageHeader eyebrow="Operations" title="Schedule" />
 
       <div style={{ display: "grid", gap: "15px" }}>
         <SchedulingToolbar
@@ -589,23 +692,42 @@ function SchedulingPage() {
           onNavigate={navigateCalendar}
           onToday={() => setAnchorDate(new Date())}
           isOnToday={isOnToday}
-          technicians={technicians}
+          technicians={activeTechnicians}
           technicianFilter={technicianFilter}
           onTechnicianFilterChange={setTechnicianFilter}
-          colorFor={(id) => technicianColors.get(id)}
-          unassignedColor={UNASSIGNED_COLOR}
           countFor={jobsThisWeek}
           isTechnician={isTechnician}
-          canCreate={!isTechnician}
-          onCreate={() => {
-            setCreateScheduledAt("");
-            setCreateOpen(true);
-          }}
         />
 
         <section style={{ ...card, padding: mode === MODES.LIST ? "20px" : 0, border: mode === MODES.LIST ? undefined : "none", background: mode === MODES.LIST ? undefined : "transparent" }}>
           {mode === MODES.LIST && (
-            <div style={{ ...sunkenPanel, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px", alignItems: "end", marginBottom: "15px" }}>
+            <div style={{ display: "grid", gap: "12px", paddingBottom: "14px", marginBottom: "4px", borderBottom: `1px solid ${colors.line}` }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
+              <SegmentedControl
+                ariaLabel="Which visits"
+                size="sm"
+                value={listScope}
+                onChange={(value) => { setListScope(value); setListLimit(LIST_PAGE_SIZE); }}
+                options={[{ value: "upcoming", label: "Upcoming" }, { value: "past", label: "Past" }, { value: "all", label: "All" }]}
+              />
+              <Button
+                size="sm"
+                variant="quiet"
+                disabled={!listFiltersSet}
+                onClick={() => {
+                  setAppointmentSearch("");
+                  setStatusFilter("ALL");
+                  setClientFilter("ALL");
+                  setPestConcernFilter("ALL");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                style={{ marginLeft: "auto" }}
+              >
+                Clear filters
+              </Button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", alignItems: "end" }}>
               <Field label="Search appointments" style={{ gridColumn: "span 2" }}>
                 <Input
                   value={appointmentSearch}
@@ -613,16 +735,6 @@ function SchedulingPage() {
                   placeholder="Client, address, technician, pest concern, ID"
                 />
               </Field>
-              {!isTechnician && (
-                <Field label="Technician">
-                  <Select value={technicianFilter} onChange={(event) => setTechnicianFilter(event.target.value)}>
-                    <option value="ALL">All technicians</option>
-                    {technicians.map((account) => (
-                      <option key={account.id} value={account.id}>{account.name || account.username}</option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
               <Field label="Status">
                 <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                   <option value="ALL">All statuses</option>
@@ -647,46 +759,69 @@ function SchedulingPage() {
               <Field label="Date to">
                 <Input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} />
               </Field>
-              {(dateFrom || dateTo) && (
-                <Button size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ alignSelf: "end" }}>
-                  Clear dates
-                </Button>
-              )}
+            </div>
             </div>
           )}
 
           <CalendarProvider value={calendarValue}>
             {mode === MODES.LIST && (
               <AppointmentListView
-                appointments={visibleAppointments}
+                appointments={scopeAppointments(visibleAppointments, listScope, now)}
                 clients={clients}
-                accounts={activeAccounts}
+                accounts={allAccounts}
+                scope={listScope}
+                limit={listLimit}
+                onShowMore={() => setListLimit((current) => current + LIST_PAGE_SIZE)}
                 onSelect={(id) => { setSelectedId(id); setTab("Overview"); }}
               />
             )}
 
-            {mode === MODES.TECHNICIANS && (
-              <TechnicianAvailability
-                accounts={isTechnician ? technicians.filter((account) => account.id === currentUser?.id) : technicians}
-                appointments={visibleAppointments}
-                weekDays={weekDays}
-                clients={clients}
-              />
-            )}
-
-            {mode === MODES.WEEK && (
+            {(mode === MODES.WEEK || mode === MODES.DAY) && (
+              <div className={showSidePanel ? "schedule-layout" : undefined}>
               <WeekGrid
                 weekDays={weekDays}
+                loadFor={(key) => dayLoad(visibleAppointments, key, Math.max(1, activeTechnicians.length))}
+                now={now}
                 weekLayout={weekLayout}
                 window={hourWindow}
                 rowHeight={rowHeight}
                 dayStartHour={DAY_START_HOUR}
                 dayEndHour={DAY_END_HOUR}
                 onEmptyClick={openCreateAt}
-                onDropAt={moveAppointment}
+                onDropAt={handleGridDrop}
                 onShowOverflow={setOverflowGroup}
                 onShowAllHours={() => setShowAllHours(true)}
               />
+              {showSidePanel && (
+                <ScheduleSidePanel
+                  reschedule={awaitingReschedule(visibleAppointments)}
+                  reservice={reserviceDue(appointments, clients, now, 14)}
+                  load={activeTechnicians.map((technician) => ({
+                    technician,
+                    hours: technicianHours(appointments, technician.id, { start: weekStart, end: addDays(weekStart, 7) }),
+                  }))}
+                  clientName={(id) => clients.find((client) => client.id === id)?.name || "Unknown client"}
+                  canDrag={canReschedule}
+                  onDragAppointment={(appointment) => {
+                    setReserviceDrag(null);
+                    setDraggedId(appointment.id);
+                  }}
+                  onDragReservice={(entry) => {
+                    setDraggedId(null);
+                    setReserviceDrag(entry);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setReserviceDrag(null);
+                  }}
+                  onOpenAppointment={(appointment) => {
+                    setSelectedId(appointment.id);
+                    setTab("Overview");
+                  }}
+                  onBookReservice={(entry) => bookReservice(entry, "")}
+                />
+              )}
+              </div>
             )}
 
             {mode === MODES.MONTH && (
@@ -699,7 +834,22 @@ function SchedulingPage() {
             )}
           </CalendarProvider>
 
-          <div style={{ display: "flex", gap: "1rem", color: colors.muted, fontSize: "0.72rem", marginTop: "0.6rem", alignItems: "center" }}>{canReschedule ? <><GripVertical size={14} /> Drag any appointment to reschedule it. Dropping it saves the new time as Confirmed.</> : <><Lock size={14} /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.</>}</div>
+          {isCalendarMode(mode) && !(showSidePanel && mode !== MODES.MONTH) && (
+            <div style={{ marginTop: "12px" }}>
+              <CalendarLegend
+                note={canReschedule ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <GripVertical size={14} aria-hidden="true" /> Drag a visit to move it. Its status is kept, and you can undo.
+                  </span>
+                ) : null}
+              />
+            </div>
+          )}
+          {!canReschedule && (
+            <div style={{ display: "flex", gap: "8px", color: colors.muted, fontSize: "12.5px", marginTop: "10px", alignItems: "center" }}>
+              <Lock size={14} aria-hidden="true" /> This is your assigned schedule. Contact the office to change a visit — you can still file reports and materials from the Report and Stock-Out tabs.
+            </div>
+          )}
           {loading && <div role="status" style={{ marginTop: "0.75rem", color: colors.muted, fontWeight: 500, fontSize: "0.82rem" }}>Loading appointments...</div>}
           {(message || error) && <div role="status" style={{ marginTop: "0.75rem", color: error ? colors.danger : colors.success, fontWeight: 500, fontSize: "0.82rem" }}>{error || message}</div>}
           {clients.length === 0 && <div style={{ padding: "2rem 1rem", textAlign: "center", color: colors.muted }}>Client profiles will appear here once they are loaded.</div>}
@@ -713,7 +863,7 @@ function SchedulingPage() {
           appointment={selected}
           client={selectedClient}
           appointments={appointments}
-          activeAccounts={technicians}
+          activeAccounts={bookableTechnicians(technicians, crewOf(selected))}
           ui={{ tab, setTab, onClose: () => setSelectedId(null) }}
           access={{
             canReschedule,
@@ -721,7 +871,7 @@ function SchedulingPage() {
             canUpload: can("clientDocuments", "create") && ownsAppointment(selected),
             canRemove: can("clientDocuments", "delete") && ownsAppointment(selected),
             assignedName: crewOf(selected)
-              .map((id) => activeAccounts.find((account) => account.id === id))
+              .map((id) => allAccounts.find((account) => account.id === id))
               .map((account) => account?.name || account?.username)
               .filter(Boolean)
               .join(", ") || "another technician",
@@ -756,15 +906,19 @@ function SchedulingPage() {
       {createOpen && (
         <NewAppointmentModal
           clients={clients}
-          activeAccounts={technicians}
+          activeAccounts={activeTechnicians}
           appointments={appointments}
           services={activeServices}
           initialClientId={createClientId}
           initialScheduledAt={createScheduledAt}
+          initialServiceId={createPrefill?.serviceId || ""}
+          initialFrequency={createPrefill?.frequency || ""}
+          initialPestConcern={createPrefill?.pestConcern || ""}
           onClose={() => {
             setCreateOpen(false);
             setCreateClientId("");
             setCreateScheduledAt("");
+            setCreatePrefill(null);
           }}
           onCreate={handleCreate}
         />
@@ -776,6 +930,16 @@ function SchedulingPage() {
       </CalendarProvider>
     </div>
   );
+}
+
+/** "Sep 21 – 27, 2026", "Sep 28 – Oct 4, 2026", "Dec 28, 2026 – Jan 3, 2027". */
+export function weekRangeLabel(start, end) {
+  const month = (date) => date.toLocaleDateString([], { month: "short" });
+  if (start.getFullYear() !== end.getFullYear()) {
+    return `${month(start)} ${start.getDate()}, ${start.getFullYear()} – ${month(end)} ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  const endPart = start.getMonth() === end.getMonth() ? `${end.getDate()}` : `${month(end)} ${end.getDate()}`;
+  return `${month(start)} ${start.getDate()} – ${endPart}, ${end.getFullYear()}`;
 }
 
 function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTechnicians, appointments, services = [], serviceById = () => null, serviceByName = () => null, onSave }) {
@@ -825,27 +989,113 @@ function AppointmentOverviewForm({ appointment, client, activeAccounts, busyTech
   </form>;
 }
 
-function AppointmentListView({ appointments, clients, accounts, onSelect }) {
-  return <div style={{ overflowX: "auto", border: "1px solid #efe9e0", borderRadius: "3.75px" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
-      <thead><tr style={{ background: "#fcfaf1" }}>{["Date and time", "Client", "Technician", "Pest concern", "Status"].map((label) => <th key={label} style={{ padding: "0.75rem", color: colors.muted, fontSize: "0.7rem", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #efe9e0" }}>{label}</th>)}</tr></thead>
-      <tbody>{appointments.map((appointment) => {
-        const client = clients.find((entry) => entry.id === appointment.clientId);
-        const crewNames = crewOf(appointment)
-          .map((id) => accounts.find((entry) => entry.id === id))
-          .map((entry) => entry?.name || entry?.username)
-          .filter(Boolean);
-        return <tr key={appointment.id} onClick={() => onSelect(appointment.id)} style={{ cursor: "pointer" }}>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.ink, fontWeight: 500, borderBottom: "1px solid #f1e7e7" }}>{formatDateTime(appointment.scheduledAt)}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{client?.name || "Unknown client"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{crewNames.join(", ") || "Unassigned"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", color: colors.body, borderBottom: "1px solid #f1e7e7" }}>{appointment.pestConcern || "Inspection"}</td>
-          <td style={{ padding: "0.8rem 0.75rem", borderBottom: "1px solid #f1e7e7" }}><span style={badgeStyle(appointment.status)}>{appointment.status}</span></td>
-        </tr>;
-      })}</tbody>
-    </table>
-    {appointments.length === 0 && <div style={{ padding: "2rem", textAlign: "center", color: colors.muted }}>No appointments match the current filters.</div>}
-  </div>;
+export const LIST_PAGE_SIZE = 50;
+
+/** 90 -> "1h 30m", 60 -> "1h", 45 -> "45m": short enough for a table column. */
+export function shortDuration(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return [hours ? `${hours}h` : "", rest ? `${rest}m` : ""].filter(Boolean).join(" ") || "0m";
+}
+
+/**
+ * The list's Upcoming / Past / All split. Upcoming is anything not yet over,
+ * soonest first; Past is the rest, newest first; All is chronological.
+ */
+export function scopeAppointments(appointments, scope, now = new Date()) {
+  const nowMs = now.getTime();
+  const ends = (entry) => endOf(entry) >= nowMs;
+  if (scope === "upcoming") return appointments.filter(ends).sort((a, b) => startOf(a) - startOf(b));
+  if (scope === "past") return appointments.filter((entry) => !ends(entry)).sort((a, b) => startOf(b) - startOf(a));
+  return [...appointments].sort((a, b) => startOf(a) - startOf(b));
+}
+
+function AppointmentListView({ appointments, clients, accounts, scope, limit, onShowMore, onSelect }) {
+  const clientName = (id) => clients.find((entry) => entry.id === id)?.name || "Unknown client";
+  const crewFor = (appointment) => crewOf(appointment).map((id) => accounts.find((entry) => entry.id === id) || null);
+  const shown = appointments.slice(0, limit);
+  const columns = [
+    {
+      key: "when",
+      label: "When",
+      sortable: true,
+      sortValue: (row) => startOf(row),
+      render: (row) => (
+        <span style={{ whiteSpace: "nowrap", fontWeight: 500 }}>
+          {new Date(row.scheduledAt).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+          <span style={{ color: colors.muted, fontWeight: 400 }}>
+            {" · "}
+            {new Date(row.scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+          </span>
+        </span>
+      ),
+    },
+    { key: "client", label: "Client", sortable: true, sortValue: (row) => clientName(row.clientId), render: (row) => clientName(row.clientId) },
+    {
+      key: "service",
+      label: "Service",
+      sortable: true,
+      sortValue: (row) => row.serviceType || row.pestConcern || "",
+      render: (row) => (
+        <span>
+          {row.serviceType || "—"}
+          {row.pestConcern && <span style={{ display: "block", color: colors.muted, fontSize: "12px" }}>{row.pestConcern}</span>}
+        </span>
+      ),
+    },
+    {
+      key: "crew",
+      label: "Technicians",
+      render: (row) => {
+        const crew = crewFor(row);
+        const names = crew.filter(Boolean).map((entry) => (entry.name || entry.username).split(" ")[0]);
+        return crew.length ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <AvatarStack users={crew} size="sm" />
+            <span style={{ color: colors.body, fontSize: "12.5px" }}>{names.join(", ")}</span>
+          </span>
+        ) : (
+          <span style={{ color: colors.muted }}>Unassigned</span>
+        );
+      },
+    },
+    { key: "status", label: "Status", sortable: true, sortValue: (row) => row.status, render: (row) => <StatusPill status={row.status} /> },
+    { key: "duration", label: "Duration", align: "right", sortable: true, sortValue: (row) => row.durationMinutes || 60, render: (row) => shortDuration(row.durationMinutes || 60) },
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      sortable: true,
+      sortValue: (row) => (row.price === "" || row.price === null || row.price === undefined ? null : Number(row.price)),
+      render: (row) =>
+        row.price === "" || row.price === null || row.price === undefined ? (
+          <span style={{ color: colors.muted }}>—</span>
+        ) : (
+          `₱${Number(row.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+        ),
+    },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: "10px" }}>
+      <DataTable
+        key={scope}
+        caption="Appointments"
+        columns={columns}
+        rows={shown}
+        onRowClick={(row) => onSelect(row.id)}
+        empty={scope === "upcoming" ? "Nothing upcoming matches these filters." : "No appointments match the current filters."}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", color: colors.muted, fontSize: "12.5px" }}>
+        Showing {shown.length} of {appointments.length}
+        {shown.length < appointments.length && (
+          <Button size="sm" variant="quiet" onClick={onShowMore}>
+            Show {Math.min(LIST_PAGE_SIZE, appointments.length - shown.length)} more
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const fieldsetReset = { border: 0, padding: 0, margin: 0, minWidth: 0 };
@@ -1586,43 +1836,6 @@ function AppointmentPanel({
         )}
       </section>
     </div>
-  );
-}
-
-function TechnicianAvailability({ accounts, appointments, weekDays, clients }) {
-  const [selectedDay, setSelectedDay] = useState(null);
-
-  const timeRange = (appointment) => {
-    const start = new Date(appointment.scheduledAt);
-    const end = new Date(start.getTime() + (appointment.durationMinutes || 60) * 60000);
-    return `${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}–${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  };
-
-  return (
-    <>
-      <section style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid #efe9e0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
-        <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Dispatch</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.1rem" }}>Technician availability</h2></div>
-        <span style={{ color: colors.muted, fontSize: "0.75rem" }}>Select a day to view all booked times.</span>
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: "700px", display: "grid", gridTemplateColumns: "150px repeat(7, minmax(80px, 1fr))", borderTop: "1px solid #efe9e0", borderLeft: "1px solid #efe9e0" }}>
-          <div style={{ padding: "0.6rem", background: "#fcfaf1", color: colors.muted, fontSize: "0.7rem", fontWeight: 500 }}>Account</div>
-          {weekDays.map((day) => <div key={localDateKey(day)} style={{ padding: "0.6rem 0.35rem", textAlign: "center", background: "#fcfaf1", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.muted, fontSize: "0.68rem", fontWeight: 500 }}>{day.toLocaleDateString([], { weekday: "short", day: "numeric" })}</div>)}
-          {accounts.map((account) => <div key={account.id} style={{ display: "contents" }}><div style={{ padding: "0.65rem", borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", color: colors.ink, fontSize: "0.78rem", fontWeight: 500 }}>{account.name || account.username}</div>{weekDays.map((day) => { const dayAppointments = appointments.filter((appointment) => isAssignedTo(appointment, account.id) && appointment.status !== "Cancelled" && localDateKey(new Date(appointment.scheduledAt)) === localDateKey(day)); return <button key={`${account.id}-${localDateKey(day)}`} type="button" onClick={() => setSelectedDay({ account, day, appointments: dayAppointments })} style={{ padding: "0.45rem", minHeight: "52px", border: 0, borderRight: "1px solid #efe9e0", borderBottom: "1px solid #efe9e0", background: dayAppointments.length ? "#faf0e2" : "#eef2ec", color: dayAppointments.length ? "#9a3412" : "#4a6b4a", fontSize: "0.68rem", lineHeight: 1.4, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>{dayAppointments.length ? <><strong>{dayAppointments.length} job{dayAppointments.length === 1 ? "" : "s"}</strong><div style={{ marginTop: "0.15rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{timeRange(dayAppointments[0])}{dayAppointments.length > 1 ? " · + more" : ""}</div></> : "Available"}</button>; })}</div>)}
-        </div>
-      </div>
-      </section>
-      {selectedDay && <div role="dialog" aria-modal="true" onClick={() => setSelectedDay(null)} style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(15, 23, 42, 0.42)" }}>
-        <section onClick={(event) => event.stopPropagation()} style={{ ...card, width: "min(100%, 500px)", maxHeight: "80vh", overflowY: "auto", padding: "1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-            <div><div style={{ color: colors.brand, fontSize: "0.68rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>Technician schedule</div><h2 style={{ margin: "0.25rem 0 0", color: colors.ink, fontSize: "1.15rem" }}>{selectedDay.account.name || selectedDay.account.username}</h2><div style={{ color: colors.muted, fontSize: "0.78rem", marginTop: "0.2rem" }}>{selectedDay.day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</div></div>
-            <button type="button" aria-label="Close schedule summary" onClick={() => setSelectedDay(null)} style={{ ...secondaryButton, padding: "0.4rem 0.55rem" }}><X size={16} /></button>
-          </div>
-          {selectedDay.appointments.length === 0 ? <div style={{ marginTop: "1rem", padding: "0.8rem", borderRadius: "3.75px", background: "#eef2ec", color: "#4a6b4a", fontSize: "0.8rem", fontWeight: 500 }}>Available all day.</div> : <div style={{ display: "grid", gap: "0.55rem", marginTop: "1rem" }}>{selectedDay.appointments.map((appointment) => { const client = clients.find((entry) => entry.id === appointment.clientId); return <div key={appointment.id} style={{ padding: "0.7rem", border: "1px solid #efe9e0", borderLeft: `3px solid ${statusAccent(appointment.status)}`, borderRadius: "3.75px", background: "#faf0e2" }}><div style={{ color: colors.ink, fontWeight: 500, fontSize: "0.82rem" }}>{timeRange(appointment)}</div><div style={{ color: colors.body, fontSize: "0.8rem", marginTop: "0.2rem" }}>{client?.name || "Unknown client"}</div><div style={{ color: colors.muted, fontSize: "0.72rem", marginTop: "0.15rem" }}>{appointment.pestConcern || appointment.serviceType || "Service"} · {appointment.status}</div></div>; })}</div>}
-        </section>
-      </div>}
-    </>
   );
 }
 
